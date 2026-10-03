@@ -39,4 +39,3 @@ Thumbs.db
 .vscode/
 
 # Submodules / Externals managed via upstream scripts
-packages/

@@ -10,6 +10,7 @@
   },
   "scripts": {
     "status": "bun run scripts/packages_upstream_sync.ts",
+    "sync:all": "bun run scripts/packages_upstream_sync.ts --fetch",
     "bun:sync": "bun run scripts/bun_upstream_sync.ts --apply",
     "bun:drift-fix": "bun run scripts/bun_upstream_sync.ts --apply --auto-fix",
     "bun:track": "bun run scripts/bun_upstream_tracker.ts",

@@ -1,30 +1,45 @@
-# ⚡ Aphrody YOLO — L'Usine Native Bun & Refactor Stack
+# Aphrody YOLO — Bun Fork Automation & Native Engineering Hub
 
-Ce répertoire autonome réunit l'ensemble des forks amonts, outillages natifs de compilation, moteurs de navigation furtive et scripts de synchronisation de la stack Aphrody.
+Autonomous engineering workspace dedicated to maintaining Aphrody forks, upstream mirrors, TypeScript 7 Corsa, and Oxc tooling under strict native Bun runtime.
 
-## 📦 Architecture & Packages (`packages/`)
+## Submodules & Repositories (`packages/`)
 
-- **`packages/bun`** : Fork haute-performance de Bun avec les branches `google`, `aphrody` et le package FFI `@aphrody/bun-runtime`.
-- **`packages/obscura`** : Moteur Rust de navigation furtive, extraction et automatisation CDP (remplaçant Electron).
-- **`packages/oxc`** : Toolchain JavaScript/TypeScript en Rust (`oxc-parser`, `oxc-transform`, isolated declarations).
-- **`packages/typescript`** : Submodule amont Microsoft TypeScript (spécifications TypeScript 7 Corsa/Go).
-- **`packages/vscode`** : Répertoire de travail pour le refactoring et la purge des défauts historiques de VS Code.
+All repositories are managed via `.gitmodules` with encapsulation in `.git/modules/packages/`:
 
-## 🏭 Outillage & Pipeline Natif (`/home/aphro/yolo`)
+| Submodule | Tracking Branch | Upstream Source | Primary Role |
+| :--- | :--- | :--- | :--- |
+| [`packages/bun`](packages/bun) | `google` / `aphrody` | `oven-sh/bun` | High-performance Bun fork (`@aphrody/bun-runtime`, custom patches, fast-forward tracking) |
+| [`packages/obscura`](packages/obscura) | `main` | `aphrody-labs/obscura` | Stealth CDP automation and browser engine in Rust |
+| [`packages/oxc`](packages/oxc) | `main` | `oxc-project/oxc` | Rust JavaScript/TypeScript toolchain (`oxc-parser`, `oxc-transform`, isolated declarations) |
+| [`packages/typescript`](packages/typescript) | `main` | `microsoft/TypeScript` | TypeScript 7 (Go-based native compiler Corsa & LS) |
+| [`packages/vscode`](packages/vscode) | `main` | `microsoft/vscode` | Upstream VS Code mirror for component extraction & refactoring |
 
-- **TypeScript 7 Native (Corsa/Go)** : Typecheck ultra-rapide.
-- **Oxc & NAPI** : Transformateur et émetteur `.d.ts` in-process sans sous-processus.
-- **Oxlint** : Linter Rust 16 threads en < 50ms (`bun run lint`).
-- **Oxfmt** : Formateur natif ultra-rapide (`bun run fmt`).
-- **Obscura CDP** : Contrôle headless et furtif sans surcharge mémoire.
+## Native Toolchain & Automation Engine
 
-## 🚀 Commandes Rapides
+- **Runtime**: Native Bun (`bun >= 1.4.2`), zero Node.js runtime overhead.
+- **Transpilation & AST**: In-process `oxc-parser` and `oxc-transform`.
+- **Linter & Formatter**: Multithreaded Rust linting with `oxlint` and native formatting via `oxfmt`.
+- **Type Checker**: TypeScript 7 Native compiler (`tsc --noEmit`).
+- **Sync & Drift Engine**: [`scripts/bun_upstream_sync.ts`](scripts/bun_upstream_sync.ts) and [`scripts/packages_upstream_sync.ts`](scripts/packages_upstream_sync.ts).
+- **Upstream PR Tracker**: [`scripts/bun_upstream_tracker.ts`](scripts/bun_upstream_tracker.ts) generating [`docs/BUN_UPSTREAM_TRACKER.md`](docs/BUN_UPSTREAM_TRACKER.md).
 
-\`\`\`bash
-cd /home/aphro/yolo
-bun install           # Installe les dépendances hermétiques
-bun run status        # État instantané des 5 packages et forks via aphrody git
-bun run bun:track     # Intelligence et veille des 50 PRs amonts
-bun run bun:sync      # Synchronisation amont du fork Bun
-bun run lint          # Linting multithreadé oxlint
-\`\`\`
+## Operational Commands
+
+```bash
+# Submodule and fork status across the 5 repositories
+bun run status
+
+# Fetch and inspect all 5 forks from remotes
+bun run sync:all
+
+# Analyze Bun upstream drift and re-integrate patches
+bun run bun:sync
+
+# Query oven-sh/bun GitHub API for upstream performance & stability PRs
+bun run bun:track
+
+# Linting, formatting and strict typecheck
+bun run lint
+bun run fmt:check
+bun run typecheck
+```
