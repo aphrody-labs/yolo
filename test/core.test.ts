@@ -176,7 +176,7 @@ describe("YOLO Core Library (@aphrody/yolo-core)", () => {
 
   describe("verify module (Quality Gate Graph Scheduler)", () => {
     it("should declare canonical repository quality gates", () => {
-      expect(GATES.length).toBe(8);
+      expect(GATES.length).toBe(10);
       const gateIds = GATES.map((g) => g.id);
       expect(gateIds).toContain("whitespace");
       expect(gateIds).toContain("typecheck");
@@ -186,6 +186,8 @@ describe("YOLO Core Library (@aphrody/yolo-core)", () => {
       expect(gateIds).toContain("rust-fmt");
       expect(gateIds).toContain("docs");
       expect(gateIds).toContain("import-check");
+      expect(gateIds).toContain("python-lint");
+      expect(gateIds).toContain("python-test");
     });
 
     it("should validate that gate graph has no cyclic dependencies", () => {

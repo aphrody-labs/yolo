@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Yolo
 
-Producer of the precompiled native runtime, lightweight SDK and standalone CLI.
+Producer of the unified polyglot runtime (trinity fork of Bun + Astral uv + PyO3: Rust, Python, TypeScript), precompiled native runtime, lightweight SDK and standalone CLI.
 Aphrody owns product behavior. [PLAN.md](PLAN.md) defines delivery;
 [MEMORY.md](MEMORY.md) records qualified artifacts and remaining limits.
 

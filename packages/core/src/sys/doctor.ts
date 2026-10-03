@@ -27,7 +27,12 @@ export interface DoctorReport {
     readonly bun: { version: string; ok: boolean };
     readonly rust: { found: boolean; cargo?: string | undefined; rustc?: string | undefined };
     readonly cCompiler: { found: boolean; bin?: string | undefined };
-    readonly python: { found: boolean; uv?: string | undefined; python?: string | undefined };
+    readonly python: {
+      found: boolean;
+      uv?: string | undefined;
+      python?: string | undefined;
+      maturin?: string | undefined;
+    };
   };
   readonly runtime: {
     readonly installed: boolean;
@@ -61,6 +66,8 @@ export function collectDoctorReport(): DoctorReport {
   for (const [path, label, required] of [
     ["templates/stack.toml", "templates (yolo create)", true],
     ["packages/runtime/package.json", "runtime SDK", true],
+    ["packages/python/pyproject.toml", "Python package (uv / maturin)", true],
+    ["crates/yolo-pyo3/Cargo.toml", "PyO3 0.29 native extension crate", true],
     ["crates/yolo-desktop/icons", "desktop scaffold sources (crates/)", false],
   ] as const) {
     const exists = existsSync(join(home, path));
@@ -74,6 +81,7 @@ export function collectDoctorReport(): DoctorReport {
   const cBin = Bun.which("clang") ?? Bun.which("gcc");
   const uvBin = Bun.which("uv");
   const pyBin = Bun.which("python3") ?? Bun.which("python");
+  const maturinBin = Bun.which("maturin");
 
   const stack = {
     bun: { version: Bun.version, ok: true },
@@ -90,6 +98,7 @@ export function collectDoctorReport(): DoctorReport {
       found: Boolean(uvBin || pyBin),
       uv: uvBin ?? undefined,
       python: pyBin ?? undefined,
+      maturin: maturinBin ?? undefined,
     },
   };
 

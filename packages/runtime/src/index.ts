@@ -775,3 +775,5 @@ export class Runtime implements Disposable {
     this.close();
   }
 }
+
+export * from "./compute";

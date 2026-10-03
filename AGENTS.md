@@ -5,7 +5,7 @@
 
 Read [PLAN.md](PLAN.md), [MEMORY.md](MEMORY.md) and selected owner docs.
 Shared architecture/workflow: [Aphrody PLAN](../aphrody/PLAN.md).
-Yolo produces runtime/SDK; Aphrody keeps product behavior.
+Yolo produces runtime/SDK (Bun + uv + PyO3 trinity); Aphrody keeps product behavior.
 This repo is distinct from the global YOLO automation plugin and Infra yolo CLI.
 
 ## Integration contracts
@@ -38,9 +38,9 @@ Cargo via Aphrody's supported wrapper with sccache/resource guards; workers do
 not run Cargo. No parallel engine builds.
 
 Rust: scoped check/test/strict Clippy. Bun: TypeScript, oxlint/oxfmt, tests.
-Imports: reproducibility gates. Docs: links, whitespace, provenance/hash checks
-and mdBook, without engine compilation. Repeat only after relevant changes or
-unresolved failures. State failed/skipped gates and actual proof scope.
+Python: uv, ruff, pytest. Imports: reproducibility gates. Docs: links, whitespace,
+provenance/hash checks and mdBook, without engine compilation. Repeat only after
+relevant changes or unresolved failures. State failed/skipped gates and actual proof scope.
 
 ## Privacy and delivery
 

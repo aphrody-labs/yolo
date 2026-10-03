@@ -104,7 +104,9 @@ Chaque fonctionnalité de la CLI `yolo` est conçue pour être exposée via quat
 - Serveur HTTP haute performance sous `Bun.serve` avec support CORS.
 - Endpoints REST : `/health`, `/api/status`, `/api/verify`, `/api/parse`, `/api/bench`, `/api/doctor`, `/api/scan`, `/api/tools`, `/api/openapi.json`.
 
-### 4. FFI (Foreign Function Interface)
-- Couche `packages/runtime` (`@aphrody/runtime-sdk`) interfacée avec `crates/yolo-runtime` via `bun:ffi`.
+### 4. FFI (Foreign Function Interface) & PyO3 Native Interop
+- **TypeScript / Bun (`bun:ffi`) :** Couche `packages/runtime` (`@aphrody/yolo-runtime`) interfacée avec `crates/yolo-runtime` via `bun:ffi` zéro-copie (`ptr(Float64Array)` direct sans sérialisation).
+- **Python / PyO3 0.29 (`crates/yolo-pyo3`) :** Extension native `_yolo_native` compilée avec Maturin, exploitant `py.detach()` pour relâcher instantanément le GIL et basculer sur les cœurs de calcul Rayon SIMD, prête pour CPython 3.14t Free-Threaded (PEP 703 No-GIL).
+- **Package Python `yolo` (`packages/python`) :** Intégration Pydantic V2, Apache Arrow IPC / Polars DataFrame, stubs typés PEP 484/561 (`py.typed`, `_yolo_native.pyi`).
 - C ABI versionné (`EXPECTED_ABI_MAJOR = 1`, `EXPECTED_ABI_MINOR = 4`).
 - Zéro dépendance d'en-tête externe, gestion stricte des lifetimes et panic boundaries.

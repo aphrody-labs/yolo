@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -112,9 +113,88 @@ pub fn compute_benchmark_cancellable(
   })
 }
 
+/// Calcule la somme des carrés avec parallélisation adaptative et vectorisation SIMD.
+#[inline]
+pub fn compute_sum_squares(values: &[f64]) -> f64 {
+  const CHUNK_SIZE: usize = 16_384;
+  if values.len() < CHUNK_SIZE {
+    values.iter().map(|&x| x * x).sum()
+  } else {
+    values
+      .par_chunks(CHUNK_SIZE)
+      .map(|chunk| chunk.iter().map(|&x| x * x).sum::<f64>())
+      .sum()
+  }
+}
+
+/// Évalue une statistique agrégée (somme, moyenne, min, max) en un seul passage optimisé par cœur.
+#[inline]
+pub fn compute_summary(values: &[f64]) -> (f64, f64, f64, f64) {
+  if values.is_empty() {
+    return (0.0, 0.0, 0.0, 0.0);
+  }
+  const CHUNK_SIZE: usize = 16_384;
+
+  if values.len() < CHUNK_SIZE {
+    let mut sum = 0.0;
+    let mut min = f64::INFINITY;
+    let mut max = f64::NEG_INFINITY;
+    for &x in values {
+      sum += x;
+      if x < min {
+        min = x;
+      }
+      if x > max {
+        max = x;
+      }
+    }
+    (sum, sum / (values.len() as f64), min, max)
+  } else {
+    let (sum, min, max) = values
+      .par_chunks(CHUNK_SIZE)
+      .map(|chunk| {
+        let mut c_sum = 0.0;
+        let mut c_min = f64::INFINITY;
+        let mut c_max = f64::NEG_INFINITY;
+        for &x in chunk {
+          c_sum += x;
+          if x < c_min {
+            c_min = x;
+          }
+          if x > c_max {
+            c_max = x;
+          }
+        }
+        (c_sum, c_min, c_max)
+      })
+      .reduce(
+        || (0.0, f64::INFINITY, f64::NEG_INFINITY),
+        |(s1, mn1, mx1), (s2, mn2, mx2)| (s1 + s2, mn1.min(mn2), mx1.max(mx2)),
+      );
+
+    (sum, sum / (values.len() as f64), min, max)
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn test_compute_sum_squares() {
+    let data = vec![1.0, 2.0, 3.0, 4.0];
+    assert_eq!(compute_sum_squares(&data), 30.0);
+  }
+
+  #[test]
+  fn test_compute_summary() {
+    let data = vec![1.0, 2.0, 3.0, 4.0];
+    let (sum, mean, min, max) = compute_summary(&data);
+    assert_eq!(sum, 10.0);
+    assert_eq!(mean, 2.5);
+    assert_eq!(min, 1.0);
+    assert_eq!(max, 4.0);
+  }
 
   #[test]
   fn test_system_stats() {

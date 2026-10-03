@@ -208,6 +208,18 @@ describe("YOLO apps/cli Suite (Zero External Dependencies, 100% Native Bun)", ()
     expect(await procStatusMd.exited).toBe(0);
     expect(statusMd).toContain("# yolo status");
     expect(statusMd).toContain("| Submodule |");
+
+    // 7. py status --json
+    const procPy = Bun.spawn(["bun", cliEntryPath, "py", "status", "--json"], {
+      cwd: rootDir,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const pyText = await new Response(procPy.stdout).text();
+    expect(await procPy.exited).toBe(0);
+    const pyReport = JSON.parse(pyText);
+    expect(pyReport.schema).toBe("yolo.python/1");
+    expect(pyReport.packageConfigured).toBe(true);
   });
 });
 

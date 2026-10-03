@@ -1,0 +1,53 @@
+name: "🐛 Signalement de Bug"
+description: Signaler un dysfonctionnement dans YOLO
+title: "[BUG]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: Merci de remplir ce formulaire pour nous aider à diagnostiquer et résoudre le problème.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Composant affecté
+      options:
+        - crates/yolo-core (Cœur Rust)
+        - crates/yolo-runtime (Export C ABI)
+        - crates/yolo-pyo3 (Extension PyO3)
+        - crates/yolo-desktop (Tauri Shell)
+        - packages/python (Python / uv)
+        - packages/runtime (TypeScript / Bun FFI)
+        - packages/core (YOLO Core Library)
+        - apps/cli (CLI yolo)
+        - apps/web (Frontend Web)
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description du problème
+      description: Résumé clair et concis de ce qui s'est passé.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Étapes de reproduction
+      description: Commandes exactes pour reproduire l'anomalie.
+      value: |
+        1. Exécuter `...`
+        2. Voir l'erreur `...`
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environnement
+      description: Version d'OS, Rust, Bun, Python / uv.
+      value: |
+        - OS: Linux / macOS / Windows
+        - Rust: 1.95+
+        - Bun: 1.4.2+
+        - Python: 3.12+ / uv: 0.12+
+    validations:
+      required: false

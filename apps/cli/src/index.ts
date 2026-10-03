@@ -27,6 +27,7 @@ import { runRenameCommand } from "./rename";
 import { runScanCommand } from "./scan";
 import { runMcpServer } from "./mcp";
 import { runApiCommand } from "./api";
+import { runPythonCommand } from "./python";
 import { yoloVersion } from "./home";
 import { hostTarget } from "../../../packages/runtime/src/artifact";
 
@@ -107,6 +108,7 @@ ${header}
   \x1b[32mhost audit|reclaim|archive|services|tune|net|mount|journal --host vps|dbfr|local [--apply]\x1b[0m Manage a Linux server (plan by default, journaled, safety-checked)
   \x1b[32mship [--apply] [status|log|attach|stop]\x1b[0m Build all of yolo on the build factory host; \x1b[32mhooks install\x1b[0m does it on every push to main/dev
   \x1b[32mplugin <create|status>\x1b[0m Generate or inspect unified YOLO & Bun-TS7 plugin
+  \x1b[32mpy [status|test|lint|fmt|build]\x1b[0m Python + uv + PyO3 polyglot runtime toolchain
   \x1b[32mbench [--json|--md]\x1b[0m Run native Bun nanoseconds and hashing micro-benchmark
   \x1b[32mhelp\x1b[0m                Display this help message
 
@@ -139,6 +141,9 @@ async function main(): Promise<void> {
     "import",
     "rename",
     "plugin",
+    "py",
+    "python",
+    "uv",
     "ship",
     "hooks",
   ]);
@@ -459,6 +464,13 @@ async function main(): Promise<void> {
 
     case "plugin": {
       process.exitCode = await runPluginCommand(args.slice(1), ROOT_DIR);
+      break;
+    }
+
+    case "py":
+    case "python":
+    case "uv": {
+      process.exitCode = await runPythonCommand(args.slice(1), ROOT_DIR);
       break;
     }
 

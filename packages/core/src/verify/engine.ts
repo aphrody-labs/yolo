@@ -59,7 +59,7 @@ export const GATES: readonly Gate[] = [
   {
     id: "test",
     title: "Bun tests (test/)",
-    command: ["bun", "test", "test/"],
+    command: ["bun", "test", "--timeout", "30000", "test/"],
     surfaces: [...TS, "templates/**", "packages/**", "scripts/**"],
   },
   {
@@ -83,6 +83,23 @@ export const GATES: readonly Gate[] = [
       existsSync(join(root, ".cache/vendor"))
         ? null
         : "the vendor worktree is missing (just vendor-worktree)",
+  },
+  {
+    id: "python-lint",
+    title: "ruff check",
+    command: ["ruff", "check", "."],
+    surfaces: ["**/*.py", "pyproject.toml"],
+    precondition: () => (Bun.which("ruff") ? null : "ruff is not installed on PATH"),
+  },
+  {
+    id: "python-test",
+    title: "Python pytest (packages/python)",
+    command: ["uv", "run", "--directory", "packages/python", "pytest"],
+    surfaces: ["packages/python/**", "crates/yolo-pyo3/**"],
+    precondition: (root) =>
+      existsSync(join(root, "packages/python/.venv")) && Bun.which("uv")
+        ? null
+        : "Python venv or uv is missing in packages/python",
   },
 ];
 

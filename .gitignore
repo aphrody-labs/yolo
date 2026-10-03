@@ -14,6 +14,19 @@ target/
 /out/
 /bin/
 
+# Python virtual environments, bytecode & caches
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.dylib
+*.dll
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
 # Temporary directories, caches, runs & mirrors
 /var/
 /.cache/

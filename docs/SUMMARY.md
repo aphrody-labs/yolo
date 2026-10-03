@@ -13,3 +13,6 @@
 - [Distribution](DISTRIBUTION.md)
 - [Stack report: October 2026](STACK-REPORT-2026-10.md)
 - [Architecture & Maturation de la Stack](STACK-DECISION.md)
+- [Guide des Meilleures Pratiques (Rust + Python + Bun)](BEST_PRACTICES.md)
+- [Rapport d'Ingénierie & Convergence Rust-Python](RAPPORT_RUST_PYTHON_RESEARCH.md)
+- [Awesome Ecosystem Polyglotte](AWESOME-POLYGLOT.md)

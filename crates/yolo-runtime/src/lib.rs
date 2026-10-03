@@ -639,5 +639,17 @@ pub extern "C" fn yolo_operation_release(operation: YoloHandle) -> YoloStatus {
   })
 }
 
+/// Symbole exporté extern "C" pour chargement dynamique instantané sous Bun (bun:ffi).
+/// Accepte un pointeur de données f64 et sa longueur, garantissant zéro copie.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ffi_sum_squares(ptr: *const f64, len: usize) -> f64 {
+  if ptr.is_null() || len == 0 {
+    return 0.0;
+  }
+  // Safety: l'appelant garantit que ptr pointe vers une plage valide d'au moins len éléments f64
+  let slice = unsafe { std::slice::from_raw_parts(ptr, len) };
+  yolo_core::compute_sum_squares(slice)
+}
+
 #[cfg(test)]
 mod tests;
