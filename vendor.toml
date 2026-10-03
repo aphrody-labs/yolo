@@ -1,0 +1,59 @@
+# Reproducible import of the Tauri-stack forks into crates/aphrody-*  (see docs/VENDORING.md)
+# `yolo import` reads the committed HEAD of each submodule under packages/ and rewrites the crates.
+
+prefix = "aphrody-"
+repository = "https://github.com/aphrody-labs/yolo"
+out = "crates"
+
+# File globs (relative to each source repository) never imported.
+exclude = [
+  "**/target/**",
+  "**/node_modules/**",
+  "**/Cargo.lock",
+  "**/.github/**",
+  "**/.changes/**",
+  "**/renovate.json",
+  "**/pnpm-lock.yaml",
+  "**/pnpm-workspace.yaml",
+]
+
+[[source]]
+name = "tauri"
+crates = [
+  "crates/tauri",
+  "crates/tauri-build",
+  "crates/tauri-bundler",
+  "crates/tauri-cli",
+  "crates/tauri-codegen",
+  "crates/tauri-driver",
+  "crates/tauri-macos-sign",
+  "crates/tauri-macros",
+  "crates/tauri-plugin",
+  "crates/tauri-runtime",
+  "crates/tauri-runtime-cef",
+  "crates/tauri-runtime-wry",
+  "crates/tauri-schema-generator",
+  "crates/tauri-utils",
+  "crates/tests/acl",
+  "packages/cli",
+]
+
+[[source]]
+name = "plugins-workspace"
+crates = ["plugins/*"]
+exclude = ["plugins/*/examples/**", "plugins/*/tests/**"]
+
+[[source]]
+name = "wry"
+crates = ["."]
+exclude = ["bench/**", "audits/**", ".license_template"]
+
+[[source]]
+name = "tao"
+crates = [".", "tao-macros"]
+exclude = ["audits/**", ".gitmodules"]
+
+[[source]]
+name = "create-tauri-app"
+crates = [".", "node"]
+exclude = ["worker/**", ".scripts/**", "*.sh", "*.ps1", "package.json", "CONTRIBUTING.md"]
