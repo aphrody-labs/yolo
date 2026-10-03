@@ -20,6 +20,7 @@ export interface RenameOptions {
   readonly rules: readonly RenameRule[];
   readonly apply: boolean;
   readonly paths: boolean;
+  readonly include: readonly string[];
   readonly exclude: readonly string[];
   readonly concurrency: number;
   readonly journalDir: string;
@@ -114,7 +115,11 @@ async function pool<T>(items: readonly T[], limit: number, fn: (item: T) => Prom
 export async function renameRepo(options: RenameOptions): Promise<RenameReport> {
   const started = Bun.nanoseconds();
   const globs = options.exclude.map((pattern) => new Bun.Glob(pattern));
-  const files = (await listFiles(options.cwd)).filter((f) => !globs.some((g) => g.match(f)));
+  const includes = options.include.map((pattern) => new Bun.Glob(pattern));
+  const files = (await listFiles(options.cwd)).filter(
+    (f) =>
+      !globs.some((g) => g.match(f)) && (includes.length === 0 || includes.some((g) => g.match(f))),
+  );
   const needles = options.rules.map((r) => r.from);
 
   const changes: FileChange[] = [];
@@ -192,6 +197,7 @@ export async function runRenameCommand(args: readonly string[], rootDir: string)
   const rules: RenameRule[] = [];
   const targets: string[] = [];
   const exclude: string[] = [...DEFAULT_EXCLUDES];
+  const include: string[] = [];
   let apply = false;
   let paths = false;
   let from: string | undefined;
@@ -217,6 +223,7 @@ export async function runRenameCommand(args: readonly string[], rootDir: string)
       rules.push({ from, to: value() });
       from = undefined;
     } else if (arg === "--exclude") exclude.push(value());
+    else if (arg === "--include") include.push(value());
     else if (arg.startsWith("--")) throw new Error(`Unknown option ${arg}`);
     else targets.push(arg);
   }
@@ -236,6 +243,7 @@ export async function runRenameCommand(args: readonly string[], rootDir: string)
       rules,
       apply,
       paths,
+      include,
       exclude,
       concurrency,
       journalDir: resolve(rootDir, ".cache/rename"),
