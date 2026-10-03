@@ -89,4 +89,12 @@ just vendor-update    # re-import from the pinned submodules on `vendor`, then m
 
 # Sync Bun fork upstream
 bun run bun:sync
+
+# Manage a Linux server through the Aphrody SSH transport (plan by default, --apply to execute)
+yolo host audit    --host vps            # inventory, findings, prioritized reclaim plan (read-only)
+yolo host reclaim  --host vps            # regenerable data only: apt cache, journal, docker, old build output
+yolo host archive  /srv/old --to /mnt/backup/arc --pull ./arc --remove-source   # tar|zstd, verify, then remove
+yolo host services|tune|net|mount|journal --host vps
 ```
+
+See [docs/SERVER.md](docs/SERVER.md) for the safety rules and the Bun feature map.

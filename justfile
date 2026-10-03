@@ -115,6 +115,10 @@ awesome *args:
 create *args:
     bun run apps/cli/src/index.ts create {{args}}
 
+# Manage a Linux server (plan by default, --apply to execute): just host audit --host vps
+host *args:
+    bun run apps/cli/src/index.ts host {{args}}
+
 # Re-audit and re-curate awesome-bun for the Rust-based Bun (network): templates/AWESOME.md + JSON
 awesome-curate:
     bun run apps/cli/src/index.ts awesome curate

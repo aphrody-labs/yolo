@@ -5,6 +5,7 @@
 - [Bun Upstream Tracker](BUN_UPSTREAM_TRACKER.md)
 - [Vendoring the Tauri stack](VENDORING.md)
 - [Tooling](TOOLING.md)
+- [Server management (`yolo host`)](SERVER.md)
 - [Imported crates](CRATES.md)
 - [Runtime C ABI (R0 slice)](RUNTIME-ABI.md)
 - [Runtime decisions](DECISIONS.md)

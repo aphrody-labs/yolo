@@ -30,7 +30,7 @@ export function aphrodyRoot(): string {
   return resolve(process.env["YOLO_APHRODY_ROOT"] ?? join(homedir(), "aphrody"));
 }
 
-function onPath(bin: string): boolean {
+export function onPath(bin: string): boolean {
   return spawnSync("sh", ["-c", `command -v ${bin}`], { stdio: "ignore" }).status === 0;
 }
 
@@ -53,6 +53,15 @@ function loadFactory(): Factory {
   const raw = JSON.parse(readFileSync(file, "utf8")) as Factory & { enabled?: boolean };
   if (raw.enabled === false) throw new Error("The Aphrody build factory is disabled");
   return raw;
+}
+
+/** The build factory as the Aphrody config declares it, or null when absent/disabled (used by `yolo host`). */
+export function buildFactoryInfo(): (Factory & { cacheRoot?: string }) | null {
+  try {
+    return loadFactory() as Factory & { cacheRoot?: string };
+  } catch {
+    return null;
+  }
 }
 
 const git = (cwd: string, ...args: string[]): string =>
@@ -80,6 +89,92 @@ function ssh(host: string, command: string, timeoutSecs = 120): number {
   return run(["aphrody-infra", "ssh", "exec", "--host", host, "--cmd", command], aphrodyRoot(), {
     APHRODY_SSH_COMMAND_TIMEOUT_SECS: String(timeoutSecs),
   });
+}
+
+export interface Captured {
+  readonly code: number;
+  readonly stdout: string;
+  readonly stderr: string;
+}
+
+const RC_MARK = "@@yolo-rc=";
+
+/**
+ * `aphrody-infra ssh exec` fails the whole call (and drops stdout) on a non-zero remote exit. Running the
+ * command in a subshell and printing its status keeps stdout, stderr and the real exit code.
+ */
+export function withExitSentinel(command: string): string {
+  return `(${command}\n); printf '\\n${RC_MARK}%s\\n' "$?"`;
+}
+
+export function splitExitSentinel(stdout: string): { stdout: string; code: number | null } {
+  const i = stdout.lastIndexOf(`\n${RC_MARK}`);
+  if (i < 0) return { stdout, code: null };
+  const code = Number.parseInt(stdout.slice(i + 1 + RC_MARK.length), 10);
+  return { stdout: stdout.slice(0, i), code: Number.isNaN(code) ? null : code };
+}
+
+async function captureAphrody(argv: readonly string[], timeoutSecs: number): Promise<Captured> {
+  const root = aphrodyRoot();
+  const proc = Bun.spawn([...argv], {
+    cwd: root,
+    stdout: "pipe",
+    stderr: "pipe",
+    env: {
+      ...process.env,
+      APHRODY_INFRA_ROOT: root,
+      APHRODY_SSH_COMMAND_TIMEOUT_SECS: String(timeoutSecs),
+    },
+  });
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  return { code, stdout, stderr };
+}
+
+/** Run a command on an `aphrody-infra` host through `ssh exec --json` and return its real output. */
+export async function sshCapture(
+  host: string,
+  command: string,
+  timeoutSecs = 120,
+): Promise<Captured> {
+  const r = await captureAphrody(
+    ["aphrody-infra", "ssh", "exec", "--host", host, "--json", "--cmd", withExitSentinel(command)],
+    timeoutSecs,
+  );
+  if (r.code !== 0) return { code: 255, stdout: "", stderr: (r.stderr || r.stdout).trim() };
+  try {
+    const j = JSON.parse(r.stdout) as { stdout?: string; stderr?: string };
+    const split = splitExitSentinel(j.stdout ?? "");
+    return { code: split.code ?? 255, stdout: split.stdout, stderr: j.stderr ?? "" };
+  } catch {
+    return {
+      code: 255,
+      stdout: "",
+      stderr: `unparseable aphrody-infra output: ${r.stdout.slice(0, 200)}`,
+    };
+  }
+}
+
+/** Query or mutate one systemd unit through the owner (`stop`/`disable` carry --confirm). */
+export function sshServiceArgs(host: string, unit: string, action: string): string[] {
+  const confirm = action === "stop" || action === "disable" ? ["--confirm"] : [];
+  return ["aphrody-infra", "ssh", "service", "--host", host, "--action", action, ...confirm, unit];
+}
+
+export async function sshService(host: string, unit: string, action: string): Promise<Captured> {
+  const r = await captureAphrody(sshServiceArgs(host, unit, action), 60);
+  return r;
+}
+
+/** Owner tuning report/application (`aphrody-infra ssh tune`), JSON. */
+export async function sshTune(host: string, apply: boolean): Promise<Captured> {
+  return captureAphrody(
+    ["aphrody-infra", "ssh", "tune", "--host", host, "--json", ...(apply ? ["--apply"] : [])],
+    120,
+  );
 }
 
 async function runShip(args: readonly string[], yoloRoot: string): Promise<number> {

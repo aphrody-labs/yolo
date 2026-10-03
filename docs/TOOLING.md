@@ -18,6 +18,7 @@ One workspace, one set of commands (`just --list`).
 | Stack scaffold (`templates/stack.toml`, `templates/`) | `just create <dir> --with web,desktop --framework hono` |
 | Curated awesome-bun for the Rust-based Bun | `just awesome-curate`, `just awesome search <words>` |
 | Vendoring | `just import-scan`, `just import`, `just vendor-update`, `just import-check` |
+| Linux server (audit, reclaim, archive, services, tune, net, mount; plan by default) | `just host audit --host vps`, see [SERVER.md](SERVER.md) |
 | Docs | `just docs-build` |
 | Publishing (dry run) | `just publish-dry` |
 
@@ -46,3 +47,13 @@ scripts/     vendor/ (upstream sync/tracker, npm publishing) and release/ (relea
 test/        Bun tests
 docs/        mdBook (this documentation)
 ```
+
+## Server management (`yolo host`)
+
+`yolo host <audit|reclaim|archive|services|tune|net|mount|journal> --host vps|dbfr|local` manages a Linux
+server through `aphrody-infra ssh exec` (the local host runs commands directly). Every subcommand is a plan
+until `--apply`, applied steps are journaled in `var/host/<host>/journal.jsonl`, and the safety rules are
+hard-coded in `apps/cli/src/host-safety.ts`. Policy lives in `host-policy.toml`. Full description, the Bun
+feature map and the verification status are in [SERVER.md](SERVER.md); the decision is D26 in
+[DECISIONS.md](DECISIONS.md). Tests: `bun test test/host.test.ts` (no network, no remote access; the
+`--apply` paths run on `local` in temporary directories).
