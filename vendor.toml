@@ -83,3 +83,12 @@ to = "../../examples/tauri/"
 files = "examples/tauri/**/*.rs"
 from = "../../examples/"
 to = "../../examples/tauri/"
+
+# The sibling rewrite makes this line longer than rustfmt's max width.
+[[rewrite]]
+files = "crates/aphrody-tauri-schema-generator/build.rs"
+from = '''    write_if_changed(out.join("../aphrody-tauri-cli/config.schema.json"), config_schema)?;'''
+to = '''    write_if_changed(
+      out.join("../aphrody-tauri-cli/config.schema.json"),
+      config_schema,
+    )?;'''
