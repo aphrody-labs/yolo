@@ -1,8 +1,42 @@
+# Aphrody YOLO — Zero-Pollution / Zero-Artifact Rigorous Git Ignore
+# No logs, temporary files, caches, build artifacts or untracked state allowed
+
+# Node / Bun dependencies & runtime artifacts
 node_modules/
-target/
+.bun/
+*.lockb
+
+# Build & compilation outputs
 dist/
+build/
+target/
+out/
+bin/
+
+# Temporary directories, caches, runs & mirrors
 var/
 .cache/
+.tmp/
+tmp/
+*.tmp
+
+# Logs & execution traces
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.system_generated/
+
+# OS / Editor clutter
 .DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Submodules / Externals managed via upstream scripts
 packages/

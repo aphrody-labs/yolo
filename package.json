@@ -5,6 +5,9 @@
   "type": "module",
   "private": true,
   "author": "aphrody-dev <contact@aphrody.com>",
+  "engines": {
+    "bun": ">=1.4.2"
+  },
   "scripts": {
     "status": "bun run scripts/packages_upstream_sync.ts",
     "bun:sync": "bun run scripts/bun_upstream_sync.ts --apply",
@@ -12,7 +15,9 @@
     "bun:track": "bun run scripts/bun_upstream_tracker.ts",
     "lint": "bunx oxlint scripts/",
     "fmt": "bunx oxfmt --write scripts/",
-    "fmt:check": "bunx oxfmt --check scripts/"
+    "fmt:check": "bunx oxfmt --check scripts/",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf .cache *.log var target dist"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",

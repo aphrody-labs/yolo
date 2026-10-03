@@ -1,0 +1,15 @@
+# Aphrody YOLO — Bun Industrial Engine Configuration
+# Strict native Bun doctrine: Zero Node overhead, memory protection, native test runner & oxc
+
+[install]
+# Frozen lockfile by default, max concurrency bounded for WSL / low-overhead host stability
+exact = true
+concurrentScripts = 16
+
+[test]
+# Enforce native test isolation and strict timeouts
+timeout = 10000
+
+[run]
+# Enforce Bun execution across modern CLI runners
+bun = true
