@@ -1,23 +1,46 @@
 #!/usr/bin/env bash
-# Runs on the build factory host (behind the heavy lock, started by `yolo ship`): builds all of yolo.
+# SPDX-License-Identifier: Apache-2.0
+# Runs on the build factory host inside the `yolo ship` systemd unit, behind the heavy lock, on a checkout of
+# <sha>. It is the whole pipeline of the repository and its CI while GitHub Actions are unavailable:
+#   toolchain bootstrap; the gates of .github/workflows/ci.yml; the runtime artifact and the tests that load it;
+#   the release assets of this host's target; the D0/D2 acceptance (install from those assets into an empty HOME,
+#   doctor, scaffold, compile, pack, run the archive); the GitHub release when <sha> is the v<VERSION> tag on main.
 # usage: ship_remote.sh <sha> <workspace> <artifact-dir>
 set -uo pipefail
 sha=$1; ws=$2; out=$3
-export PATH="$HOME/.bun/bin:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
-export CARGO_BUILD_JOBS=$(nproc) CARGO_INCREMENTAL=0
-command -v sccache >/dev/null && export RUSTC_WRAPPER=sccache
+cache=${APHRODY_BUILD_CACHE:-/srv/aphrody-build/cache}
+export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:/usr/lib/llvm-${YOLO_LLVM:-23}/bin:$HOME/.local/bin:$PATH"
+jobs=$(nproc)
+export CARGO_BUILD_JOBS=$jobs CARGO_INCREMENTAL=0 CARGO_TERM_COLOR=never
+export SCCACHE_DIR="$cache/sccache" SCCACHE_CACHE_SIZE=60G BUN_INSTALL_CACHE_DIR="$cache/bun"
 status() { echo "$1" > "$out/STATUS"; }
-step() { status "running: $1"; echo "=== $1 ($(date -u +%FT%TZ))"; shift; "$@" || { status "failed: $1"; echo "FAILED"; exit 1; }; }
+step() { # name command...
+  local name=$1
+  shift
+  status "running: $name"
+  echo "=== $name ($(date -u +%FT%TZ))"
+  "$@" || { status "failed: $name"; echo "FAILED: $name"; exit 1; }
+}
 cd "$ws" || exit 1
-step "toolchain bootstrap" bash "$ws/scripts/release/bootstrap_remote.sh"
-export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:/usr/lib/llvm-${YOLO_LLVM:-23}/bin:$PATH"
+version=$(cat VERSION)
+step "toolchain bootstrap" bash scripts/release/bootstrap_remote.sh
 command -v sccache >/dev/null && export RUSTC_WRAPPER=sccache
 step "bun install" bun install --frozen-lockfile
-step "check (types, lint, format, clippy)" just check
+step "check: types, lint, format, rustfmt, clippy" just check
+step "check: workspace, all targets" just check-workspace
+step "licenses and sources (cargo deny)" just deny-ci
 step "runtime artifact (build + package)" just runtime-package
 step "tests (bun + nextest)" just test-all
 step "release assets" bun run scripts/release/release.ts
-cp -r dist/release "$out/" 2>/dev/null || true
+step "install and deploy smoke (D0, D2)" bash scripts/release/smoke_remote.sh "dist/release/$version"
+if git tag --points-at "$sha" | grep -qx "v$version"; then
+  if git merge-base --is-ancestor "$sha" origin/main; then
+    step "GitHub release v$version" bash scripts/release/publish_remote.sh "v$version" "dist/release/$version"
+  else
+    echo "=== v$version points at $sha but main does not contain it: not published"
+  fi
+fi
+mkdir -p "$out/release" && cp -r "dist/release/$version" "$out/release/"
 echo "$sha" > "$out/SHA"
 status "ok"
 echo "OK $sha"

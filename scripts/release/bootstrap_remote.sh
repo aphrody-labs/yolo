@@ -5,7 +5,6 @@
 # Pins follow the sources: yolo rust-toolchain.toml (workspace), vendor/bun/rust-toolchain.toml and
 # vendor/bun/scripts/build/ci-images/spec.ts (Bun fork: LLVM 23, nightly Rust, release Bun), cmake/ninja from apt.
 set -euo pipefail
-export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 CACHE=${APHRODY_BUILD_CACHE:-/srv/aphrody-build/cache}
 LLVM=${YOLO_LLVM:-23}
@@ -14,10 +13,11 @@ RUST_BUN=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' "$ROOT/vendor/bun/rust-toolchai
 say() { echo "=== bootstrap: $* ($(date -u +%FT%TZ))"; }
 
 say "apt packages"
-sudo -n -E apt-get update -qq
-sudo -n -E apt-get install -y -qq build-essential pkg-config libssl-dev libtool make just cmake ninja-build ccache nasm perl \
+apt() { sudo -n env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l apt-get "$@"; }
+apt update -qq
+apt install -y -qq build-essential pkg-config libssl-dev libtool make just cmake ninja-build ccache nasm perl \
   python3 golang nodejs ruby-full libatomic1 xz-utils unzip curl git gh lsb-release software-properties-common gnupg mold \
-  libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev patchelf
+  libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev libxdo-dev patchelf tmux
 
 if ! command -v "clang-$LLVM" >/dev/null && [ ! -x "/usr/lib/llvm-$LLVM/bin/clang" ]; then
   say "LLVM $LLVM (apt.llvm.org)"
@@ -41,12 +41,6 @@ if ! command -v bun >/dev/null; then
   curl -fsSL https://bun.sh/install | bash
 fi
 
-say "bun global tools (versions from package.json)"
-for pkg in oxlint oxfmt typescript; do
-  v=$(bun -e "console.log(require('$ROOT/package.json').devDependencies['$pkg'] ?? '')")
-  bun add -g "$pkg${v:+@$v}" >/dev/null
-done
-
 # cargo reuses one sccache store on the factory volume; Bun's own build uses ccache under BUN_BUILD_CACHE_DIR
 mkdir -p "$HOME/.cargo" "$CACHE/sccache" "$CACHE/bun-build"
 cat > "$HOME/.cargo/config.toml" <<EOF
@@ -67,7 +61,7 @@ EOF
 say "cargo addons (locked): sccache cargo-nextest cargo-deny"
 for crate in sccache cargo-nextest cargo-deny; do
   bin=${crate#cargo-}; [ "$crate" = sccache ] && bin=sccache
-  command -v "$crate" >/dev/null || command -v "$bin" >/dev/null || RUSTC_WRAPPER= cargo install --locked "$crate"
+  command -v "$crate" >/dev/null || command -v "$bin" >/dev/null || RUSTC_WRAPPER='' cargo install --locked "$crate"
 done
 
 grep -q BUN_BUILD_CACHE_DIR "$HOME/.profile" 2>/dev/null || cat >> "$HOME/.profile" <<EOF

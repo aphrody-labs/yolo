@@ -12,15 +12,16 @@
  * - ZERO external runtime npm dependencies
  */
 
-import { existsSync, statSync } from "node:fs";
-import { relative, resolve } from "node:path";
+import { existsSync, renameSync, rmSync, statSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 import { runAwesomeCommand } from "./awesome";
 import { runCreateCommand } from "./create";
 import { runDoctor, runRuntimeCommand, runUninstall, runUpgrade, runVersion } from "./distribution";
 import { runAphrodyCommand } from "./aphrody";
 import { runHostCommand } from "./host";
-import { isCompiled, yoloHome } from "./home";
+import { findCheckout, isCompiled, yoloHome } from "./home";
 import { runImportCommand } from "./import";
+import { runPluginCommand } from "./plugin";
 import { runRenameCommand } from "./rename";
 
 const ROOT_DIR = yoloHome();
@@ -246,6 +247,28 @@ export async function readWorkspaceCargo(): Promise<WorkspaceCargoSummary | null
  * for Web APIs, Server, React, CSS, Image, JSON/Data, and Markdown,
  * and compiles an exhaustive TypeScript self-generating capability catalog in apps/web/src/.
  */
+/**
+ * The catalog is tracked and checked by `fmt-check`: it is formatted with the oxfmt pinned in package.json, and the
+ * file is only replaced when more than its timestamps changed, so regenerating it (the tests do) never dirties the
+ * tree.
+ */
+async function writeTrackedCatalog(targetPath: string, content: string): Promise<void> {
+  const draft = targetPath.replace(/\.ts$/, ".draft.ts");
+  await Bun.write(draft, content);
+  const bun = Bun.which("bun") ?? process.execPath;
+  Bun.spawnSync([bun, "x", "--bun", "oxfmt", draft], {
+    cwd: ROOT_DIR,
+    stdout: "ignore",
+    stderr: "ignore",
+  });
+  const withoutTimestamps = (text: string): string =>
+    text.replace(/^ \* Timestamp: .*$/m, "").replace(/generatedAt: "[^"]*"/, "");
+  const next = await Bun.file(draft).text();
+  const previous = existsSync(targetPath) ? await Bun.file(targetPath).text() : "";
+  if (withoutTimestamps(previous) === withoutTimestamps(next)) rmSync(draft);
+  else renameSync(draft, targetPath);
+}
+
 export async function generateBunCatalog(): Promise<AutonomousGenerationReport> {
   const t0 = Bun.nanoseconds();
   const bunRepoDir = resolve(ROOT_DIR, "vendor/bun");
@@ -419,10 +442,7 @@ export function getCapabilityById(id: string): BunCapabilityItem | undefined {
 `;
 
   const targetPath = resolve(ROOT_DIR, "apps/web/src/generated/bun-catalog.ts");
-  await Bun.write(targetPath, generatedFileHeader);
-  // The file is tracked and checked by `fmt-check`: leave it formatted so regenerating it never dirties the tree.
-  const oxfmt = Bun.which("oxfmt");
-  if (oxfmt !== null) Bun.spawnSync([oxfmt, targetPath], { stdout: "ignore", stderr: "ignore" });
+  await writeTrackedCatalog(targetPath, generatedFileHeader);
 
   const elapsedMs = Number(((Bun.nanoseconds() - t0) / 1_000_000).toFixed(2));
 
@@ -462,6 +482,7 @@ ${header}
   \x1b[32minfra|ops|workspace|workflow|git|ssh ...\x1b[0m Aphrody control plane (aphrody-infra / aphrody-ops), same workflow
   \x1b[32mhost audit|reclaim|archive|services|tune|net|mount|journal --host vps|dbfr|local [--apply]\x1b[0m Manage a Linux server (plan by default, journaled, safety-checked)
   \x1b[32mship [--apply] [status|log|attach|stop]\x1b[0m Build all of yolo on the build factory host; \x1b[32mhooks install\x1b[0m does it on every push to main/dev
+  \x1b[32mplugin <create|status>\x1b[0m Generate or inspect unified YOLO & Bun-TS7 plugin
   \x1b[32mbench\x1b[0m               Run native Bun nanoseconds and hashing micro-benchmark
   \x1b[32mhelp\x1b[0m                Display this help message
 
@@ -485,12 +506,29 @@ async function main(): Promise<void> {
     "docs",
     "import",
     "rename",
+    "plugin",
     "ship",
     "hooks",
   ]);
   if (isCompiled() && CHECKOUT_ONLY.has(command)) {
+    // Inside a checkout the installed executable hands the command to the checkout's own sources (its root, not
+    // YOLO_HOME, is then the home), so `yolo ship` works wherever `bun run cli ship` would.
+    const checkout = findCheckout();
+    const bun = Bun.which("bun");
+    if (checkout !== null && bun !== null) {
+      const env = { ...process.env };
+      delete env["YOLO_HOME"];
+      const child = Bun.spawnSync([bun, "run", join(checkout, "apps/cli/src/index.ts"), ...args], {
+        cwd: checkout,
+        env,
+        stdin: "inherit",
+        stdout: "inherit",
+        stderr: "inherit",
+      });
+      process.exit(child.exitCode ?? 1);
+    }
     console.error(
-      `\`yolo ${command}\` works on a yolo checkout: run it with \`bun run cli ${command}\` there.`,
+      `\`yolo ${command}\` works on a yolo checkout: run it there (or \`bun run cli ${command}\`).`,
     );
     process.exit(1);
   }
@@ -708,6 +746,11 @@ async function main(): Promise<void> {
 
     case "rename": {
       process.exitCode = await runRenameCommand(args.slice(1), ROOT_DIR);
+      break;
+    }
+
+    case "plugin": {
+      process.exitCode = await runPluginCommand(args.slice(1), ROOT_DIR);
       break;
     }
 

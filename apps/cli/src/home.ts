@@ -26,3 +26,18 @@ export function yoloVersion(): string {
   const file = join(yoloHome(), "VERSION");
   return existsSync(file) ? readFileSync(file, "utf8").trim() : "0.0.0-dev";
 }
+
+/**
+ * The yolo checkout that contains `start` (or one of its parents): the directory holding `vendor.toml` and the CLI
+ * sources. The installed executable hands source-tree commands (`ship`, `import`, `status`...) to it.
+ */
+export function findCheckout(start: string = process.cwd()): string | null {
+  let dir = resolve(start);
+  for (;;) {
+    if (existsSync(join(dir, "vendor.toml")) && existsSync(join(dir, "apps/cli/src/index.ts")))
+      return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}

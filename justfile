@@ -21,14 +21,15 @@ check: typecheck lint fmt-check rust-fmt-check clippy
 typecheck:
     bun x tsc --noEmit
 
+# lint/fmt run the versions pinned in package.json (node_modules/.bin) under Bun, never a global install
 lint:
-    oxlint scripts/ test/ packages/ apps/cli/src/ apps/web/src/
+    bun --bun run lint
 
 fmt:
-    oxfmt --write scripts/ test/ packages/ apps/cli/src/ apps/web/src/
+    bun --bun run fmt
 
 fmt-check:
-    oxfmt --check scripts/ test/ packages/ apps/cli/src/ apps/web/src/
+    bun --bun run fmt:check
 
 # Rust formatting. Each vendored crate carries the rustfmt.toml of its upstream repository.
 rust-fmt:
@@ -45,12 +46,24 @@ clippy:
 deny:
     cargo deny check
 
+# The cargo-deny gate of CI: licenses and sources (advisories change daily, see `just deny`)
+deny-ci:
+    cargo deny check licenses sources
+
+# The workspace check of CI: every member but the heavy or side-effecting ones, all targets (examples included)
+check-workspace:
+    cargo check --workspace --exclude aphrody-tauri-runtime-cef --exclude 'aphrody-turbo*' --exclude 'aphrody-next*' --exclude aphrody-auto-hash-map --exclude aphrody-swc-ast-explorer --all-targets
+
+# Every gate of .github/workflows/ci.yml in one recipe (the build factory runs it through `yolo ship`)
+ci: check check-workspace deny-ci test-all
+
 test:
     bun test test/
 
-# Rust tests of the default workspace members (cargo-nextest)
+# Rust tests of the default workspace members (cargo-nextest). Examples are compiled by `check-workspace`;
+# linking them here would collide (wry and tao both ship `transparent` and `multiwindow` examples).
 test-crates:
-    cargo nextest run --no-fail-fast
+    cargo nextest run --no-fail-fast --lib --bins --tests
 
 test-all: test test-crates
 
