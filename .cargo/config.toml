@@ -1,0 +1,7 @@
+[env]
+# Same switch as upstream Tauri: embeds the Windows test manifest when building the workspace.
+__TAURI_WORKSPACE__ = "true"
+
+[target.x86_64-apple-darwin]
+# Needed by wry (WebKit) on older macOS deployment targets.
+rustflags = ["-C", "link-arg=-mmacosx-version-min=10.12"]

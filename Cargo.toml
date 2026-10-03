@@ -1,31 +1,80 @@
 [workspace]
-resolver = "2"
-members = [
-    "crates/*",
+resolver = "3"
+members = ["crates/*"]
+# Heavy or side-effecting crates (CEF runtime, CLI/bundler, napi bindings, schema generator)
+# are workspace members but excluded from default `cargo check/test/build` runs.
+default-members = [
+  "crates/aphrody-acl-tests",
+  "crates/aphrody-create-tauri-app",
+  "crates/aphrody-tao",
+  "crates/aphrody-tao-macros",
+  "crates/aphrody-tauri",
+  "crates/aphrody-tauri-build",
+  "crates/aphrody-tauri-codegen",
+  "crates/aphrody-tauri-driver",
+  "crates/aphrody-tauri-macros",
+  "crates/aphrody-tauri-plugin",
+  "crates/aphrody-tauri-plugin-autostart",
+  "crates/aphrody-tauri-plugin-barcode-scanner",
+  "crates/aphrody-tauri-plugin-biometric",
+  "crates/aphrody-tauri-plugin-cli",
+  "crates/aphrody-tauri-plugin-clipboard-manager",
+  "crates/aphrody-tauri-plugin-deep-link",
+  "crates/aphrody-tauri-plugin-dialog",
+  "crates/aphrody-tauri-plugin-fs",
+  "crates/aphrody-tauri-plugin-geolocation",
+  "crates/aphrody-tauri-plugin-global-shortcut",
+  "crates/aphrody-tauri-plugin-haptics",
+  "crates/aphrody-tauri-plugin-http",
+  "crates/aphrody-tauri-plugin-localhost",
+  "crates/aphrody-tauri-plugin-log",
+  "crates/aphrody-tauri-plugin-nfc",
+  "crates/aphrody-tauri-plugin-notification",
+  "crates/aphrody-tauri-plugin-opener",
+  "crates/aphrody-tauri-plugin-os",
+  "crates/aphrody-tauri-plugin-persisted-scope",
+  "crates/aphrody-tauri-plugin-positioner",
+  "crates/aphrody-tauri-plugin-process",
+  "crates/aphrody-tauri-plugin-shell",
+  "crates/aphrody-tauri-plugin-single-instance",
+  "crates/aphrody-tauri-plugin-sql",
+  "crates/aphrody-tauri-plugin-store",
+  "crates/aphrody-tauri-plugin-stronghold",
+  "crates/aphrody-tauri-plugin-updater",
+  "crates/aphrody-tauri-plugin-upload",
+  "crates/aphrody-tauri-plugin-websocket",
+  "crates/aphrody-tauri-plugin-window-state",
+  "crates/aphrody-tauri-runtime",
+  "crates/aphrody-tauri-runtime-wry",
+  "crates/aphrody-tauri-utils",
+  "crates/aphrody-wry",
+  "crates/yolo-core",
+  "crates/yolo-desktop",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.95"
 authors = ["aphrody-dev <contact@aphrody.com>"]
 license = "MIT"
 repository = "https://github.com/aphrody-labs/yolo"
 homepage = "https://github.com/aphrody-labs/yolo"
 
-# Aphrody forks (branch `yolo`) replace the upstream registry crates
-[patch.crates-io]
-tauri = { git = "https://github.com/aphrody-labs/tauri", branch = "yolo" }
-tauri-build = { git = "https://github.com/aphrody-labs/tauri", branch = "yolo" }
-tauri-utils = { git = "https://github.com/aphrody-labs/tauri", branch = "yolo" }
-tauri-runtime = { git = "https://github.com/aphrody-labs/tauri", branch = "yolo" }
-tauri-runtime-wry = { git = "https://github.com/aphrody-labs/tauri", branch = "yolo" }
-tauri-codegen = { git = "https://github.com/aphrody-labs/tauri", branch = "yolo" }
-tauri-macros = { git = "https://github.com/aphrody-labs/tauri", branch = "yolo" }
-tauri-plugin = { git = "https://github.com/aphrody-labs/tauri", branch = "yolo" }
-tauri-plugin-opener = { git = "https://github.com/aphrody-labs/plugins-workspace", branch = "yolo" }
-wry = { git = "https://github.com/aphrody-labs/wry", branch = "yolo" }
-tao = { git = "https://github.com/aphrody-labs/tao", branch = "yolo" }
+# Aphrody crates (imported by `yolo import`, see vendor.toml). The dependency key keeps the
+# upstream name so `use tauri::...` is unchanged; only the package name is prefixed.
+[workspace.dependencies]
+tauri = { package = "aphrody-tauri", path = "crates/aphrody-tauri", version = "3.0.0-alpha.4" }
+tauri-build = { package = "aphrody-tauri-build", path = "crates/aphrody-tauri-build", version = "3.0.0-alpha.3" }
+tauri-plugin = { package = "aphrody-tauri-plugin", path = "crates/aphrody-tauri-plugin", version = "3.0.0-alpha.3" }
+tauri-utils = { package = "aphrody-tauri-utils", path = "crates/aphrody-tauri-utils", version = "3.0.0-alpha.3" }
+tauri-runtime = { package = "aphrody-tauri-runtime", path = "crates/aphrody-tauri-runtime", version = "3.0.0-alpha.3" }
+tauri-runtime-wry = { package = "aphrody-tauri-runtime-wry", path = "crates/aphrody-tauri-runtime-wry", version = "3.0.0-alpha.4" }
+tauri-macros = { package = "aphrody-tauri-macros", path = "crates/aphrody-tauri-macros", version = "3.0.0-alpha.3" }
+tauri-codegen = { package = "aphrody-tauri-codegen", path = "crates/aphrody-tauri-codegen", version = "3.0.0-alpha.3" }
+tauri-plugin-opener = { package = "aphrody-tauri-plugin-opener", path = "crates/aphrody-tauri-plugin-opener", version = "3.0.0-alpha.2" }
+wry = { package = "aphrody-wry", path = "crates/aphrody-wry", version = "0.57.0" }
+tao = { package = "aphrody-tao", path = "crates/aphrody-tao", version = "0.37.1" }
 
 [profile.release]
 codegen-units = 1
@@ -33,3 +82,6 @@ lto = "fat"
 opt-level = "z"
 panic = "abort"
 strip = true
+
+[profile.dev.package.miniz_oxide]
+opt-level = 3
