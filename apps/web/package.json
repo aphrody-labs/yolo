@@ -13,9 +13,7 @@
     "lint": "oxlint src/",
     "tauri": "tauri --config ../../crates/yolo-desktop/tauri.conf.json"
   },
-  "dependencies": {
-    "@tauri-apps/api": "^3.0.0-alpha.2"
-  },
+  "dependencies": {},
   "license": "MIT",
   "repository": {
     "type": "git",

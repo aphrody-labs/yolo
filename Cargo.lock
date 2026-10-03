@@ -1107,7 +1107,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.62.2",
+ "windows-core 0.61.2",
 ]
 
 [[package]]
@@ -2489,8 +2489,7 @@ dependencies = [
 [[package]]
 name = "tauri"
 version = "3.0.0-alpha.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9019bd6bc4b2fffeaa0da48cc89f9e0ab87e1742680e2eb64b4c149ffaf5c7c"
+source = "git+https://github.com/aphrody-labs/tauri?branch=yolo#13227c55a74a484e9a5a6fc61ee2608c16dfe105"
 dependencies = [
  "anyhow",
  "bytes",
@@ -2536,8 +2535,7 @@ dependencies = [
 [[package]]
 name = "tauri-build"
 version = "3.0.0-alpha.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12576fcc7f228b5e33fd4d8415f5f3481e7a1b5f3b742dc1b7fc7f9ea16204e2"
+source = "git+https://github.com/aphrody-labs/tauri?branch=yolo#13227c55a74a484e9a5a6fc61ee2608c16dfe105"
 dependencies = [
  "anyhow",
  "cargo_toml",
@@ -2557,8 +2555,7 @@ dependencies = [
 [[package]]
 name = "tauri-codegen"
 version = "3.0.0-alpha.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d493291d452a724edb8c18ebaab8325b900a4ec512790a705e21eece86adea9c"
+source = "git+https://github.com/aphrody-labs/tauri?branch=yolo#13227c55a74a484e9a5a6fc61ee2608c16dfe105"
 dependencies = [
  "base64 0.22.1",
  "brotli",
@@ -2584,8 +2581,7 @@ dependencies = [
 [[package]]
 name = "tauri-macros"
 version = "3.0.0-alpha.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a82d6fdbe86ba273a3b6d1079a3b3a4ea598b362823bdd51a2edd363ee404eb3"
+source = "git+https://github.com/aphrody-labs/tauri?branch=yolo#13227c55a74a484e9a5a6fc61ee2608c16dfe105"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -2598,8 +2594,7 @@ dependencies = [
 [[package]]
 name = "tauri-plugin"
 version = "3.0.0-alpha.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df537cbdb5dbe81933d2447b0b709eb09ab735409d4d5408cf8bda88be58c234"
+source = "git+https://github.com/aphrody-labs/tauri?branch=yolo#13227c55a74a484e9a5a6fc61ee2608c16dfe105"
 dependencies = [
  "anyhow",
  "glob",
@@ -2614,8 +2609,7 @@ dependencies = [
 [[package]]
 name = "tauri-plugin-opener"
 version = "3.0.0-alpha.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6f813f2919dbc15d076143c2c4da163da83bb8c415994107e235920a304f9cf"
+source = "git+https://github.com/aphrody-labs/plugins-workspace?branch=yolo#03435ec7619cd2b06e6f01392f6bbbb692d57a92"
 dependencies = [
  "dunce",
  "glob",
@@ -2636,8 +2630,7 @@ dependencies = [
 [[package]]
 name = "tauri-runtime"
 version = "3.0.0-alpha.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68aaa98be20a7eda00060abc81370a9284efbf7e916b5b53cb35c57d6f7b62ee"
+source = "git+https://github.com/aphrody-labs/tauri?branch=yolo#13227c55a74a484e9a5a6fc61ee2608c16dfe105"
 dependencies = [
  "cookie",
  "dpi",
@@ -2657,8 +2650,7 @@ dependencies = [
 [[package]]
 name = "tauri-utils"
 version = "3.0.0-alpha.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f20a966e52db8cc17bb88e1a69d574e0e0df112bca159ec259305b2742bcb8f"
+source = "git+https://github.com/aphrody-labs/tauri?branch=yolo#13227c55a74a484e9a5a6fc61ee2608c16dfe105"
 dependencies = [
  "anyhow",
  "brotli",
@@ -3855,3 +3847,18 @@ dependencies = [
  "syn 3.0.6",
  "winnow",
 ]
+
+[[patch.unused]]
+name = "tao"
+version = "0.37.1"
+source = "git+https://github.com/aphrody-labs/tao?branch=yolo#d19f4c12a0d881260a436d9ccf3e8f349c58e2a4"
+
+[[patch.unused]]
+name = "tauri-runtime-wry"
+version = "3.0.0-alpha.4"
+source = "git+https://github.com/aphrody-labs/tauri?branch=yolo#13227c55a74a484e9a5a6fc61ee2608c16dfe105"
+
+[[patch.unused]]
+name = "wry"
+version = "0.57.0"
+source = "git+https://github.com/aphrody-labs/wry?branch=yolo#cab3eace983007a16f132c14a34d0a220c707bea"

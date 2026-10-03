@@ -40,7 +40,7 @@ test-all: test test-crates
 cli *args:
     bun run apps/cli/src/index.ts {{args}}
 
-web-build:
+web-build
     cd apps/web && bun run build
 
 web-dev:
@@ -70,9 +70,11 @@ upgrade-latest:
     @git submodule update --init --recursive
     @cd packages/bun && git fetch upstream main --depth=100 && git checkout yolo && git merge --ff-only upstream/main || true
     @cd packages/obscura && git fetch origin main --depth=50 && git checkout yolo && git merge --ff-only origin/main || true
-    @cd packages/tauri && git fetch upstream dev --depth=50 || git fetch origin dev --depth=50 || true
-    @cd packages/plugins-workspace && git fetch upstream v2 --depth=50 || git fetch origin v2 --depth=50 || true
+    @cd packages/tauri && git fetch upstream v3 --depth=50 || git fetch origin v3 --depth=50 || true
+    @cd packages/plugins-workspace && git fetch upstream v3 --depth=50 || git fetch origin v3 --depth=50 || true
     @cd packages/create-tauri-app && git fetch upstream dev --depth=50 || git fetch origin dev --depth=50 || true
+    @cd packages/wry && git fetch upstream dev --depth=50 || git fetch origin dev --depth=50 || true
+    @cd packages/tao && git fetch upstream dev --depth=50 || git fetch origin dev --depth=50 || true
     @echo -e "\n\033[1;36m=== Upgrading Bun to latest ===\033[0m"
     @bun upgrade || true
     @echo -e "\n\033[1;36m=== Upgrading Global CLI Tools (TSC, Oxlint, Oxfmt, Tauri 3, Types) ===\033[0m"

@@ -69,6 +69,22 @@ const PACKAGES_REGISTRY: PackageMeta[] = [
     type: "fork",
   },
   {
+    name: "wry",
+    submodulePath: "packages/wry",
+    trackingBranch: "yolo",
+    ownerRepo: "aphrody-labs/wry",
+    upstreamRepo: "tauri-apps/wry",
+    type: "fork",
+  },
+  {
+    name: "tao",
+    submodulePath: "packages/tao",
+    trackingBranch: "yolo",
+    ownerRepo: "aphrody-labs/tao",
+    upstreamRepo: "tauri-apps/tao",
+    type: "fork",
+  },
+  {
     name: "create-tauri-app",
     submodulePath: "packages/create-tauri-app",
     trackingBranch: "yolo",

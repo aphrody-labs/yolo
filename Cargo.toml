@@ -3,9 +3,6 @@ resolver = "2"
 members = [
     "crates/*",
 ]
-exclude = [
-    "packages/*",
-]
 
 [workspace.package]
 version = "0.1.0"
@@ -15,6 +12,20 @@ authors = ["aphrody-dev <contact@aphrody.com>"]
 license = "MIT"
 repository = "https://github.com/aphrody-labs/yolo"
 homepage = "https://github.com/aphrody-labs/yolo"
+
+# Aphrody forks (branch `yolo`) replace the upstream registry crates
+[patch.crates-io]
+tauri = { git = "https://github.com/aphrody-labs/tauri", branch = "yolo" }
+tauri-build = { git = "https://github.com/aphrody-labs/tauri", branch = "yolo" }
+tauri-utils = { git = "https://github.com/aphrody-labs/tauri", branch = "yolo" }
+tauri-runtime = { git = "https://github.com/aphrody-labs/tauri", branch = "yolo" }
+tauri-runtime-wry = { git = "https://github.com/aphrody-labs/tauri", branch = "yolo" }
+tauri-codegen = { git = "https://github.com/aphrody-labs/tauri", branch = "yolo" }
+tauri-macros = { git = "https://github.com/aphrody-labs/tauri", branch = "yolo" }
+tauri-plugin = { git = "https://github.com/aphrody-labs/tauri", branch = "yolo" }
+tauri-plugin-opener = { git = "https://github.com/aphrody-labs/plugins-workspace", branch = "yolo" }
+wry = { git = "https://github.com/aphrody-labs/wry", branch = "yolo" }
+tao = { git = "https://github.com/aphrody-labs/tao", branch = "yolo" }
 
 [profile.release]
 codegen-units = 1

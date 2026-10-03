@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@aphrody/api": ["../../packages/tauri/packages/api/src/index.ts"],
+      "@aphrody/api/*": ["../../packages/tauri/packages/api/src/*.ts"]
+    }
+  },
+  "include": ["src/**/*", "build.ts"]
+}

@@ -68,7 +68,7 @@ export interface AutonomousGenerationReport {
  * Inspect monorepo submodules and forks using Bun file I/O & wyhash checksums.
  */
 export async function inspectPackages(): Promise<readonly SubmoduleStatus[]> {
-  const pkgs = ["bun", "obscura", "tauri", "plugins-workspace", "create-tauri-app"];
+  const pkgs = ["bun", "obscura", "tauri", "plugins-workspace", "create-tauri-app", "wry", "tao"];
   const results: SubmoduleStatus[] = [];
 
   for (const name of pkgs) {

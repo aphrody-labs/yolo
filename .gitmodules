@@ -18,3 +18,11 @@
 	path = packages/create-tauri-app
 	url = git@github-dev:aphrody-labs/create-tauri-app.git
 	branch = yolo
+[submodule "packages/wry"]
+	path = packages/wry
+	url = git@github-dev:aphrody-labs/wry.git
+	branch = yolo
+[submodule "packages/tao"]
+	path = packages/tao
+	url = git@github-dev:aphrody-labs/tao.git
+	branch = yolo
