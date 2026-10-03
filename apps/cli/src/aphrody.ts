@@ -103,7 +103,7 @@ export function remoteSyncCommand(factory: Factory, sha: string, url: string): s
   return [
     "set -e",
     "gh auth setup-git",
-    `git config --global url."https://github.com/".insteadOf "git@github-dev:"`,
+    `git config --global --get-all url."https://github.com/".insteadOf | grep -qxF 'git@github-dev:' || git config --global --add url."https://github.com/".insteadOf 'git@github-dev:'`,
     `mkdir -p "$(dirname ${ws})"`,
     `[ -d ${ws}/.git ] || git clone --filter=blob:none '${url}' ${ws}`,
     `cd ${ws}`,
