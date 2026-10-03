@@ -1,0 +1,15 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+# Unified native runtime
+
+The current producer direction and delivery gates live in the root
+[PLAN.md](../PLAN.md). The cross-repository architecture lives in
+[Aphrody PLAN.md](../../aphrody/PLAN.md).
+
+Yolo owns the precompiled Bun/Tauri/Obscura runtime and light SDK. Aphrody owns
+application behavior and migrates one qualified consumer at a time. This is the
+active design direction; implementation and performance gates remain open.
+
+Read [repository instructions](../AGENTS.md) and [current memory](../MEMORY.md),
+then the existing [vendoring](VENDORING.md) and [tooling](TOOLING.md) procedures.
+The earlier [Rust usage inventory](APHRODY-RUST-TAURI-OBSCURA-BUN.md) is a lexical
+navigation aid, not a resolved Cargo graph or effective-profile audit.

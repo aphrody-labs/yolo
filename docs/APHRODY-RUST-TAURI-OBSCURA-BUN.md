@@ -3,6 +3,15 @@
 
 > Scan statique effectué le 2026-10-03 sur `/home/aphro/aphrody`, HEAD `c4ca873709fe6d8d8cd3d7f24a5742930d11b3b5`. Périmètre : `crates/**` (sources Rust, tests et manifestes Cargo). Le rapport est enregistré dans le dépôt yolo à la demande du propriétaire. Les chemins pointent vers le checkout Aphrody. Ce scan ne lance ni compilation, ni test, ni application.
 
+## Statut après la décision runtime du 2026-10-03
+
+La direction active est désormais le [plan producteur](../PLAN.md) : runtime
+Bun/Tauri/Obscura précompilé dans Yolo, SDK léger consommé par Aphrody. Ce scan
+historique sert à retrouver des sources. Ses comptages de dépendances concernent
+les tables directes lues statiquement ; ils ne résolvent ni le graphe Cargo ni
+les tables conditionnelles par cible. Les affirmations précédentes sur des
+profils panic effectifs ont été retirées : elles n'étaient pas établies par le scan.
+
 ## Résultats
 
 | Sujet | Fichiers Rust touchés | Lignes correspondantes |
@@ -598,7 +607,7 @@ Le tableau liste chaque fichier Rust correspondant et les lignes contenant le mo
 ## Obscura — architecture et usages observés
 
 - Implémentation Rust locale sous `crates/web/obscura-*`: crates DOM, réseau/SSRF, browser, CDP, JS (deno_core/V8), rendu et façade `obscura`; packages Apache-2.0 marqués non publiables. `crates/web/obscura-js` a les options `stealth` et `render`, désactivées par défaut.
-- Les workspaces `crates/web/obscura` et `crates/web/obscura-js` spécifient `panic = "unwind"` en release. Le commentaire du manifest Obscura documente le besoin : les opérations interceptent les panics avec `catch_unwind` pour ne pas traverser le cadre FFI V8. Cette contrainte est incompatible avec le profil racine Aphrody `panic = "abort"` si ces crates sont unifiées sans traitement par package.
+- Les sources Obscura utilisent `catch_unwind` pour certaines frontières JavaScript/natives. Préserver cette récupération exige une stratégie de panic compatible au niveau des artefacts construits. Ce scan ne détermine pas les profils effectifs du workspace Aphrody ; un override Cargo par package ne doit pas être supposé résoudre ce contrat.
 - Consommateurs directs repérés : `crates/web/web-crawl` (requêtes + parsing DOM), `crates/web/web-engine`, `crates/web/web-service`, `crates/web/web-bridge`, `crates/web/web-extract`, `crates/interop/ffi` (fonctions natives HTTP/DOM), `crates/google/google` (recherche statique et browser), `crates/ai/agent-tools`, `crates/ai/mcp` (crawl et commandes browser). Le détail manifestes Cargo se trouve au tableau initial.
 - Les 151 fichiers Rust comprennent le moteur, tests d’intégration, adaptateurs/consommateurs et références. Le total lexical comporte du bruit : identifiants de types/erreurs et commentaires.
 
@@ -615,8 +624,8 @@ Le tableau liste chaque fichier Rust correspondant et les lignes contenant le mo
 - Le checkout Yolo est sur `dev`, workspace resolver 3, et les paquets importés `aphrody-*` sont câblés par `[workspace.dependencies]` avec les clés upstream conservées (`tauri`, `tauri-build`, `tauri-plugin-*`, `wry`, `tao`). `yolo-desktop` utilise ces clés workspace.
 - Le consumer Aphrody `crates/ui/app` et les adapters Tauri ne peuvent pas être supposés compilables sous le nom crate renommé par simple copie. Les chemins de manifestes et macros doivent préserver l’identifiant Rust `tauri`; les plugins qui calculent leur identifiant à partir de `CARGO_PKG_NAME` ont besoin du helper/normalisation planifié dans la migration.
 - Les noms de packages de plugins sont également consommés comme clés de permissions ACL et identifiants de commandes, alors que `use tauri::...`, `tauri::Builder`, `tauri::command` et les clés JSON de configuration sont des API historiques à préserver. Les régressions prioritaires sont ACL/plugin identifiers, templates `cargo add`/manifestes, et cohérence des versions alpha.
-- Ne pas importer Bun dans le workspace Tauri ciblé : ses près de cent crates ont leur propre workspace/build; aucun des usages Bun Aphrody recensés ne signifie qu’il faut importer son fork dans les crates Tauri.
-- Ne pas importer Obscura dans le workspace Tauri : ses crates restent dans le workspace Aphrody et l’unwind est une contrainte fonctionnelle. Garder cette exception explicite dans toute unification Cargo.
+- La nouvelle cible intègre les capacités Bun au runtime précompilé tout en permettant de conserver son graphe de build propre. Les consommateurs Aphrody doivent recevoir le SDK léger plutôt que recompiler le moteur.
+- La nouvelle cible intègre Obscura au runtime producteur, avec migration progressive des consommateurs. La frontière native, la stratégie panic et la parité précèdent le retrait de toute implémentation existante.
 - Ce rapport n’asserte aucune validation de compilation du checkout Aphrody ou Yolo.
 
 ## Limites et reproduction
