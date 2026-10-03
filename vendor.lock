@@ -669,14 +669,6 @@
       "dir": "crates/aphrody-turbo-tasks-macros"
     },
     {
-      "name": "turbo-tasks-macros-tests",
-      "package": "aphrody-turbo-tasks-macros-tests",
-      "version": "0.1.0",
-      "source": "next",
-      "from": "turbopack/crates/turbo-tasks-macros-tests",
-      "dir": "crates/aphrody-turbo-tasks-macros-tests"
-    },
-    {
       "name": "turbo-tasks-malloc",
       "package": "aphrody-turbo-tasks-malloc",
       "version": "0.1.0",
@@ -899,14 +891,6 @@
       "source": "next",
       "from": "turbopack/crates/turbopack-test-utils",
       "dir": "crates/aphrody-turbopack-test-utils"
-    },
-    {
-      "name": "turbopack-tests",
-      "package": "aphrody-turbopack-tests",
-      "version": "0.1.0",
-      "source": "next",
-      "from": "turbopack/crates/turbopack-tests",
-      "dir": "crates/aphrody-turbopack-tests"
     },
     {
       "name": "turbopack-trace-server",
