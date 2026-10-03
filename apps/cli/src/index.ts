@@ -420,6 +420,9 @@ export function getCapabilityById(id: string): BunCapabilityItem | undefined {
 
   const targetPath = resolve(ROOT_DIR, "apps/web/src/generated/bun-catalog.ts");
   await Bun.write(targetPath, generatedFileHeader);
+  // The file is tracked and checked by `fmt-check`: leave it formatted so regenerating it never dirties the tree.
+  const oxfmt = Bun.which("oxfmt");
+  if (oxfmt !== null) Bun.spawnSync([oxfmt, targetPath], { stdout: "ignore", stderr: "ignore" });
 
   const elapsedMs = Number(((Bun.nanoseconds() - t0) / 1_000_000).toFixed(2));
 
