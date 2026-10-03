@@ -100,7 +100,7 @@ for (const name of readdirSync(join(root, "crates"))) {
   if (!name.startsWith("aphrody-")) continue; // yolo-* crates inherit the workspace manifest
   cpSync(join(root, "crates", name), join(crateStage, "crates", name), {
     recursive: true,
-    filter: (src) => !/(^|\/)(target|node_modules)(\/|$)/.test(src),
+    filter: (src) => !/(^|[\\/])(target|node_modules)([\\/]|$)/.test(src),
   });
 }
 await run(["tar", "-czf", join(dir, crates), "-C", crateStage, "."]);

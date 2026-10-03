@@ -6,7 +6,7 @@
  * `just runtime-build` (profile `runtime`, unwinding panics).
  */
 import { mkdirSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { defaultLibraryPath, Runtime } from "../sdk/runtime/src/index";
 
 const root = resolve(import.meta.dir, "..");
@@ -25,13 +25,16 @@ async function git(...args: string[]): Promise<string> {
   return (await proc.exited) === 0 ? out.trim() : "unknown";
 }
 
-using runtime = Runtime.load({ libraryPath });
-const info = runtime.buildInfo();
+// Read what the library reports, then unload it: Windows refuses to open a loaded DLL.
+const loaded = Runtime.load({ libraryPath });
+const info = loaded.buildInfo();
+const capabilities = loaded.capabilities();
+loaded.close();
 const outDir = resolve(root, "dist/runtime", info.target);
 mkdirSync(outDir, { recursive: true });
 
 const headerSrc = resolve(root, "crates/yolo-runtime/include/yolo_runtime.h");
-const libName = libraryPath.split("/").pop() as string;
+const libName = basename(libraryPath);
 const lib = new Uint8Array(await Bun.file(libraryPath).arrayBuffer());
 const header = new Uint8Array(await Bun.file(headerSrc).arrayBuffer());
 await Bun.write(resolve(outDir, libName), lib);
@@ -62,7 +65,7 @@ const manifest = {
     },
     vendored: vendor.sources,
   },
-  capabilities: runtime.capabilities(),
+  capabilities,
   files: {
     [libName]: { sha256: sha256(lib), bytes: lib.byteLength },
     "yolo_runtime.h": { sha256: sha256(header), bytes: header.byteLength },
