@@ -79,6 +79,6 @@ The linux-x64 target, through `yolo ship` on the Aphrody build factory (one targ
 linux-x64 host): the gates of `ci.yml`, the runtime artifact and its tests, the release assets, then D0 (install
 into an empty `HOME` from those assets, `yolo doctor`) and D2 (`yolo create` from the installed executable,
 `bun install`, `tsc`, `bun test`, `build:bin`, `pack:deploy`, running the extracted archive with a minimal `PATH`
-and no environment, answering `/health`). Last green: commit `bbe1522` (2026-10-03). Not run anywhere: the macOS,
+and no environment, answering `/health`). Last green: commit `3c64d42` (2026-10-03). Not run anywhere: the macOS,
 Windows and Linux ARM targets, the Docker image, actually starting the generated systemd unit, and `install.ps1`
 beyond a syntax check (`pwsh -Command '[scriptblock]::Create(...)'`) — there is no Windows host in this loop.
