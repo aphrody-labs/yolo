@@ -133,13 +133,16 @@ exist but not relevant to server management.
   runs on host `local` in temporary directories (archive with removal after verification, idempotent re-run,
   source kept when `zstd -t` fails or the entry count differs, `--pull`, reclaim of old build output). The
   suite never contacts a remote host.
-- Read-only on `vps`: `yolo host audit`, and the plan output of `reclaim`, `services`, `tune`, `archive` and
-  `mount`, which only collect facts. No `--apply` was run against `vps` or `dbfr`. The measurement commands of
-  `net` were run by hand on `vps` (an `ssh exec` of curl for 2 MB, and a TCP connect from this machine); the
-  `net --apply` path was run on `local` only.
-- Not verified: `services --apply` and `tune --apply` against real systemd and sysctl (they need sudo on a
-  disposable machine), `mount --apply`, `archive --pull` over ssh with rsync, `--pg-dump` against a live
-  PostgreSQL, and the rclone fallback. These steps are covered by plan-generation tests only.
+- `tune --apply` against `vps` (2026-10-03, journaled in `var/host/vps/journal.jsonl`): the five
+  `aphrody-infra ssh tune` sysctls, transparent hugepages to `madvise`, nginx `worker_processes` to `auto`,
+  and `/etc/security/limits.d/99-yolo.conf`; nginx was backed up and `nginx -t`-checked first. `reclaim`,
+  `services`, `archive` and `mount --apply` are otherwise read-only/plan-only against `vps`: `yolo host audit`,
+  and the plan output of `reclaim`, `services`, `archive` and `mount`, which only collect facts. No `--apply` was
+  run against `dbfr`. The measurement commands of `net` were run by hand on `vps` (an `ssh exec` of curl for 2 MB,
+  and a TCP connect from this machine); the `net --apply` path was run on `local` only.
+- Not verified: `services --apply` against a real systemd unit, `mount --apply`, `archive --pull` over ssh with
+  rsync, `--pg-dump` against a live PostgreSQL, and the rclone fallback. These steps are covered by
+  plan-generation tests only.
 - The audit of a 45 GB host takes about 40 s because of `du` and `find` at idle I/O priority (each bounded by
   `timeout`). A long `tar | zstd` runs inside one ssh exec (limit 24 h); if the connection drops, the `.part`
   file is removed on the next run and nothing is removed from the source.

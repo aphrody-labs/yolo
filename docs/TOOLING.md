@@ -48,6 +48,30 @@ test/        Bun tests
 docs/        mdBook (this documentation)
 ```
 
+## Building and releasing (`yolo ship`)
+
+`yolo ship [--apply] [--sha X] [--force] [--wait]` is this repository's CI and release host: GitHub
+Actions is not available to it (billing), so the Aphrody build factory runs the gates of
+`.github/workflows/ci.yml`, the runtime artifact, the release assets and the D0/D2 install/deploy
+smoke instead, as `yolo/ship` commit statuses. Each build is a detached tmux session
+(`yolo-ship-<sha12>`, survives an ssh disconnect) running `scripts/release/ship_unit.sh`, which
+serializes behind the Aphrody heavy lock, checks the commit and its submodules out, then runs
+`scripts/release/ship_remote.sh` as a transient systemd unit with the cgroup CPU/memory/swap
+ceilings lifted. A build already running for a commit is left alone unless `--force`; `.coord`
+gets a claim naming the lock and the session so another agent does not stop it by mistake. When
+the built commit is the `v<VERSION>` tag and `main` contains it, `scripts/release/publish_remote.sh`
+publishes the GitHub release the same way `.github/workflows/release.yml`'s `publish` job would.
+
+```sh
+bun run cli ship --apply --wait   # fetch HEAD, build, block until ok/failed/stopped
+bun run cli ship status|log|attach|stop [--sha X]
+```
+
+Transport is git and `gh` only (the workspace is a clone on the build host, fetched and checked
+out there, never pushed to from this machine); `yolo hooks install` runs it, detached, on every
+push to `main`/`dev`. Tests: `bun test test/aphrody.test.ts` (pure functions: the commands it
+would run, the `.coord` claim; no network, no remote access).
+
 ## Server management (`yolo host`)
 
 `yolo host <audit|reclaim|archive|services|tune|net|mount|journal> --host vps|dbfr|local` manages a Linux

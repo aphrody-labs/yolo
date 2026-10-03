@@ -30,8 +30,10 @@ Generated or local only (ignored): `target/`, `dist/`, `var/`, `.cache/` (the `v
   ([docs/RUNTIME-ABI.md](docs/RUNTIME-ABI.md)).
 - **Release**: `scripts/release/release.ts` builds the five-target assets from a `vX.Y.Z` tag
   ([docs/DISTRIBUTION.md](docs/DISTRIBUTION.md)).
-- **Build host**: `yolo ship` syncs the checkout to the Aphrody build factory and runs
-  `scripts/release/ship_remote.sh` under the heavy lock ([docs/TOOLING.md](docs/TOOLING.md)).
+- **Build host**: `yolo ship` fetches the pushed commit on the Aphrody build factory (git/`gh`, no
+  rsync/rclone) and runs it as a systemd unit behind the heavy lock: the CI gates, the runtime
+  artifact, the release assets and the D0/D2 install/deploy smoke, since GitHub Actions is not
+  available to this repository ([docs/TOOLING.md](docs/TOOLING.md)).
 
 ## Boundaries
 

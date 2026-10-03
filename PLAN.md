@@ -61,9 +61,11 @@ dependency keys, `links`, permission and command ids) never change with the `aph
 | D4    | Crates and npm packages published under the `aphrody-*` / `@aphrody/*` names      | `just publish-dry` clean, then published                              |
 | R8    | Measurements (startup, native-call latency, memory, build time) and signing       | reproducible benchmark report per target                              |
 
-Status is tracked by the acceptance commands, not by prose: R0, R1, R2 (patch), D0 and D2 pass on the development
-host (see [DISTRIBUTION](docs/DISTRIBUTION.md) for exactly what was run); D1 is written and runs in CI on a tag; the
-rest are the work queue, in this order: D1 on a first tag, R3, R4, D3, D4, R5/R6, R8.
+Status is tracked by the acceptance commands, not by prose: R0, R1, R2 (patch), D0 and D2 pass, reproducibly, through
+`yolo ship` on the Aphrody build factory (linux-x64; see [DISTRIBUTION](docs/DISTRIBUTION.md) for exactly what was
+run and the last green commit). D1's workflow is written and correct but GitHub Actions does not currently run for
+this repository (billing); `yolo ship` publishes a tag's release instead, until that is resolved. The rest are the
+work queue, in this order: a first tag published this way, R3, R4, D3, D4, R5/R6, R8.
 
 ## Working rules
 

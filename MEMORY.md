@@ -16,6 +16,10 @@ with Tauri and Obscura, and sharply reduce Aphrody's routine compilation cost.
   names use aphrody-*. Separate build graphs can produce one unified distribution.
 - Implementation phases R0–R8 remain unqualified by this documentation change.
   No runtime build, deployment or performance result is claimed here.
+- 2026-10-03: `yolo ship` became this repository's CI and release host (GitHub Actions has no
+  billing to run on); see [PLAN.md](PLAN.md) for the current per-phase status and
+  [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) for the last verified commit. This line, not the
+  one above it, is current; it is kept for the history, not as a standing claim.
 - The earlier Rust scan covers Aphrody only and is a lexical navigation aid;
   its profile statements and dependency inventory require scoped verification.
 - Keep repositories private, commits owner-authored and existing consumers intact
