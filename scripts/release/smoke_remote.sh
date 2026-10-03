@@ -36,9 +36,12 @@ archive=$(ls dist/smoke-app-*.tar.gz | head -1)
 mkdir -p "$work/srv"
 tar -xzf "$archive" -C "$work/srv" --strip-components=1
 
-echo "--- D2: run the extracted archive (no Bun, no HOME, minimal PATH)"
+echo "--- D2: run the extracted archive (no Bun, no HOME, minimal PATH, cwd = the archive itself)"
+# A real deployment's systemd unit sets WorkingDirectory to the extracted archive, not the scaffold it came from
+# (DEPLOY.md). Run it from there too: the scaffold's dev-only bunfig.toml (preload for the node_modules fallback)
+# must never reach the deployed binary, which build:bin already enforces with compile.autoloadBunfig: false.
 port=$((20000 + RANDOM % 20000))
-env -i PATH=/usr/bin:/bin PORT="$port" "$work/srv/run.sh" > "$work/srv.log" 2>&1 &
+(cd "$work/srv" && env -i PATH=/usr/bin:/bin PORT="$port" ./run.sh > "$work/srv.log" 2>&1) &
 pid=$!
 for _ in $(seq 1 100); do
   curl -fsS "http://127.0.0.1:$port/health" > "$work/health.json" 2>/dev/null && break

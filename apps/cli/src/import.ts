@@ -813,6 +813,18 @@ export async function runImportCommand(args: readonly string[], rootDir: string)
   let configPath = resolve(rootDir, "vendor.toml");
   for (let i = 0; i < args.length; i++) {
     const arg = args[i] as string;
+    if (arg === "--help" || arg === "-h" || arg === "help") {
+      console.log(
+        `Usage: yolo import [--apply] [--check] [--scan] [--out <dir>] [--config <file>]\n\n` +
+          `  (no flags)  dry run: what would be imported from vendor.toml into crates/aphrody-*\n` +
+          `  --apply     write the import (normally done on the \`vendor\` branch; see docs/VENDORING.md)\n` +
+          `  --check     fail if crates/ differs from a fresh import of the pinned submodule commits\n` +
+          `  --scan      report what vendor.toml could add from the configured sources, without importing\n` +
+          `  --out DIR   import into DIR instead of this checkout (used by import-check's worktree)\n` +
+          `  --config F  vendor config to read (default: vendor.toml)`,
+      );
+      return 0;
+    }
     if (arg === "--apply") apply = true;
     else if (arg === "--check") check = true;
     else if (arg === "--scan") scan = true;

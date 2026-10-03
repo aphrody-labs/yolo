@@ -6,7 +6,14 @@ const result = await Bun.build({
   plugins: [runtimeBundlerPlugin],
   target: "bun",
   minify: true,
-  compile: { outfile: "dist/__NAME__" },
+  compile: {
+    outfile: "dist/__NAME__",
+    // Standalone executables auto-load a bunfig.toml from the current directory at runtime by default. This
+    // project's bunfig.toml declares a dev-only `preload` (the runtime SDK's node_modules fallback), which a
+    // deployed binary must never depend on: `pack:deploy` ships no bunfig.toml, but the binary could still be run
+    // from a directory that happens to have one (the scaffold itself, a CI cache...). Keep it deterministic.
+    autoloadBunfig: false,
+  },
 });
 if (!result.success) {
   for (const log of result.logs) console.error(log);

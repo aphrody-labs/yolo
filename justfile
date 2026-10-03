@@ -190,8 +190,10 @@ upgrade-latest:
 # Cleaning
 clean:
     -git worktree remove --force .cache/vendor
-    rm -rf .cache *.log var target dist apps/web/dist
-    @echo -e "\033[1;32m[OK] Workspace cleaned\033[0m"
+    # var/host/*/journal.jsonl is the only undo record of applied `yolo host` tuning: never deleted by clean
+    [ -d var ] && find var -mindepth 1 -maxdepth 1 ! -name host -exec rm -rf {} + || true
+    rm -rf .cache *.log target dist apps/web/dist
+    @echo -e "\033[1;32m[OK] Workspace cleaned (var/host journals kept)\033[0m"
 
 # Publishing (dry-run by default; real publish needs explicit *-run recipes)
 publish-crates-dry:
