@@ -41,6 +41,12 @@ if ! command -v bun >/dev/null; then
   curl -fsSL https://bun.sh/install | bash
 fi
 
+say "bun global tools (versions from package.json)"
+for pkg in oxlint oxfmt typescript; do
+  v=$(bun -e "console.log(require('$ROOT/package.json').devDependencies['$pkg'] ?? '')")
+  bun add -g "$pkg${v:+@$v}" >/dev/null
+done
+
 # cargo reuses one sccache store on the factory volume; Bun's own build uses ccache under BUN_BUILD_CACHE_DIR
 mkdir -p "$HOME/.cargo" "$CACHE/sccache" "$CACHE/bun-build"
 cat > "$HOME/.cargo/config.toml" <<EOF
