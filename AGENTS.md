@@ -3,72 +3,55 @@
 
 ## Mission
 
-Read [PLAN.md](PLAN.md), [MEMORY.md](MEMORY.md), [vendoring](docs/VENDORING.md)
-and [tooling](docs/TOOLING.md) for the selected task.
-Yolo produces the precompiled native runtime and SDK; Aphrody consumes them and
-keeps product logic. The architectural authority is [Aphrody PLAN](../aphrody/PLAN.md).
-A phase is done when its acceptance command in PLAN.md passes; state what was and was not run.
-
-This repository is distinct from the global YOLO automation plugin and the
-Aphrody `crates/infra/yolo` CLI. Naming does not authorize changes to either.
+Read [PLAN.md](PLAN.md), [MEMORY.md](MEMORY.md) and selected owner docs.
+Shared architecture/workflow: [Aphrody PLAN](../aphrody/PLAN.md).
+Yolo produces runtime/SDK; Aphrody keeps product behavior.
+This repo is distinct from the global YOLO automation plugin and Infra yolo CLI.
 
 ## Integration contracts
 
-- Use the Bun fork as application execution host; expose explicit native APIs.
-- Integrate selected Tauri capabilities/plugins behind the runtime contract.
-- Stage Obscura's JavaScriptCore port; preserve V8 until required parity passes.
-- System WebViews retain platform engines. Do not promise one JS engine everywhere.
-- External native consumers use a versioned C ABI/light SDK, not internal engine
-  Rust types. Define ownership, release, cancellation, callbacks and threading.
-- Keep context permissions, origins and session isolation. Never expose privileged
-  Bun APIs implicitly to remote/headless pages.
-- Preserve panic recovery at real artifact boundaries. Do not force incompatible
-  engine profiles into one workspace or rely on per-package panic overrides.
-- Prefer existing capability owners; isolated native workers require a stated
-  isolation purpose, not a substitute subprocess implementation.
+Use the versioned C ABI/light SDK, explicit ownership/cancellation/threading,
+native permission/origin checks and qualified panic boundaries from the shared
+plan. Preserve V8 until Obscura/JSC parity and system WebView engines.
+Reuse owners; an isolated worker requires an actual isolation purpose.
 
 ## Source and fork workflow
 
-Preserve `vendor.toml`, `vendor.lock` and current reproducible import tooling.
-Submodule committed revisions are source inputs. `vendor` is generated history;
-integration behavior belongs on `dev`. Follow VENDORING for update commands.
-Keep fork `main` as upstream mirror and fork `yolo` for owned changes. No force push.
-Cargo packages use `aphrody-*`; library names, dependency keys, binary names,
-`links`, permission IDs, command IDs and platform identifiers remain contracts.
-Preserve upstream versions and notices. Names must not change runtime identity
-implicitly. No manual engine copy into Aphrody and no upstream clone for research.
-Bun and Obscura may retain separate workspaces/build graphs under one distribution.
+[VENDORING](docs/VENDORING.md) owns imports. Preserve vendor.toml/vendor.lock,
+pinned submodules, notices and source provenance. Generated history stays on
+`vendor`; integration on `dev`; fork `main` mirrors upstream and `yolo`
+holds patches. No force-push or upstream clone for research.
+
+Cargo package prefixes do not rename library/dependency/binary/links/
+permission/command/platform identities. Bun/Obscura retain compatible separate
+build graphs. No engine source copied into Aphrody.
 
 ## Work, builds and checks
 
-Work autonomously on the current authorized branch. Check scoped Git status,
-claim disjoint paths in `.coord` for concurrent edits and preserve others' work.
-Use one integrating committer per batch. Do not create branches/worktrees for
-routine shared work; the existing vendor workflow is a specific documented case.
-Use Workspace/Infra and capability-owner CLIs; check their advertised help before
-assuming commands. Keep global sccache and reusable caches.
+Execute authorized batches without intermediate confirmation on the existing
+branch/checkout. Check Git and .coord, claim disjoint paths, preserve other
+sessions, private stores and caches. No clean test clone or routine worktree.
 
-Follow owner manifests and `just --list`. Use the existing build factory for
-heavy work; serialize Cargo with the supported integrating owner. Workers never
-start Cargo builds, checks, tests, benches or rustdoc. Do not launch parallel engine
-builds or bypass resource policy. Scope expensive checks to the changed surface.
+Use native MCP/capability-owner tools and Workspace/Infra; verify live help and
+[TOOLING](docs/TOOLING.md). Heavy engines use the factory. Integrator serializes
+Cargo via Aphrody's supported wrapper with sccache/resource guards; workers do
+not run Cargo. No parallel engine builds.
 
-For Rust changes use appropriate check/test/strict Clippy gates; for Bun/TS use
-typecheck, oxlint/oxfmt and relevant bun tests. Validate import changes with the
-existing reproducibility checks. Documentation-only work uses links, whitespace,
-archive hashes and mdBook as applicable, without engine compilation.
-Distinguish source, build, runtime behavior, packaging, installation and activation.
-No claimed speedup or compatibility without reproducible evidence.
+Rust: scoped check/test/strict Clippy. Bun: TypeScript, oxlint/oxfmt, tests.
+Imports: reproducibility gates. Docs: links, whitespace, provenance/hash checks
+and mdBook, without engine compilation. Repeat only after relevant changes or
+unresolved failures. State failed/skipped gates and actual proof scope.
 
 ## Privacy and delivery
 
-Keep repositories private, source notices intact and secrets in existing private
-stores. Preserve datasets, models, databases and caches. GitHub releases are cut from `main` by `vX.Y.Z` tag
-(owner authorization of 2026-10-03, see docs/DISTRIBUTION.md); package registries (crates.io, npm) are published only
-when the owner runs or asks for `just publish-*-run`, since a registry publication cannot be undone.
-UI applicative M3 et Web : réside désormais canoniquement dans le monorepo Aphrody (`packages/ui/app-ui`, `crates/ui/*`). L'ancien checkout séparé aphrody-ui a été consolidé.
-Use `aphrody-dev <contact@aphrody.com>` for author and committer; no assistant
-attribution, coauthor trailers or AI bots/apps added to repositories.
-Commit completed owned batches and push to the existing authorized remote.
-Archive superseded decisions; never label historical plan results as proof of
-new runtime phases. Keep the memory concise and point to canonical plans.
+Repositories stay private. No secret/data/model content in source or receipts;
+no AI bots/apps added. Commit completed owned batches as
+`aphrody-dev <contact@aphrody.com>`, no assistant attribution; push only existing
+authorized remotes. Do not stage other work or ignored outputs.
+
+GitHub release authority and mechanics: [DISTRIBUTION](docs/DISTRIBUTION.md).
+Registry publication requires explicit owner scope. Distinguish source, tests,
+artifact, installation and activation. Performance requires measurements.
+
+UI remains canonical in Aphrody. No new archive or dead fallback after qualified
+migration; preserve legal records and historical evidence.
