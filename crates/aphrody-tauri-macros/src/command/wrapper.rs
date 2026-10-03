@@ -224,9 +224,8 @@ pub fn wrapper(attributes: TokenStream, item: TokenStream) -> TokenStream {
     }
   }
 
-  let plugin_name = var("CARGO_PKG_NAME")
-    .expect("missing `CARGO_PKG_NAME` environment variable")
-    .strip_prefix("tauri-plugin-")
+  let package_name = var("CARGO_PKG_NAME").expect("missing `CARGO_PKG_NAME` environment variable");
+  let plugin_name = tauri_utils::acl::plugin_name_from_package(&package_name)
     .map(|name| quote!(::core::option::Option::Some(#name)))
     .unwrap_or_else(|| quote!(::core::option::Option::None));
 

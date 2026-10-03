@@ -154,7 +154,8 @@ pub(crate) fn setup(
         )
         .context("failed to copy tauri-api to the plugin project")?;
         tauri_utils::build::link_apple_library(
-          &std::env::var("CARGO_PKG_NAME").unwrap(),
+          // the SwiftPM product keeps the upstream plugin name, which is the `links` value
+          &std::env::var("CARGO_MANIFEST_LINKS").unwrap(),
           manifest_dir.join(path),
         );
       }

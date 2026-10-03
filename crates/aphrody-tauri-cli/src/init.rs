@@ -306,48 +306,44 @@ fn render_tauri_config(
 
 /// Builds the template variables for the Tauri crate dependencies of the generated `Cargo.toml`.
 ///
-/// `tauri_dep`, `tauri_build_dep` and `tauri_runtime_wry_dep` are always set.
+/// `tauri_dep`, `tauri_build_dep` and `tauri_runtime_wry_dep` are always set. The crates are the
+/// Aphrody packages (`aphrody-tauri`, …) while the dependency keys keep the upstream names, so
+/// `use tauri::…` and `tauri/custom-protocol` keep working.
 ///
 /// When `tauri_path` is provided the dependencies point to the crates inside that directory
-/// and `patch_tauri_dep`, `tauri_utils_dep` and `tauri_plugin_dep` are also set so the template
-/// renders a `[patch.crates-io]` section overriding the Tauri crates pulled in by other dependencies.
-/// Without a path the template never renders that section, so those variables are not needed.
+/// (`<tauri_path>/crates/aphrody-*`).
 fn tauri_dependencies_data(
   tauri_path: Option<&Path>,
   metadata: &VersionMetadata,
 ) -> BTreeMap<&'static str, serde_json::Value> {
   let mut data = BTreeMap::new();
   if let Some(tauri_path) = tauri_path {
-    let path_dep = |crate_dir: &str| {
+    let path_dep = |package: &str| {
       to_json(format!(
-        "{{  path = {:?} }}",
-        resolve_tauri_path(tauri_path, crate_dir)
+        "{{  package = {package:?}, path = {:?} }}",
+        resolve_tauri_path(tauri_path, &format!("crates/{package}"))
       ))
     };
-    data.insert("tauri_dep", path_dep("crates/tauri"));
-    data.insert("tauri_build_dep", path_dep("crates/tauri-build"));
+    data.insert("tauri_dep", path_dep("aphrody-tauri"));
+    data.insert("tauri_build_dep", path_dep("aphrody-tauri-build"));
     data.insert(
       "tauri_runtime_wry_dep",
-      path_dep("crates/tauri-runtime-wry"),
+      path_dep("aphrody-tauri-runtime-wry"),
     );
-    data.insert("patch_tauri_dep", to_json(true));
-    data.insert("tauri_utils_dep", path_dep("crates/tauri-utils"));
-    data.insert("tauri_plugin_dep", path_dep("crates/tauri-plugin"));
   } else {
-    data.insert(
-      "tauri_dep",
-      to_json(format!(r#"{{ version = "{}" }}"#, metadata.tauri)),
-    );
+    let version_dep = |package: &str, version: &str| {
+      to_json(format!(
+        r#"{{ package = "{package}", version = "{version}" }}"#
+      ))
+    };
+    data.insert("tauri_dep", version_dep("aphrody-tauri", &metadata.tauri));
     data.insert(
       "tauri_build_dep",
-      to_json(format!(r#"{{ version = "{}" }}"#, metadata.tauri_build)),
+      version_dep("aphrody-tauri-build", &metadata.tauri_build),
     );
     data.insert(
       "tauri_runtime_wry_dep",
-      to_json(format!(
-        r#"{{ version = "{}" }}"#,
-        metadata.tauri_runtime_wry
-      )),
+      version_dep("aphrody-tauri-runtime-wry", &metadata.tauri_runtime_wry),
     );
   }
   data
@@ -427,6 +423,11 @@ mod tests {
       !dep.contains_key("version"),
       "path dependency must not carry a version: {dep:?}"
     );
+    assert_eq!(
+      dep.get("package").and_then(|p| p.as_str()),
+      crate_dir.strip_prefix("crates/"),
+      "dependency must use the Aphrody package: {dep:?}"
+    );
     let path = dep
       .get("path")
       .and_then(|p| p.as_str())
@@ -438,55 +439,36 @@ mod tests {
     assert_path_dependency(
       dependency(manifest, "dependencies", "tauri"),
       tauri_path,
-      "crates/tauri",
+      "crates/aphrody-tauri",
     );
     assert_path_dependency(
       dependency(manifest, "build-dependencies", "tauri-build"),
       tauri_path,
-      "crates/tauri-build",
+      "crates/aphrody-tauri-build",
     );
     assert_path_dependency(
       dependency(manifest, "dependencies", "tauri-runtime-wry"),
       tauri_path,
-      "crates/tauri-runtime-wry",
+      "crates/aphrody-tauri-runtime-wry",
     );
-
-    let patch = manifest
-      .get("patch")
-      .and_then(|p| p.get("crates-io"))
-      .and_then(|p| p.as_table())
-      .expect("[patch.crates-io] must be rendered for path dependencies");
-    assert_eq!(
-      patch.len(),
-      4,
-      "unexpected [patch.crates-io] entries: {patch:?}"
+    assert!(
+      !manifest.contains_key("patch"),
+      "no [patch.crates-io] is needed: all Tauri crates are Aphrody packages"
     );
-    for (name, crate_dir) in [
-      ("tauri", "crates/tauri"),
-      ("tauri-utils", "crates/tauri-utils"),
-      ("tauri-plugin", "crates/tauri-plugin"),
-      ("tauri-runtime-wry", "crates/tauri-runtime-wry"),
-    ] {
-      let dep = patch
-        .get(name)
-        .and_then(|d| d.as_table())
-        .unwrap_or_else(|| panic!("[patch.crates-io] is missing `{name}`"));
-      assert_path_dependency(dep, tauri_path, crate_dir);
-    }
   }
 
   #[test]
   fn version_dependencies() {
     let metadata = metadata();
     let data = tauri_dependencies_data(None, &metadata);
-    assert!(
-      !data.contains_key("patch_tauri_dep"),
-      "patch_tauri_dep must only be set for path dependencies"
-    );
 
     let manifest = render_manifest(&data);
 
     let tauri = dependency(&manifest, "dependencies", "tauri");
+    assert_eq!(
+      tauri.get("package").and_then(|v| v.as_str()),
+      Some("aphrody-tauri")
+    );
     assert_eq!(
       tauri.get("version").and_then(|v| v.as_str()),
       Some(metadata.tauri.as_str())
@@ -507,10 +489,7 @@ mod tests {
     );
     assert!(!tauri_runtime_wry.contains_key("path"));
 
-    assert!(
-      !manifest.contains_key("patch"),
-      "[patch.crates-io] must not be rendered for version dependencies"
-    );
+    assert!(!manifest.contains_key("patch"));
   }
 
   #[test]

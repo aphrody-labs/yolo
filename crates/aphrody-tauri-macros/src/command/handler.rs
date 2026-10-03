@@ -85,7 +85,7 @@ fn try_get_plugin_name(input: &ParseBuffer<'_>) -> Result<Option<String>, syn::E
   Ok(
     std::env::var("CARGO_PKG_NAME")
       .ok()
-      .and_then(|var| var.strip_prefix("tauri-plugin-").map(String::from)),
+      .and_then(|var| tauri_utils::acl::plugin_name_from_package(&var).map(String::from)),
   )
 }
 

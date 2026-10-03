@@ -58,6 +58,17 @@ pub const ALLOWED_COMMANDS_FILE_NAME: &str = "allowed-commands.json";
 /// the value is set to the config's directory
 pub const REMOVE_UNUSED_COMMANDS_ENV_VAR: &str = "REMOVE_UNUSED_COMMANDS";
 
+/// Package name prefixes of plugin crates: the Aphrody forks first, then upstream.
+pub const PLUGIN_PACKAGE_PREFIXES: [&str; 2] = ["aphrody-tauri-plugin-", "tauri-plugin-"];
+
+/// Returns the plugin name of a plugin package: `fs` for `aphrody-tauri-plugin-fs` and
+/// for `tauri-plugin-fs`, `None` when `package` is not a plugin package name.
+pub fn plugin_name_from_package(package: &str) -> Option<&str> {
+  PLUGIN_PACKAGE_PREFIXES
+    .iter()
+    .find_map(|prefix| package.strip_prefix(prefix))
+}
+
 #[cfg(any(feature = "build", feature = "build-2"))]
 pub mod build;
 pub mod capability;
@@ -426,7 +437,21 @@ pub fn read_allowed_commands() -> Option<AllowedCommands> {
 
 #[cfg(test)]
 mod tests {
-  use crate::acl::RemoteUrlPattern;
+  use crate::acl::{RemoteUrlPattern, plugin_name_from_package};
+
+  #[test]
+  fn plugin_name_from_package_handles_both_prefixes() {
+    assert_eq!(plugin_name_from_package("tauri-plugin-fs"), Some("fs"));
+    assert_eq!(
+      plugin_name_from_package("aphrody-tauri-plugin-fs"),
+      Some("fs")
+    );
+    assert_eq!(
+      plugin_name_from_package("aphrody-tauri-plugin-window-state"),
+      Some("window-state")
+    );
+    assert_eq!(plugin_name_from_package("aphrody-tauri"), None);
+  }
 
   #[test]
   fn url_pattern_domain_wildcard() {

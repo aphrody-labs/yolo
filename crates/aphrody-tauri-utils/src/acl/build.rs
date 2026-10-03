@@ -160,8 +160,7 @@ pub fn read_permissions() -> Result<HashMap<String, Vec<PermissionFile>>, Error>
       let permissions = parse_permissions(permissions)?;
 
       let plugin_crate_name = plugin_crate_name_var.to_lowercase().replace('_', "-");
-      let plugin_crate_name = plugin_crate_name
-        .strip_prefix("tauri-plugin-")
+      let plugin_crate_name = super::plugin_name_from_package(&plugin_crate_name)
         .map(ToString::to_string)
         .unwrap_or(plugin_crate_name);
 
@@ -215,8 +214,7 @@ pub fn read_global_scope_schemas() -> Result<HashMap<String, serde_json::Value>,
       let schema: serde_json::Value = serde_json::from_str(&json)?;
 
       let plugin_crate_name = plugin_crate_name_var.to_lowercase().replace('_', "-");
-      let plugin_crate_name = plugin_crate_name
-        .strip_prefix("tauri-plugin-")
+      let plugin_crate_name = super::plugin_name_from_package(&plugin_crate_name)
         .map(ToString::to_string)
         .unwrap_or(plugin_crate_name);
 
@@ -502,8 +500,7 @@ pub fn generate_allowed_commands(
   let acl: BTreeMap<String, crate::acl::manifest::Manifest> = permissions_map
     .into_iter()
     .map(|(key, permissions)| {
-      let key = key
-        .strip_prefix("tauri-plugin-")
+      let key = super::plugin_name_from_package(&key)
         .unwrap_or(&key)
         .to_string();
       let manifest = crate::acl::manifest::Manifest::new(permissions, None);

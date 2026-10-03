@@ -156,13 +156,16 @@ pub fn crate_version(
 ) -> CrateVersion {
   let mut version = CrateVersion::default();
 
+  // Aphrody forks publish the crates as `aphrody-<name>` while apps keep the upstream
+  // dependency key, so the lock file may list either package name.
+  let prefixed_name = format!("aphrody-{name}");
   let crate_lock_packages: Vec<CargoLockPackage> = lock
     .as_ref()
     .map(|lock| {
       lock
         .package
         .iter()
-        .filter(|p| p.name == name)
+        .filter(|p| p.name == name || p.name == prefixed_name)
         .cloned()
         .collect()
     })

@@ -96,8 +96,16 @@ pub fn run(options: Options, dirs: &Dirs) -> Result<()> {
     version.or(metadata.version_req.as_deref())
   };
 
+  // Official plugins come from the Aphrody forks (`aphrody-tauri-plugin-x`) and keep the
+  // upstream dependency key so `tauri_plugin_x::init()` keeps working.
+  let package_name = if is_known {
+    format!("aphrody-{crate_name}")
+  } else {
+    crate_name.clone()
+  };
   cargo::install_one(cargo::CargoInstallOptions {
-    name: &crate_name,
+    name: &package_name,
+    rename: is_known.then_some(crate_name.as_str()),
     version: cargo_version_req,
     branch: options.branch.as_deref(),
     rev: options.rev.as_deref(),

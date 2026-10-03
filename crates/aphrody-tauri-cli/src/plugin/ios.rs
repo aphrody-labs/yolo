@@ -118,7 +118,7 @@ pub fn command(cli: Cli) -> Result<()> {
       let cargo_toml_addition = format!(
         r#"
 [build-dependencies]
-tauri-build = "{}"
+tauri-build = {{ package = "aphrody-tauri-build", version = "{}" }}
 "#,
         metadata.tauri_build
       );

@@ -6,9 +6,15 @@ use std::process::Command;
 
 use crate::Error;
 
+/// Git repository of the official plugins (the Aphrody fork).
+const PLUGINS_GIT_URL: &str = "https://github.com/aphrody-labs/plugins-workspace";
+
 #[derive(Debug, Default, Clone, Copy)]
 pub struct CargoInstallOptions<'a> {
   pub name: &'a str,
+  /// Dependency key to use when `name` is a package published under another name, e.g. the
+  /// Aphrody fork `aphrody-tauri-plugin-fs` added as `tauri-plugin-fs`.
+  pub rename: Option<&'a str>,
   pub version: Option<&'a str>,
   pub rev: Option<&'a str>,
   pub tag: Option<&'a str>,
@@ -27,7 +33,7 @@ pub fn install_one(options: CargoInstallOptions) -> crate::Result<()> {
     cargo.arg(options.name);
 
     if options.tag.is_some() || options.rev.is_some() || options.branch.is_some() {
-      cargo.args(["--git", "https://github.com/tauri-apps/plugins-workspace"]);
+      cargo.args(["--git", PLUGINS_GIT_URL]);
     }
 
     match (options.tag, options.rev, options.branch) {
@@ -43,6 +49,10 @@ pub fn install_one(options: CargoInstallOptions) -> crate::Result<()> {
       (None, None, None) => {}
       _ => crate::error::bail!("Only one of --tag, --rev and --branch can be specified"),
     };
+  }
+
+  if let Some(rename) = options.rename {
+    cargo.args(["--rename", rename]);
   }
 
   if let Some(target) = options.target {

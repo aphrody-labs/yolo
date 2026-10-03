@@ -205,7 +205,7 @@ impl<'a> Builder<'a> {
       acl::build::generate_docs(
         &permissions,
         &docs_dir,
-        name.strip_prefix("tauri-plugin-").unwrap_or(&name),
+        acl::plugin_name_from_package(&name).unwrap_or(&name),
       )?;
     }
 

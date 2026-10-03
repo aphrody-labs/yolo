@@ -100,43 +100,55 @@ pub fn command(mut options: Options) -> Result<()> {
     log::warn!("Plugin dir ({:?}) not empty.", template_target_path);
     return Ok(());
   } else {
+    // The generated manifests depend on the Aphrody packages while keeping the upstream
+    // dependency keys (`tauri`, `tauri-plugin`, …), so the plugin code is unchanged.
     let (tauri_dep, tauri_example_dep, tauri_build_dep, tauri_plugin_dep, tauri_runtime_wry_dep) =
       if let Some(tauri_path) = options.tauri_path {
+        let path = |package: &str| resolve_tauri_path(&tauri_path, &format!("crates/{package}"));
         (
           format!(
-            r#"{{  path = {:?} }}"#,
-            resolve_tauri_path(&tauri_path, "crates/tauri")
+            r#"{{  package = "aphrody-tauri", path = {:?} }}"#,
+            path("aphrody-tauri")
           ),
           format!(
-            r#"{{  path = {:?} }}"#,
-            resolve_tauri_path(&tauri_path, "crates/tauri")
+            r#"{{  package = "aphrody-tauri", path = {:?} }}"#,
+            path("aphrody-tauri")
           ),
           format!(
-            "{{  path = {:?}, default-features = false }}",
-            resolve_tauri_path(&tauri_path, "crates/tauri-build")
+            r#"{{  package = "aphrody-tauri-build", path = {:?}, default-features = false }}"#,
+            path("aphrody-tauri-build")
           ),
           format!(
-            r#"{{  path = {:?}, features = ["build"] }}"#,
-            resolve_tauri_path(&tauri_path, "crates/tauri-plugin")
+            r#"{{  package = "aphrody-tauri-plugin", path = {:?}, features = ["build"] }}"#,
+            path("aphrody-tauri-plugin")
           ),
           format!(
-            r#"{{  path = {:?} }}"#,
-            resolve_tauri_path(&tauri_path, "crates/tauri-runtime-wry")
+            r#"{{  package = "aphrody-tauri-runtime-wry", path = {:?} }}"#,
+            path("aphrody-tauri-runtime-wry")
           ),
         )
       } else {
         (
-          format!(r#"{{ version = "{}" }}"#, metadata.tauri),
-          format!(r#"{{ version = "{}" }}"#, metadata.tauri),
           format!(
-            r#"{{ version = "{}", default-features = false }}"#,
+            r#"{{ package = "aphrody-tauri", version = "{}" }}"#,
+            metadata.tauri
+          ),
+          format!(
+            r#"{{ package = "aphrody-tauri", version = "{}" }}"#,
+            metadata.tauri
+          ),
+          format!(
+            r#"{{ package = "aphrody-tauri-build", version = "{}", default-features = false }}"#,
             metadata.tauri_build
           ),
           format!(
-            r#"{{ version = "{}", features = ["build"] }}"#,
+            r#"{{ package = "aphrody-tauri-plugin", version = "{}", features = ["build"] }}"#,
             metadata.tauri_plugin
           ),
-          format!(r#"{{ version = "{}" }}"#, metadata.tauri_runtime_wry),
+          format!(
+            r#"{{ package = "aphrody-tauri-runtime-wry", version = "{}" }}"#,
+            metadata.tauri_runtime_wry
+          ),
         )
       };
 

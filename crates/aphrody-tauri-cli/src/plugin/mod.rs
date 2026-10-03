@@ -88,8 +88,7 @@ fn infer_plugin_name<P: AsRef<Path>>(directory: P) -> Result<String> {
       .to_string()
   };
   Ok(
-    name
-      .strip_prefix("tauri-plugin-")
+    tauri_utils::acl::plugin_name_from_package(&name)
       .unwrap_or(&name)
       .to_string(),
   )
