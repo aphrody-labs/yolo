@@ -27,9 +27,17 @@ allow = [
   "BSL-1.0",
   "CDLA-Permissive-2.0",
   "OpenSSL",
+  "BlueOak-1.0.0",
+  "NCSA",
+  "bzip2-1.0.6",
+  "LGPL-2.0-or-later",
   "LGPL-3.0-or-later",
   "GPL-3.0-or-later",
 ]
+
+# Unpublished workspace crates (publish = false) carry no license of their own.
+[licenses.private]
+ignore = true
 
 [bans]
 multiple-versions = "allow"
