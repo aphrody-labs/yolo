@@ -19,6 +19,7 @@ import { runCreateCommand } from "./create";
 import { runDoctor, runRuntimeCommand, runUninstall, runUpgrade, runVersion } from "./distribution";
 import { runAphrodyCommand } from "./aphrody";
 import { runHostCommand } from "./host";
+import { runVerifyCommand } from "./verify";
 import { findCheckout, isCompiled, yoloHome } from "./home";
 import { runImportCommand } from "./import";
 import { runPluginCommand } from "./plugin";
@@ -480,6 +481,7 @@ ${header}
   \x1b[32mimport [--apply|--check]\x1b[0m Vendor the fork crates into crates/aphrody-* (see vendor.toml)
   \x1b[32mrename [opts] [dir..]\x1b[0m Mass boundary-aware rename (--preset aphrody | --from X --to Y, --apply, --paths)
   \x1b[32minfra|ops|workspace|workflow|git|ssh ...\x1b[0m Aphrody control plane (aphrody-infra / aphrody-ops), same workflow
+  \x1b[32mverify [--only a,b] [--changed] [--parallel N] [--json|--md] [--list|--last]\x1b[0m Run the repository gates as a parallel graph; JSON or Markdown evidence in var/verify
   \x1b[32mhost audit|reclaim|archive|services|tune|net|mount|journal --host vps|dbfr|local [--apply]\x1b[0m Manage a Linux server (plan by default, journaled, safety-checked)
   \x1b[32mship [--apply] [status|log|attach|stop]\x1b[0m Build all of yolo on the build factory host; \x1b[32mhooks install\x1b[0m does it on every push to main/dev
   \x1b[32mplugin <create|status>\x1b[0m Generate or inspect unified YOLO & Bun-TS7 plugin
@@ -768,6 +770,11 @@ async function main(): Promise<void> {
 
     case "host": {
       process.exitCode = await runHostCommand(args.slice(1), ROOT_DIR);
+      break;
+    }
+
+    case "verify": {
+      process.exitCode = await runVerifyCommand(args.slice(1), ROOT_DIR);
       break;
     }
 

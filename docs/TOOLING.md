@@ -9,6 +9,7 @@ One workspace, one set of commands (`just --list`).
 | Bun tests | `just test` |
 | Rust tests (cargo-nextest, default members) | `just test-crates` |
 | Everything | `just test-all` |
+| The repository gates as one parallel, measured report (JSON or Markdown) | `yolo verify [--only a,b] [--changed] [--json|--md]`, `--list`, `--last` |
 | Licenses / advisories / sources | `just deny` |
 | Web frontend | `just web-build`, `just web-dev` |
 | Desktop app | `just desktop-build` |
@@ -21,6 +22,26 @@ One workspace, one set of commands (`just --list`).
 | Linux server (audit, reclaim, archive, services, tune, net, mount; plan by default) | `just host audit --host vps`, see [SERVER.md](SERVER.md) |
 | Docs | `just docs-build` |
 | Publishing (dry run) | `just publish-dry` |
+
+## Evidence for agents (`yolo verify`)
+
+`yolo verify` runs the gates of `just check` and `just test` as a dependency graph: typecheck, lint, format,
+Bun tests, rustfmt, the mdBook build, the import reproducibility check and `git diff --check`. Independent gates start
+together, at most `--parallel` (default: the CPU count) run at once, and a gate whose dependency failed is skipped with
+that reason. `--changed` selects only the gates whose file surfaces match the working tree, `--only a,b` picks gates,
+`--list` prints the gates with their commands, dependencies and surfaces (`yolo.verify.gates/1`).
+
+The report (`yolo.verify/1`, `--json`, or Markdown with `--md`, the default) holds, per gate, the status, exit code,
+start offset and duration in milliseconds, the output tail of a failure and the reason of a skip, plus the commit,
+whether the tree was dirty, the wall time, the summed gate time and their ratio. It is written to `var/verify/latest.json`
+and a timestamped copy, and `yolo verify --last` prints it again. Exit code 0 means every selected gate passed, 1 that
+one failed or was skipped, 2 a usage error.
+
+Gates that were not run are listed, never omitted: the heavy checks that CLAUDE.md sends to the build factory
+(clippy, nextest, `cargo check --workspace`, `cargo deny`, the native runtime build) appear under "Not run" with the
+reason. Each gate runs in its own process group, so a timeout (`--timeout`, default 900 s) kills its children as well.
+Measured on this repository: 13.1 s serial against 4.2 s with 16 in parallel, same results. Tests:
+`test/verify.test.ts` (scheduler with a fake runner, dependency skips, the parallel bound, reports, real processes).
 
 ## Cargo workspace
 
