@@ -86,7 +86,6 @@ Packages are prefixed with `aphrody-`; library and binary names are unchanged.
 | `aphrody-turbo-tasks-fuzz` | `turbo-tasks-fuzz` | 0.0.0 | `next` | `crates/aphrody-turbo-tasks-fuzz` |
 | `aphrody-turbo-tasks-hash` | `turbo-tasks-hash` | 0.1.0 | `next` | `crates/aphrody-turbo-tasks-hash` |
 | `aphrody-turbo-tasks-macros` | `turbo-tasks-macros` | 0.1.0 | `next` | `crates/aphrody-turbo-tasks-macros` |
-| `aphrody-turbo-tasks-macros-tests` | `turbo-tasks-macros-tests` | 0.1.0 | `next` | `crates/aphrody-turbo-tasks-macros-tests` |
 | `aphrody-turbo-tasks-malloc` | `turbo-tasks-malloc` | 0.1.0 | `next` | `crates/aphrody-turbo-tasks-malloc` |
 | `aphrody-turbo-tasks-testing` | `turbo-tasks-testing` | 0.1.0 | `next` | `crates/aphrody-turbo-tasks-testing` |
 | `aphrody-turbo-unix-path` | `turbo-unix-path` | 0.0.1 | `next` | `crates/aphrody-turbo-unix-path` |
@@ -115,7 +114,6 @@ Packages are prefixed with `aphrody-`; library and binary names are unchanged.
 | `aphrody-turbopack-static` | `turbopack-static` | 0.1.0 | `next` | `crates/aphrody-turbopack-static` |
 | `aphrody-turbopack-swc-utils` | `turbopack-swc-utils` | 0.1.0 | `next` | `crates/aphrody-turbopack-swc-utils` |
 | `aphrody-turbopack-test-utils` | `turbopack-test-utils` | 0.1.0 | `next` | `crates/aphrody-turbopack-test-utils` |
-| `aphrody-turbopack-tests` | `turbopack-tests` | 0.1.0 | `next` | `crates/aphrody-turbopack-tests` |
 | `aphrody-turbopack-trace-server` | `turbopack-trace-server` | 0.1.0 | `next` | `crates/aphrody-turbopack-trace-server` |
 | `aphrody-turbopack-trace-utils` | `turbopack-trace-utils` | 0.1.0 | `next` | `crates/aphrody-turbopack-trace-utils` |
 | `aphrody-turbopack-tracing` | `turbopack-tracing` | 0.1.0 | `next` | `crates/aphrody-turbopack-tracing` |
