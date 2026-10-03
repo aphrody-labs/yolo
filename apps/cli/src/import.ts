@@ -215,6 +215,10 @@ export function transformManifest(text: string, ctx: TransformContext): Transfor
   let lines = text.split("\n");
 
   // 1. Drop workspace-level tables that are meaningless for a member crate.
+  const firstHeader = scanSections(lines)[0]?.start ?? lines.length;
+  for (let i = firstHeader - 1; i >= 0; i--) {
+    if (/^\s*workspace\s*=/.test(lines[i] as string)) lines.splice(i, 1);
+  }
   const drop = /^(workspace(\..*)?|profile(\..*)?|patch(\..*)?|replace)$/;
   for (const section of scanSections(lines).reverse()) {
     if (drop.test(section.name)) lines.splice(section.start, section.end - section.start);

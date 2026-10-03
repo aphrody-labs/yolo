@@ -159,6 +159,15 @@ path = "src/main.rs"
     expect(m.lib["crate-type"]).toEqual(["rlib"]);
   });
 
+  it("drops a top-level `workspace = {}` key", () => {
+    const { text: out } = transformManifest(
+      `workspace = {}\n\n[package]\nname = "tauri-cli"\n`,
+      context(cli),
+    );
+    expect(parse(out).workspace).toBeUndefined();
+    expect(parse(out).package.name).toBe("aphrody-tauri-cli");
+  });
+
   it("materializes workspace lints and drops profiles", () => {
     const text = `[package]
 name = "tauri-cli"
