@@ -54,11 +54,17 @@ try {
   $Extract = Join-Path $Tmp "main"; New-Item -ItemType Directory -Path $Extract | Out-Null
   tar -xzf $Archive -C $Extract; Assert-Success "extracting $Name"
   New-Item -ItemType Directory -Force -Path $HomeDir | Out-Null
-  # code and data are replaced; runtime artifact history (current/previous) is kept by `yolo runtime install`
+  # code and data are replaced through a .new + rename (same as install.sh), so a reinstall never leaves $Part
+  # missing partway through; runtime artifact history (current/previous) is kept by `yolo runtime install`.
+  # Known limitation: `yolo upgrade` runs this script from the very yolo.exe it is about to replace, and Windows
+  # locks an executable file while it runs, so `Rename-Item $New $Part` can still fail for "bin" in that path (the
+  # plain `irm ... | iex` / manual install.ps1 flow is unaffected, since nothing there is already running).
   foreach ($Part in "bin", "packages", "templates", "VERSION", "LICENSE") {
     $Src = Join-Path $Extract $Part; if (-not (Test-Path $Src)) { continue }
+    $New = Join-Path $HomeDir "$Part.new"; if (Test-Path $New) { Remove-Item -Recurse -Force $New }
+    Copy-Item -Recurse $Src $New
     $Dst = Join-Path $HomeDir $Part; if (Test-Path $Dst) { Remove-Item -Recurse -Force $Dst }
-    Copy-Item -Recurse $Src $Dst
+    Rename-Item $New $Part
   }
   foreach ($Old in "sdk", "stack") { $OldPath = Join-Path $HomeDir $Old; if (Test-Path $OldPath) { Remove-Item -Recurse -Force $OldPath } }
   if ($CratesName) {

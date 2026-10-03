@@ -1,13 +1,16 @@
-import { describe, expect, it } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
+  releaseShipClaim,
   remoteCommand,
   remotePaths,
   remoteSyncCommand,
+  shipClaimPath,
   stopCommand,
   waitCommand,
+  writeShipClaim,
 } from "../apps/cli/src/aphrody";
 import { findCheckout } from "../apps/cli/src/home";
 
@@ -66,6 +69,48 @@ describe("aphrody bridge", () => {
     expect(
       cmd.trimEnd().endsWith(`grep -qx ok '/srv/aphrody-build/artifacts/yolo/${sha}/STATUS'`),
     ).toBe(true);
+  });
+});
+
+describe(".coord claim for a running build (so another agent can see it before stopping anything)", () => {
+  const priorAphrodyRoot = process.env["YOLO_APHRODY_ROOT"];
+  let coordRoot: string;
+  beforeEach(() => {
+    coordRoot = mkdtempSync(join(tmpdir(), "yolo-coord-"));
+    process.env["YOLO_APHRODY_ROOT"] = coordRoot;
+  });
+  afterEach(() => {
+    if (priorAphrodyRoot === undefined) delete process.env["YOLO_APHRODY_ROOT"];
+    else process.env["YOLO_APHRODY_ROOT"] = priorAphrodyRoot;
+    rmSync(coordRoot, { recursive: true, force: true });
+  });
+
+  it("writes an active claim naming the lock, the session and the safe way to cancel it", () => {
+    writeShipClaim("vps", factory, sha);
+    const path = shipClaimPath(sha);
+    expect(existsSync(path)).toBe(true);
+    const claim = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+    expect(claim["owner"]).toBe("yolo-ship");
+    expect(claim["state"]).toBe("active");
+    expect(claim["paths"]).toContain(factory.lockPath);
+    expect(claim["task"]).toContain("yolo ship stop --sha abcdef012345");
+  });
+
+  it("updates the same file's state instead of deleting it when the build ends", () => {
+    writeShipClaim("vps", factory, sha);
+    releaseShipClaim(sha, "complete: ok");
+    const claim = JSON.parse(readFileSync(shipClaimPath(sha), "utf8")) as Record<string, unknown>;
+    expect(claim["state"]).toBe("complete: ok");
+    expect(claim["owner"]).toBe("yolo-ship"); // original fields survive the update
+    expect(claim["endedAt"]).toBeDefined();
+  });
+
+  it("never throws when .coord cannot be created (coordination is advisory, not required)", () => {
+    // a file where a directory needs to go: mkdirSync(..., { recursive: true }) fails with ENOTDIR
+    rmSync(coordRoot, { recursive: true, force: true });
+    writeFileSync(coordRoot, "not a directory");
+    expect(() => writeShipClaim("vps", factory, sha)).not.toThrow();
+    expect(() => releaseShipClaim(sha, "complete: ok")).not.toThrow();
   });
 });
 

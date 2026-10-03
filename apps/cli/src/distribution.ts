@@ -172,7 +172,13 @@ function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-/** `yolo upgrade [--check] [--repo owner/name] [--version vX.Y.Z]`: re-runs the release's installer. */
+/**
+ * `yolo upgrade [--check] [--repo owner/name] [--version vX.Y.Z]`: re-runs the release's installer.
+ * Known limitation, not fixed here (untestable without a Windows host): on win32 the installer replaces
+ * `bin/yolo.exe` while this very process is that executable, which Windows can refuse (the running file is
+ * locked). install.ps1 replaces it the same `.new` + rename way install.sh does, which helps, but a locked
+ * executable specifically still needs a detached helper that waits for this process to exit first.
+ */
 export async function runUpgrade(args: readonly string[]): Promise<number> {
   let repo = process.env["YOLO_REPO"] ?? DEFAULT_REPO;
   let checkOnly = false;
@@ -193,8 +199,10 @@ export async function runUpgrade(args: readonly string[]): Promise<number> {
     console.log("Already up to date.");
     return 0;
   }
-  const asset = release.assets.find((a) => a.name === "install.sh");
-  if (asset === undefined) throw new Error(`release ${release.tag} has no install.sh asset`);
+  // Windows has no `sh`: re-run install.ps1 under PowerShell (pwsh if present, else the built-in powershell.exe).
+  const installerName = process.platform === "win32" ? "install.ps1" : "install.sh";
+  const asset = release.assets.find((a) => a.name === installerName);
+  if (asset === undefined) throw new Error(`release ${release.tag} has no ${installerName} asset`);
   const token = await githubToken();
   const script = await fetch(asset.url, {
     headers: {
@@ -204,12 +212,17 @@ export async function runUpgrade(args: readonly string[]): Promise<number> {
     },
     signal: AbortSignal.timeout(30_000),
   });
-  if (!script.ok) throw new Error(`cannot download install.sh: HTTP ${script.status}`);
-  const proc = Bun.spawn(["sh", "-s", "--"], {
+  if (!script.ok) throw new Error(`cannot download ${installerName}: HTTP ${script.status}`);
+  const env = { ...process.env, YOLO_VERSION: tag, YOLO_REPO: repo, YOLO_HOME: yoloHome() };
+  const command =
+    process.platform === "win32"
+      ? [Bun.which("pwsh") ?? "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", "-"]
+      : ["sh", "-s", "--"];
+  const proc = Bun.spawn(command, {
     stdin: new Response(await script.text()),
     stdout: "inherit",
     stderr: "inherit",
-    env: { ...process.env, YOLO_VERSION: tag, YOLO_REPO: repo, YOLO_HOME: yoloHome() },
+    env,
   });
   return await proc.exited;
 }

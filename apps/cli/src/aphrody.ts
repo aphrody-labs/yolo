@@ -13,7 +13,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const PASSTHROUGH: Readonly<Record<string, readonly string[]>> = {
   infra: ["aphrody-infra"],
@@ -240,10 +240,59 @@ export async function sshTune(host: string, apply: boolean): Promise<Captured> {
   );
 }
 
+/**
+ * `.coord/claims/yolo-ship-<sha12>.json` in the Aphrody checkout: the same coarse, file-based coordination other
+ * agents already use (`owner`, `paths`, `state`, `task`). A Codex session stopped a running ship build by mistake
+ * once (no visible signal that it was in progress); this makes the running build visible and names the one safe
+ * way to cancel it, without requiring any change on the Aphrody side. Best effort: a missing/unwritable `.coord`
+ * never fails the ship itself.
+ */
+export function shipClaimPath(sha: string): string {
+  return join(aphrodyRoot(), ".coord/claims", `yolo-ship-${sha.slice(0, 12)}.json`);
+}
+
+export function writeShipClaim(host: string, factory: Factory, sha: string): void {
+  const sha12 = sha.slice(0, 12);
+  try {
+    mkdirSync(dirname(shipClaimPath(sha)), { recursive: true });
+    writeFileSync(
+      shipClaimPath(sha),
+      `${JSON.stringify(
+        {
+          owner: "yolo-ship",
+          paths: [factory.lockPath, `${host}:tmux:${sessionName(sha)}`],
+          state: "active",
+          task: `yolo ship ${sha12} is building on ${host} (heavy lock + systemd unit ${sessionName(sha)}); do not stop or restart it from outside yolo — \`yolo ship stop --sha ${sha12}\` is the one safe way to cancel it`,
+          startedAt: new Date().toISOString(),
+        },
+        null,
+        2,
+      )}\n`,
+    );
+  } catch {
+    // coordination is advisory; never block a build on it
+  }
+}
+
+export function releaseShipClaim(sha: string, state: string): void {
+  const path = shipClaimPath(sha);
+  try {
+    if (!existsSync(path)) return;
+    const claim = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+    writeFileSync(
+      path,
+      `${JSON.stringify({ ...claim, state, endedAt: new Date().toISOString() }, null, 2)}\n`,
+    );
+  } catch {
+    // best effort, see writeShipClaim
+  }
+}
+
 async function waitFor(host: string, factory: Factory, sha: string): Promise<number> {
   const r = await sshCapture(host, waitCommand(factory, sha), 86_400);
   process.stdout.write(r.stdout);
   if (r.stderr.trim() !== "") process.stderr.write(`${r.stderr.trim()}\n`);
+  releaseShipClaim(sha, r.code === 0 ? "complete: ok" : "complete: failed or stopped");
   return r.code;
 }
 
@@ -262,7 +311,11 @@ async function runShip(args: readonly string[], yoloRoot: string): Promise<numbe
   const p = remotePaths(factory, sha);
   const sub = args[0];
 
-  if (sub === "stop") return ssh(host, stopCommand(sha));
+  if (sub === "stop") {
+    const code = ssh(host, stopCommand(sha));
+    if (code === 0) releaseShipClaim(sha, "released: stopped by operator");
+    return code;
+  }
   if (sub === "wait") return waitFor(host, factory, sha);
   if (sub === "attach") {
     return run(["ssh", "-t", host, "tmux", "attach", "-t", sessionName(sha)], yoloRoot);
@@ -305,6 +358,7 @@ async function runShip(args: readonly string[], yoloRoot: string): Promise<numbe
   if (code !== 0) return code;
   code = ssh(host, remoteCommand(factory, sha, force));
   if (code !== 0) return code;
+  writeShipClaim(host, factory, sha);
   if (wait) return waitFor(host, factory, sha);
   console.log(`  follow: yolo ship status|log|wait|attach|stop --sha ${sha.slice(0, 12)}`);
   return 0;
