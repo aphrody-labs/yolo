@@ -71,6 +71,10 @@ docs/        mdBook (this documentation)
 
 ## Building and releasing (`yolo ship`)
 
+**Current prerequisite (2026-10-04):** the configured `vps` factory is retired for builds.
+Designate a qualified factory before invoking the build workflow below. The following
+describes the intended mechanics, not an available build host.
+
 `yolo ship [--apply] [--sha X] [--force] [--wait]` (refuses below the free-space floor of the build host, 20 % by default and variable, see [SERVER.md](SERVER.md)) is this repository's CI and release host: GitHub
 Actions is not available to it (billing), so the Aphrody build factory runs the gates of
 `.github/workflows/ci.yml`, the runtime artifact, the release assets and the D0/D2 install/deploy

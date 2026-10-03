@@ -15,7 +15,8 @@ Une installation sous `~/.yolo` : CLI avec Bun embarqué, runtime vérifié,
 SDK, templates et rollback. Un scaffold fournit serveur/web/desktop avec pins
 dans `templates/stack.toml` (frontend `web` ou `react` : React 19 et composants Material 3
 sur le bundler HTML de Bun). Le serveur distribué fonctionne sans Bun/Rust
-installés sur la cible. Install, upgrade, doctor, rollback et uninstall sont qualifiés.
+installés sur la cible. La cible exige la qualification de install, upgrade, doctor, rollback et uninstall ;
+les preuves courantes et antérieures restent distinguées ci-dessous.
 
 | Composant | Propriétaire source |
 | --- | --- |
@@ -95,3 +96,14 @@ Dépôts privés ; source, tests, artefact, installation et activation sont dist
 - [Serveur, espace disque et plancher](docs/SERVER.md)
 - [Rapport de stack 2026-10](docs/STACK-REPORT-2026-10.md)
 - [Architecture Agent-First & Maturation Stack](docs/STACK-DECISION.md)
+
+## Périmètre courant hors sources (2026-10-04)
+
+Autorisation : traiter les opérations, documents et configurations hors `src/`,
+`crates/`, `packages/` et `apps/`. Les implémentations R3/R4/R5/R6 et ownership
+Windows restent ouvertes ; aucun changement documentaire ne ferme ces jalons.
+
+Les [vérifications factuelles](docs/FACT-CHECK-2026-10-04.md) corrigent la mémoire.
+La fabrique configurée route encore vers `vps`, pourtant réservé à l'exécution :
+un hôte compatible doit être désigné avant build/release. Les archives locales
+ABI 1.3 ont des hashes conformes mais ne qualifient pas la release courante ABI 1.4.

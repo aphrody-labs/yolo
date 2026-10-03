@@ -4,7 +4,7 @@
 ## Install
 
 ```bash
-# public release assets
+# unauthenticated asset URL; requires access to the repository
 curl -fsSL https://github.com/aphrody-labs/yolo/releases/latest/download/install.sh | bash
 # private repository (uses gh auth or GITHUB_TOKEN)
 gh release download -R aphrody-labs/yolo -p install.sh -O - | bash
@@ -64,9 +64,9 @@ YOLO_RELEASE_DIR=dist/release/0.1.0 sh install.sh        # install it from disk
 git tag v0.1.0 && git push origin v0.1.0                 # yolo ship publishes when it ships that tag (see note)
 ```
 
-GitHub Actions is not currently available to this repository (account billing); `.github/workflows/{ci,release,
-runtime}.yml` are written and correct but their runs do not start. Until that is resolved, `yolo ship` on the
-Aphrody build factory is both the CI and the release host: `scripts/release/ship_remote.sh` runs the same gates,
+As recorded on 2026-10-03, GitHub Actions did not start for this repository (account billing); `.github/workflows/{ci,release,
+runtime}.yml` are present; their current execution and complete correctness are not established by that observation. The intended replacement is `yolo ship` on a qualified
+Aphrody build factory: `scripts/release/ship_remote.sh` runs the same gates,
 and `scripts/release/publish_remote.sh` publishes the GitHub release when the shipped commit is the `v<VERSION>`
 tag and `main` contains it ([TOOLING.md](TOOLING.md#building-and-releasing-yolo-ship)). A `vX.Y.Z` tag still needs an
 explicit `yolo ship --apply --sha <tag-commit>` to publish; it is not pushed automatically on tag like the Actions
@@ -74,11 +74,28 @@ workflow would be.
 
 ## Verified
 
-The linux-x64 target, through `yolo ship` on the Aphrody build factory (one target per run; the acceptance is the
+Historical qualification of the linux-x64 target, through `yolo ship` on the Aphrody build factory (one target per run; the acceptance is the
 `yolo/ship` commit status, reproducible with `scripts/release/smoke_remote.sh dist/release/<version>` on any
 linux-x64 host): the gates of `ci.yml`, the runtime artifact and its tests, the release assets, then D0 (install
 into an empty `HOME` from those assets, `yolo doctor`) and D2 (`yolo create` from the installed executable,
 `bun install`, `tsc`, `bun test`, `build:bin`, `pack:deploy`, running the extracted archive with a minimal `PATH`
 and no environment, answering `/health`). Last green: commit `3c64d42` (2026-10-03). Not run anywhere: the macOS,
 Windows and Linux ARM targets, the Docker image, actually starting the generated systemd unit, and `install.ps1`
-beyond a syntax check (`pwsh -Command '[scriptblock]::Create(...)'`) — there is no Windows host in this loop.
+beyond a syntax check (`pwsh -Command '[scriptblock]::Create(...)'`) — the historical loop did not include Windows. A Windows 11 host and installed tool versions were observed on 2026-10-04; installer/runtime execution remains unqualified.
+
+## Current readiness (2026-10-04)
+
+The configured factory still targets `vps`, which the owner decision in
+[PLAN](../PLAN.md#build-et-release) reserves for execution only. A new qualified
+factory must be designated before heavy gates or `yolo ship --apply`; do not
+bootstrap build tooling onto the retired factory.
+
+The existing local `dist/release/0.1.0` has four matching SHA-256 entries. Its
+manifest identifies commit `ee1a466528fdd0c20ebd058d1f15f1202c528995` and ABI 1.3,
+so it cannot establish qualification of the current ABI 1.4 sources. Hash checks
+prove file integrity only, not installation, upgrade, rollback or activation.
+See the [fact-check receipt](fact-check-2026-10-04.json).
+
+The repository remains private. The unauthenticated URL examples above do not
+authorize publication and may fail without repository access; use the authenticated
+`gh` route or verified offline assets. Registry publication needs separate owner scope.

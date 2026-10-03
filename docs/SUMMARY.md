@@ -11,6 +11,7 @@
 - [Runtime decisions](DECISIONS.md)
 - [Consumers (R2)](CONSUMERS.md)
 - [Distribution](DISTRIBUTION.md)
+- [Fact-check: October 2026](FACT-CHECK-2026-10-04.md)
 - [Stack report: October 2026](STACK-REPORT-2026-10.md)
 - [Architecture & Maturation de la Stack](STACK-DECISION.md)
 - [Guide des Meilleures Pratiques (Rust + Python + Bun)](BEST_PRACTICES.md)
