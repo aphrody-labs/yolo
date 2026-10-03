@@ -68,6 +68,21 @@ rustfmt = "default"
 crates = [".", "node"]
 exclude = ["worker/**", ".scripts/**", "*.sh", "*.ps1", "package.json", "CONTRIBUTING.md"]
 
+[[source]]
+name = "next"
+rustfmt = "default"
+crates = [
+  "crates/next-api",
+  "crates/next-build",
+  "crates/next-code-frame",
+  "crates/next-core",
+  "crates/next-custom-transforms",
+  "crates/next-napi-bindings",
+  "crates/next-taskless",
+  "turbopack/crates/*",
+]
+exclude = ["**/tests/**", "**/fixtures/**", "**/benches/**", "**/fuzz/**", "**/benchmarks/**"]
+
 # Sources of the `tauri-examples` crate (its [[example]] entries live outside the crate).
 [[copy]]
 from = "tauri:examples"
