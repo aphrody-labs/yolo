@@ -26,6 +26,23 @@ describe("yolo mcp (Model Context Protocol 2024-11-05 Server)", () => {
     expect(res.result.capabilities.tools).toBeDefined();
   });
 
+  it("should negotiate protocolVersion 2025-06-18 for modern kernel clients", async () => {
+    const initReq = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 10,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-06-18",
+        clientInfo: { name: "aphrody-kernel", version: "1.4.0" },
+      },
+    });
+
+    const resRaw = await handleMcpMessage(initReq, rootDir);
+    expect(resRaw).not.toBeNull();
+    const res = JSON.parse(resRaw!);
+    expect(res.result.protocolVersion).toBe("2025-06-18");
+  });
+
   it("should ignore notifications/initialized without response", async () => {
     const notif = JSON.stringify({
       jsonrpc: "2.0",

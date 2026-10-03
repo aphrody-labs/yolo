@@ -70,4 +70,72 @@ describe("yolo api (Native Bun HTTP / OpenAPI Server)", () => {
     expect(data.schema).toBe("yolo.scan/1");
     expect(data.totalFiles).toBeGreaterThan(5);
   });
+
+  // --- Security Tests ---
+
+  it("should reject invalid Host headers to prevent DNS rebinding", async () => {
+    const res = await fetch(`${baseUrl}/health`, {
+      headers: { Host: "malicious-site.com" },
+    });
+    expect(res.status).toBe(403);
+    const data = await res.json();
+    expect(data.error).toContain("DNS rebinding");
+  });
+
+  it("should block path traversal outside workspace root", async () => {
+    const res = await fetch(`${baseUrl}/api/scan`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: "../../" }),
+    });
+    expect(res.status).toBe(500);
+    const data = await res.json();
+    expect(data.error).toContain("Path traversal denied");
+  });
+
+  it("should not return wildcard CORS header to external origins", async () => {
+    const res = await fetch(`${baseUrl}/health`, {
+      headers: { Origin: "https://evil-website.com" },
+    });
+    expect(res.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
+  it("should reflect loopback origin in CORS", async () => {
+    const res = await fetch(`${baseUrl}/health`, {
+      headers: { Origin: "http://127.0.0.1:3000" },
+    });
+    expect(res.headers.get("access-control-allow-origin")).toBe("http://127.0.0.1:3000");
+  });
+
+  it("should enforce token authentication on POST when configured", async () => {
+    const authServer = createApiServer({
+      port: 0,
+      hostname: "127.0.0.1",
+      rootDir,
+      token: "secret123",
+    });
+    const authUrl = `http://127.0.0.1:${authServer.port}`;
+    try {
+      // Missing token
+      const unauth = await fetch(`${authUrl}/api/scan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: "apps/cli/src" }),
+      });
+      expect(unauth.status).toBe(401);
+
+      // Valid Bearer token
+      const authed = await fetch(`${authUrl}/api/scan`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer secret123",
+        },
+        body: JSON.stringify({ path: "apps/cli/src", exts: "ts" }),
+      });
+      expect(authed.status).toBe(200);
+    } finally {
+      authServer.stop(true);
+    }
+  });
 });

@@ -26,7 +26,9 @@ import { scanLinks, estimateReclaim } from "./host-space";
 import { collectDoctorReport } from "./distribution";
 import { yoloHome } from "./home";
 
-export const MCP_PROTOCOL_VERSION = "2024-11-05";
+export const DEFAULT_MCP_PROTOCOL_VERSION = "2024-11-05";
+export const SUPPORTED_MCP_PROTOCOL_VERSIONS = ["2024-11-05", "2025-06-18"] as const;
+export const MCP_PROTOCOL_VERSION = DEFAULT_MCP_PROTOCOL_VERSION;
 export const SERVER_NAME = "yolo-mcp";
 export const SERVER_VERSION = "1.0.0";
 
@@ -331,11 +333,19 @@ export async function handleMcpMessage(
 
   switch (msg.method) {
     case "initialize": {
+      const clientVersion = (msg.params as { protocolVersion?: string } | undefined)
+        ?.protocolVersion;
+      const negotiatedVersion =
+        clientVersion &&
+        (SUPPORTED_MCP_PROTOCOL_VERSIONS as readonly string[]).includes(clientVersion)
+          ? clientVersion
+          : DEFAULT_MCP_PROTOCOL_VERSION;
+
       return JSON.stringify({
         jsonrpc: "2.0",
         id,
         result: {
-          protocolVersion: MCP_PROTOCOL_VERSION,
+          protocolVersion: negotiatedVersion,
           serverInfo: {
             name: SERVER_NAME,
             version: SERVER_VERSION,

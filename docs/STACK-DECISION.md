@@ -11,7 +11,7 @@ Document normatif définissant l'arbre de décision technologique, la rigueur d'
 Toute opération doit être systématiquement mesurée, testée et vérifiée :
 - Horodatages ISO-8601 stricts (`startedAt`, `timestamp`).
 - Durées et débits en haute précision nanoseconde (`Bun.nanoseconds()`).
-- Empreintes cryptographiques et d'intégrité déterministes (`Bun.hash.wyhash`, `crc32`).
+- Empreintes d'intégrité et détection de modifications ultra-rapides (`Bun.hash.wyhash`, `crc32`). La provenance cryptographique formelle et les pins d'intégrité de sécurité demeurent rigoureusement garantis sur SHA-256 (comme les pins de l'arbre Aphrody).
 - Métriques d'accélération et de parallélisme (`wallMs`, `sumGateMs`, `speedup`).
 
 ### Agent-First
@@ -47,47 +47,35 @@ Toutes les sorties de la CLI interne (`yolo`) doivent être directement exploita
 ## 3. Maturation de la Stack (Arbre de Décision)
 
 ```
-                       Besoin Fonctionnel / Technique
-                                     │
-                                     ▼
-        ┌────────────────────────────────────────────────────────┐
-        │  Tier 1 : Bun / TypeScript Natif (Socle par défaut)    │
-        │  Orchestration, CLI interne, I/O zero-copy, prototypage│
-        └────────────────────────────────────────────────────────┘
-                                     │
-               Critical path performance / sûreté mémoire ?
-                                     ├──► OUI ──┐
-                                     │          │
-                                     ▼          ▼
-   ┌───────────────────────────────────┐  ┌──────────────────────────────┐
-   │ Bibliothèque C/C++ officielle ?   │  │ Tier 2 : Rust (Maturation)   │
-   │ (WebKitGTK, SQLite, lol-html, etc)│  │ Crates workspace, C ABI,     │
-   └───────────────────────────────────┘  │ calcul intensif, SIMD, FFI   │
-            ├──► OUI                      └──────────────────────────────┘
-            │
-            ▼
-   ┌───────────────────────────────────┐
-   │ Tier 3 : C / C++ (Adoption immédi)│
-   │ C ABI / `bun:ffi` direct          │
-   └───────────────────────────────────┘
-            │
-            ├──► Écosystème tiers IA / ML / Data incontournable ?
-            │
-            ▼
-   ┌─────────────────────────────────────────────────────────────┐
-   │ Tier 5 : Python via `uv` (Écosystème externe / Modèles ML)  │
-   │ Environnements isolés, zéro pollution globale              │
-   └─────────────────────────────────────────────────────────────┘
-            │
-            └──► Besoin système très bas niveau lié à l'interpréteur ?
-                 └──► Tier 4 : CPython (Réservé / Restreint)
+                         Besoin Fonctionnel / Technique
+                                       │
+                                       ▼
+          ┌────────────────────────────────────────────────────────┐
+          │  Tier 1 : Bun / TypeScript Natif (Socle par défaut)    │
+          │  Orchestration, CLI interne, I/O zero-copy, prototypage│
+          └────────────────────────────────────────────────────────┘
+                                       │
+        ┌──────────────────────────────┼──────────────────────────────┐
+        │                              │                              │
+        ▼ Bibliothèque officielle ?    ▼ Chemin critique / perf ?     ▼ Écosystème tiers IA/ML ?
+ ┌───────────────────────────┐  ┌───────────────────────────┐  ┌──────────────────────────────┐
+ │ Tier 3 : C / C++          │  │ Tier 2 : Rust (Maturation)│  │ Tier 5 : Python via `uv`     │
+ │ Adoption immédiate        │  │ Crates workspace, C ABI,  │  │ Modèles IA (Gemma 4, SFT/DPO,│
+ │ WebKitGTK, SQLite, zstd   │  │ calcul intensif, SIMD, FFI│  │ GGUF), envs isolés sans     │
+ │ C ABI / `bun:ffi` direct  │  └───────────────────────────┘  │ pollution globale            │
+ └───────────────────────────┘                                 └──────────────────────────────┘
+                                                                              │
+                                                                              ▼ Bas niveau interpréteur ?
+                                                                ┌─────────────────────────────┐
+                                                                │ Tier 4 : CPython (Restreint)│
+                                                                └─────────────────────────────┘
 ```
 
 1. **Bun / TypeScript (Natif) :** Socle par défaut pour l'orchestration, l'outillage interne, la CLI et le prototypage rapide. Exploite les primitives natives Bun (`Bun.file`, `Bun.Glob`, `Bun.hash.wyhash`, `Bun.serve`, `Bun.TOML`, `Bun.JSONL`).
-2. **Rust :** Cible finale de maturation pour remplacer le code TypeScript/Bun critique dès que la performance brute, le calcul intensif, la sûreté mémoire ou la distribution binaire autonome l'exigent (`crates/yolo-core`, `crates/yolo-runtime`, `crates/yolo-desktop`).
-3. **C / C++ :** Adoption immédiate dès qu'une bibliothèque officielle existe déjà en C/C++ (WebKitGTK, Wry, SQLite, zstd), interfacée via le C ABI ou `bun:ffi`.
-4. **CPython :** Réservé exclusivement aux besoins système très bas niveau liés aux détails internes de l'interpréteur.
-5. **Python via `uv` :** Préféré dès qu'un écosystème tiers plus large (PyTorch, HuggingFace, NumPy, pandas) est incontournable pour le cas d'usage.
+2. **C / C++ (Adoption immédiate) :** Dès qu'une bibliothèque officielle de référence existe déjà en C/C++ (WebKitGTK, Wry, SQLite, zstd), adoption immédiate sans réimplémentation redondante, interfacée via le C ABI ou `bun:ffi`.
+3. **Rust (Maturation ciblée) :** Cible finale pour remplacer le code TypeScript/Bun sur le chemin critique dès que la performance brute, le calcul intensif, la sûreté mémoire sans GC ou la distribution binaire autonome l'exigent (`crates/yolo-core`, `crates/yolo-runtime`, `crates/yolo-desktop`).
+4. **Python via `uv` (Écosystème IA / ML) :** Mobilisé dès qu'un écosystème externe de modèles ou bibliothèques spécialisées (Gemma 4, PyTorch, Hugging Face, Unsloth) est requis, strictement conteneurisé sous des environnements `uv` isolés.
+5. **CPython (Restreint) :** Réservé exclusivement aux besoins système très bas niveau liés aux détails internes de l'interpréteur.
 
 ---
 
