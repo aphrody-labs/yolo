@@ -5,7 +5,7 @@
 
 use super::*;
 use std::ffi::{CStr, c_char};
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::process::{Child, Command, Stdio};
 use std::time::Instant;
@@ -19,6 +19,10 @@ pub const YOLO_SPAWN_NULL_STDIO: u32 = 1;
 /// `YoloSpawnInfo.flags`: stdin is the null device, stdout and stderr are captured (the last
 /// `CAPTURE_LIMIT` bytes of each are kept) and read with `yolo_process_read`.
 pub const YOLO_SPAWN_CAPTURE: u32 = 2;
+/// ABI 1.4: retain all captured bytes up to the explicit per-stream budget; never truncate.
+pub const YOLO_SPAWN_CAPTURE_LOSSLESS: u32 = 4;
+/// Default and maximum per-stream budget for lossless capture.
+pub const YOLO_CAPTURE_MAX_BYTES: usize = 64 * 1024 * 1024;
 /// `yolo_process_read` streams.
 pub const YOLO_STREAM_STDOUT: u32 = 1;
 pub const YOLO_STREAM_STDERR: u32 = 2;
@@ -63,30 +67,175 @@ struct ExitInfo {
   signal: Option<i32>,
 }
 
+// Only this worker accesses the read end. Poll before read so teardown can always join it.
+trait CapturePipe: Read + Send + 'static {
+  fn prepare(&self) -> io::Result<()>;
+  fn read_available(&mut self, buffer: &mut [u8]) -> io::Result<usize>;
+}
+
+#[cfg(windows)]
+#[link(name = "kernel32")]
+unsafe extern "system" {
+  fn PeekNamedPipe(
+    pipe: *mut std::ffi::c_void,
+    buffer: *mut std::ffi::c_void,
+    buffer_size: u32,
+    bytes_read: *mut u32,
+    bytes_available: *mut u32,
+    bytes_left: *mut u32,
+  ) -> i32;
+}
+
+macro_rules! capture_pipe {
+  ($pipe:ty) => {
+    impl CapturePipe for $pipe {
+      fn prepare(&self) -> io::Result<()> {
+        #[cfg(unix)]
+        {
+          use std::os::fd::AsRawFd;
+          let fd = self.as_raw_fd();
+          // SAFETY: fd is borrowed from this owned pipe; no ownership is transferred.
+          let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+          if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
+            return Err(io::Error::last_os_error());
+          }
+        }
+        Ok(())
+      }
+
+      fn read_available(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        #[cfg(windows)]
+        {
+          use std::os::windows::io::AsRawHandle;
+          let mut available = 0;
+          // SAFETY: the handle belongs to this pipe, the optional buffers are null and
+          // available is writable. This is the sole reader of this synchronous handle.
+          let ready = unsafe {
+            PeekNamedPipe(
+              self.as_raw_handle(),
+              ptr::null_mut(),
+              0,
+              ptr::null_mut(),
+              &mut available,
+              ptr::null_mut(),
+            )
+          };
+          if ready == 0 {
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() == Some(109) {
+              // ERROR_BROKEN_PIPE: every writer closed.
+              return Ok(0);
+            }
+            return Err(error);
+          }
+          if available == 0 {
+            return Err(io::Error::from(io::ErrorKind::WouldBlock));
+          }
+          let bytes = buffer.len().min(available as usize);
+          return self.read(&mut buffer[..bytes]);
+        }
+        #[cfg(not(windows))]
+        self.read(buffer)
+      }
+    }
+  };
+}
+capture_pipe!(std::process::ChildStdout);
+capture_pipe!(std::process::ChildStderr);
+
 #[derive(Default)]
+struct CaptureData {
+  bytes: Vec<u8>,
+  total: usize,
+  error: Option<(YoloStatus, String)>,
+}
+
 struct Capture {
-  bytes: Mutex<Vec<u8>>,
+  data: Mutex<CaptureData>,
+  limit: Option<usize>,
+  cancel: AtomicBool,
+  finished: AtomicBool,
 }
 
 impl Capture {
-  /// Reads `source` until EOF into the bounded buffer.
-  fn pump(self: Arc<Self>, mut source: impl Read + Send + 'static, name: &'static str) {
-    let _ = std::thread::Builder::new()
+  fn new(limit: Option<usize>) -> Self {
+    Self {
+      data: Mutex::new(CaptureData::default()),
+      limit,
+      cancel: AtomicBool::new(false),
+      finished: AtomicBool::new(false),
+    }
+  }
+
+  fn fail(&self, status: YoloStatus, message: String) {
+    let mut data = lock(&self.data);
+    if data.error.is_none() {
+      data.error = Some((status, message));
+    }
+  }
+
+  fn pump(
+    self: Arc<Self>,
+    mut source: impl CapturePipe,
+    name: &'static str,
+  ) -> io::Result<JoinHandle<()>> {
+    source.prepare()?;
+    std::thread::Builder::new()
       .name(format!("yolo-{name}"))
       .spawn(move || {
         let mut chunk = [0u8; 4096];
-        while let Ok(n) = source.read(&mut chunk) {
-          if n == 0 {
-            break;
+        let mut cancelled_at = None;
+        loop {
+          if self.cancel.load(Ordering::Acquire) {
+            let deadline = cancelled_at.get_or_insert_with(Instant::now);
+            if deadline.elapsed() > Duration::from_millis(100) {
+              self.fail(
+                YoloStatus::Internal,
+                format!("{name} did not reach EOF during shutdown"),
+              );
+              break;
+            }
           }
-          let mut bytes = lock(&self.bytes);
-          bytes.extend_from_slice(&chunk[..n]);
-          if bytes.len() > CAPTURE_LIMIT {
-            let excess = bytes.len() - CAPTURE_LIMIT;
-            bytes.drain(..excess);
+          match source.read_available(&mut chunk) {
+            Ok(0) => break,
+            Ok(n) => {
+              let mut data = lock(&self.data);
+              data.total = data.total.saturating_add(n);
+              if let Some(limit) = self.limit
+                && data.total > limit
+              {
+                if data.error.is_none() {
+                  data.error = Some((
+                    YoloStatus::OutputLimit,
+                    format!("{name} exceeded its {limit} byte capture budget"),
+                  ));
+                }
+                // Continue draining the pipe so the child cannot deadlock on its output.
+                continue;
+              }
+              data.bytes.extend_from_slice(&chunk[..n]);
+              if self.limit.is_none() && data.bytes.len() > CAPTURE_LIMIT {
+                let excess = data.bytes.len() - CAPTURE_LIMIT;
+                data.bytes.drain(..excess);
+              }
+            }
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+              if self.cancel.load(Ordering::Acquire) && self.limit.is_none() {
+                break;
+              }
+              // A killed descendant may still be closing its pipe. Lossless mode waits for
+              // EOF within the cancellation deadline rather than reporting a transient gap.
+              std::thread::sleep(Duration::from_millis(5));
+            }
+            Err(error) => {
+              self.fail(YoloStatus::Internal, format!("cannot read {name}: {error}"));
+              break;
+            }
           }
         }
-      });
+        self.finished.store(true, Ordering::Release);
+      })
   }
 }
 
@@ -96,6 +245,8 @@ pub(crate) struct ProcState {
   exit: Mutex<Option<ExitInfo>>,
   stdout: Arc<Capture>,
   stderr: Arc<Capture>,
+  readers: Mutex<Vec<JoinHandle<()>>>,
+  stopped: Mutex<bool>,
 }
 
 impl ProcState {
@@ -116,32 +267,63 @@ impl ProcState {
     Some(info)
   }
 
-  /// Terminates the process group: SIGTERM, then SIGKILL once `grace_ms` elapsed. Reaps the child.
+  #[cfg(unix)]
+  fn group_alive(&self) -> bool {
+    // SAFETY: signal 0 only queries the process group we created at spawn.
+    unsafe { libc::kill(-(self.pid as i32), 0) == 0 }
+  }
+
+  /// Stops the owned group even when its leader already exited, then joins every pipe reader.
   pub(crate) fn stop(&self, grace_ms: u32) {
-    if self.poll().is_some() {
+    let mut stopped = lock(&self.stopped);
+    if *stopped {
       return;
     }
     #[cfg(unix)]
     {
-      // SAFETY: plain syscall on a process group we created (`process_group(0)`).
-      unsafe { libc::kill(-(self.pid as i32), libc::SIGTERM) };
-      let deadline = Instant::now() + Duration::from_millis(u64::from(grace_ms));
-      while Instant::now() < deadline {
-        if self.poll().is_some() {
-          return;
+      if self.group_alive() {
+        // SAFETY: this process group was created with process_group(0).
+        unsafe { libc::kill(-(self.pid as i32), libc::SIGTERM) };
+        let deadline = Instant::now() + Duration::from_millis(u64::from(grace_ms));
+        while Instant::now() < deadline {
+          self.poll(); // Reap the leader before querying whether its group is empty.
+          if !self.group_alive() {
+            break;
+          }
+          std::thread::sleep(Duration::from_millis(10));
         }
-        std::thread::sleep(Duration::from_millis(10));
+        if self.group_alive() {
+          // SAFETY: same owned group; descendants must die even if the leader exited first.
+          unsafe { libc::kill(-(self.pid as i32), libc::SIGKILL) };
+        }
       }
-      // SAFETY: as above.
-      unsafe { libc::kill(-(self.pid as i32), libc::SIGKILL) };
     }
     #[cfg(not(unix))]
     {
       let _ = grace_ms;
-      let _ = lock(&self.child).kill();
+      if self.poll().is_none() {
+        let _ = lock(&self.child).kill();
+      }
     }
-    let _ = lock(&self.child).wait();
+    if self.poll().is_none() {
+      let _ = lock(&self.child).wait();
+    }
     self.poll();
+    // A child may have passed its pipe to an escaped descendant. Cancellation prevents that
+    // pipe from retaining a native worker forever; lossless readers report incomplete output.
+    self.stdout.cancel.store(true, Ordering::Release);
+    self.stderr.cancel.store(true, Ordering::Release);
+    for reader in lock(&self.readers).drain(..) {
+      if reader.join().is_err() {
+        self
+          .stdout
+          .fail(YoloStatus::Panic, "capture worker panicked".to_string());
+        self
+          .stderr
+          .fail(YoloStatus::Panic, "capture worker panicked".to_string());
+      }
+    }
+    *stopped = true;
   }
 }
 
@@ -202,7 +384,41 @@ pub unsafe extern "C" fn yolo_process_spawn(
       return set_error(YoloStatus::InvalidArgument, "struct_size too small");
     }
     // SAFETY: the structure is fully readable.
+    // ABI 1.0-1.3 callers supply the original 40-byte structure. ABI 1.4 may append a
+    // per-stream lossless budget; zero selects the default.
+    let capture_limit = if struct_size as usize >= size_of::<YoloSpawnInfo>() + size_of::<u64>() {
+      // SAFETY: struct_size includes this appended u64, and the caller promises readable storage.
+      unsafe {
+        info
+          .cast::<u8>()
+          .add(size_of::<YoloSpawnInfo>())
+          .cast::<u64>()
+          .read_unaligned()
+      }
+    } else {
+      0
+    };
     let info = unsafe { info.read_unaligned() };
+    if info.flags & !(YOLO_SPAWN_NULL_STDIO | YOLO_SPAWN_CAPTURE | YOLO_SPAWN_CAPTURE_LOSSLESS) != 0
+    {
+      return set_error(YoloStatus::InvalidArgument, "unknown spawn flags");
+    }
+    if capture_limit > YOLO_CAPTURE_MAX_BYTES as u64 {
+      return set_error(YoloStatus::InvalidArgument, "capture budget exceeds 64 MiB");
+    }
+    let lossless = info.flags & YOLO_SPAWN_CAPTURE_LOSSLESS != 0;
+    if lossless && info.flags & (YOLO_SPAWN_NULL_STDIO | YOLO_SPAWN_CAPTURE) != 0 {
+      return set_error(
+        YoloStatus::InvalidArgument,
+        "LOSSLESS, CAPTURE and NULL_STDIO are exclusive",
+      );
+    }
+    if !lossless && capture_limit != 0 {
+      return set_error(
+        YoloStatus::InvalidArgument,
+        "capture budget requires lossless capture",
+      );
+    }
     let program = match read_c_string(info.program, "program") {
       Ok(p) => p,
       Err(status) => return status,
@@ -243,7 +459,7 @@ pub unsafe extern "C" fn yolo_process_spawn(
       command.current_dir(cwd);
     }
     let null_stdio = info.flags & YOLO_SPAWN_NULL_STDIO != 0;
-    let capture = info.flags & YOLO_SPAWN_CAPTURE != 0;
+    let capture = info.flags & (YOLO_SPAWN_CAPTURE | YOLO_SPAWN_CAPTURE_LOSSLESS) != 0;
     if null_stdio && capture {
       return set_error(
         YoloStatus::InvalidArgument,
@@ -284,21 +500,46 @@ pub unsafe extern "C" fn yolo_process_spawn(
         );
       }
     };
-    let stdout = Arc::new(Capture::default());
-    let stderr = Arc::new(Capture::default());
-    if let Some(pipe) = child.stdout.take() {
-      Arc::clone(&stdout).pump(pipe, "stdout");
-    }
-    if let Some(pipe) = child.stderr.take() {
-      Arc::clone(&stderr).pump(pipe, "stderr");
-    }
+    let limit = lossless.then_some(if capture_limit == 0 {
+      YOLO_CAPTURE_MAX_BYTES
+    } else {
+      capture_limit as usize
+    });
+    let stdout = Arc::new(Capture::new(limit));
+    let stderr = Arc::new(Capture::new(limit));
+    let stdout_pipe = child.stdout.take();
+    let stderr_pipe = child.stderr.take();
     let state = Arc::new(ProcState {
       pid: child.id(),
       child: Mutex::new(child),
       exit: Mutex::new(None),
       stdout,
       stderr,
+      readers: Mutex::new(Vec::new()),
+      stopped: Mutex::new(false),
     });
+    let started = (|| -> io::Result<()> {
+      if let Some(pipe) = stdout_pipe {
+        lock(&state.readers).push(Arc::clone(&state.stdout).pump(pipe, "stdout")?);
+      } else {
+        state.stdout.finished.store(true, Ordering::Release);
+      }
+      if let Some(pipe) = stderr_pipe {
+        lock(&state.readers).push(Arc::clone(&state.stderr).pump(pipe, "stderr")?);
+      } else {
+        state.stderr.finished.store(true, Ordering::Release);
+      }
+      Ok(())
+    })();
+    if let Err(error) = started {
+      // No reader accesses the registry, but drop its lock before potentially waiting on workers.
+      drop(reg);
+      state.stop(0);
+      return set_error(
+        YoloStatus::Internal,
+        format!("cannot start capture worker: {error}"),
+      );
+    }
     let handle = reg.insert(Entry::Process {
       owner: runtime,
       state,
@@ -365,6 +606,9 @@ pub unsafe extern "C" fn yolo_process_read(
   out: *mut YoloBuffer,
 ) -> YoloStatus {
   guard(|| {
+    if out.is_null() {
+      return set_error(YoloStatus::InvalidArgument, "null output buffer");
+    }
     let state = match process_state(process) {
       Ok(state) => state,
       Err(status) => return status,
@@ -375,14 +619,43 @@ pub unsafe extern "C" fn yolo_process_read(
       _ => return set_error(YoloStatus::InvalidArgument, "unknown stream"),
     };
     let bytes = {
-      let mut guard = lock(&capture.bytes);
+      let mut data = lock(&capture.data);
+      if let Some((status, message)) = &data.error {
+        return set_error(*status, message);
+      }
       match mode {
-        YOLO_READ_DRAIN => std::mem::take(&mut *guard),
-        YOLO_READ_PEEK => guard.clone(),
+        YOLO_READ_DRAIN => std::mem::take(&mut data.bytes),
+        YOLO_READ_PEEK => data.bytes.clone(),
         _ => return set_error(YoloStatus::InvalidArgument, "unknown read mode"),
       }
     };
     write_buffer(out, bytes)
+  })
+}
+
+/// ABI 1.4: returns 1 after both capture readers finish, 0 while either can still produce bytes.
+/// Completion does not imply success; yolo_process_read reports output limits and I/O failures.
+///
+/// # Safety
+/// out must point to a writable u32.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn yolo_process_output_complete(
+  process: YoloHandle,
+  out: *mut u32,
+) -> YoloStatus {
+  guard(|| {
+    if out.is_null() {
+      return set_error(YoloStatus::InvalidArgument, "null output");
+    }
+    let state = match process_state(process) {
+      Ok(state) => state,
+      Err(status) => return status,
+    };
+    let complete = state.stdout.finished.load(Ordering::Acquire)
+      && state.stderr.finished.load(Ordering::Acquire);
+    // SAFETY: out is writable per the contract.
+    unsafe { out.write(u32::from(complete)) };
+    YoloStatus::Ok
   })
 }
 

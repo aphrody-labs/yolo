@@ -14,7 +14,7 @@ extern "C" {
 #endif
 
 #define YOLO_ABI_MAJOR 1u
-#define YOLO_ABI_MINOR 3u
+#define YOLO_ABI_MINOR 4u
 #define YOLO_MAX_OPERATIONS_LIMIT 64u
 
 /* Opaque handle owned by the library; 0 is never valid. */
@@ -30,7 +30,8 @@ enum {
   YOLO_TIMEOUT = 5,
   YOLO_BUSY = 6,
   YOLO_INTERNAL = 7,
-  YOLO_PANIC = 8
+  YOLO_PANIC = 8,
+  YOLO_OUTPUT_LIMIT = 9
 };
 
 /* Buffer owned by the library: release it with yolo_buffer_free. */
@@ -71,6 +72,8 @@ YoloStatus yolo_operation_release(YoloHandle operation);
 /* capability "process.supervise" (ABI 1.1): the child runs in its own process group */
 #define YOLO_SPAWN_NULL_STDIO 1u /* YoloSpawnInfo.flags: stdin/stdout/stderr -> null device */
 #define YOLO_SPAWN_CAPTURE 2u    /* flags (ABI 1.2): stdin null, stdout/stderr captured (last 64 KiB each) */
+#define YOLO_SPAWN_CAPTURE_LOSSLESS 4u /* ABI 1.4: complete bytes, error on budget overflow */
+#define YOLO_CAPTURE_MAX_BYTES 67108864u /* default/maximum per stream */
 #define YOLO_STREAM_STDOUT 1u
 #define YOLO_STREAM_STDERR 2u
 #define YOLO_READ_DRAIN 0u
@@ -85,6 +88,14 @@ typedef struct YoloSpawnInfo {
   const char *cwd;           /* may be NULL */
 } YoloSpawnInfo;
 
+/* ABI 1.4 optional extension. Set base.struct_size = sizeof(YoloSpawnInfoV14), flag
+ * YOLO_SPAWN_CAPTURE_LOSSLESS, then pass &info.base. Older 40-byte callers remain supported.
+ * A zero capture_limit uses the default; otherwise 1..YOLO_CAPTURE_MAX_BYTES per stream. */
+typedef struct YoloSpawnInfoV14 {
+  YoloSpawnInfo base;
+  uint64_t capture_limit;
+} YoloSpawnInfoV14;
+
 typedef struct YoloProcessStatus {
   uint32_t struct_size; /* sizeof(YoloProcessStatus) of the caller */
   uint32_t state;       /* 0 running, 1 exited */
@@ -98,6 +109,8 @@ YoloStatus yolo_process_spawn(YoloHandle runtime, const YoloSpawnInfo *info, Yol
 YoloStatus yolo_process_status(YoloHandle process, YoloProcessStatus *out); /* non-blocking */
 /* ABI 1.2: captured output of a YOLO_SPAWN_CAPTURE process, in a library-owned buffer (maybe empty). */
 YoloStatus yolo_process_read(YoloHandle process, uint32_t stream, uint32_t mode, YoloBuffer *out);
+/* ABI 1.4: 1 when both readers finished; read can still report OUTPUT_LIMIT or I/O failure. */
+YoloStatus yolo_process_output_complete(YoloHandle process, uint32_t *out);
 /* SIGTERM to the group, SIGKILL after grace_ms; waits. The handle stays valid (read the status). */
 YoloStatus yolo_process_stop(YoloHandle process, uint32_t grace_ms);
 /* ABI 1.3: asynchronous stop on a worker (not counted against max_operations). The operation yields

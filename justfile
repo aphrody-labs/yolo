@@ -100,7 +100,7 @@ runtime-build:
 runtime-test: runtime-build
     cargo test -p yolo-runtime -p yolo-core
     bun run scripts/release/runtime_artifact.ts
-    bun test test/runtime_sdk.test.ts test/runtime_release.test.ts
+    YOLO_RUNTIME_LIB="$(bun -e 'import { libraryFile } from "./packages/runtime/src/index.ts"; console.log("target/runtime/" + libraryFile())')" bun test test/runtime_sdk.test.ts test/runtime_release.test.ts
 
 # dist/runtime/<target>/: library + C header + manifest (target, toolchain, ABI, revisions, hashes)
 runtime-package: runtime-build

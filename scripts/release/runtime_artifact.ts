@@ -7,10 +7,12 @@
  */
 import { mkdirSync } from "node:fs";
 import { basename, resolve } from "node:path";
-import { defaultLibraryPath, Runtime } from "../../packages/runtime/src/index";
+import { libraryFile, Runtime } from "../../packages/runtime/src/index";
 
 const root = resolve(import.meta.dir, "../..");
-const libraryPath = defaultLibraryPath();
+// A producer packages its build, independently of whichever version the user installed.
+const libraryPath =
+  process.env["YOLO_RUNTIME_LIB"] || resolve(root, "target/runtime", libraryFile());
 if (!(await Bun.file(libraryPath).exists())) {
   console.error(`Missing ${libraryPath}: run \`just runtime-build\` first.`);
   process.exit(1);

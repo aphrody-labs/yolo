@@ -12,7 +12,7 @@ import { resolve } from "node:path";
 
 /** ABI major this SDK was written for. A library with another major is refused before any call. */
 export const EXPECTED_ABI_MAJOR = 1;
-export const EXPECTED_ABI_MINOR = 3;
+export const EXPECTED_ABI_MINOR = 4;
 
 export const Status = {
   Ok: 0,
@@ -24,6 +24,7 @@ export const Status = {
   Busy: 6,
   Internal: 7,
   Panic: 8,
+  OutputLimit: 9,
 } as const;
 export type StatusCode = (typeof Status)[keyof typeof Status];
 
@@ -132,6 +133,7 @@ const SYMBOLS = {
     args: [FFIType.u64, FFIType.u32, FFIType.ptr],
     returns: FFIType.i32,
   },
+  yolo_process_output_complete: { args: [FFIType.u64, FFIType.ptr], returns: FFIType.i32 },
   yolo_process_release: { args: [FFIType.u64], returns: FFIType.i32 },
   yolo_http_probe_start: {
     args: [FFIType.u64, FFIType.ptr, FFIType.u16, FFIType.ptr, FFIType.u32, FFIType.ptr],
@@ -144,19 +146,22 @@ const SYMBOLS = {
 type Library = ReturnType<typeof dlopen<typeof SYMBOLS>>;
 type Symbols = Library["symbols"];
 
-function readBuffer(symbols: Symbols, buffer: Uint8Array): string {
+function readBufferBytes(symbols: Symbols, buffer: Uint8Array): Uint8Array {
   const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
   const dataPtr = read.ptr(ptr(buffer), 0);
   const len = Number(view.getBigUint64(8, true));
-  if (!dataPtr) return "";
-  if (len === 0) {
+  try {
+    // Copy before releasing: returned bytes must outlive the native allocation.
+    return dataPtr && len > 0
+      ? new Uint8Array(toArrayBuffer(dataPtr, 0, len)).slice()
+      : new Uint8Array(0);
+  } finally {
     symbols.yolo_buffer_free(ptr(buffer));
-    return "";
   }
-  // Copy before releasing: the memory belongs to the library.
-  const text = new TextDecoder().decode(new Uint8Array(toArrayBuffer(dataPtr, 0, len)).slice());
-  symbols.yolo_buffer_free(ptr(buffer));
-  return text;
+}
+
+function readBuffer(symbols: Symbols, buffer: Uint8Array): string {
+  return new TextDecoder().decode(readBufferBytes(symbols, buffer));
 }
 
 function lastError(symbols: Symbols): string {
@@ -189,7 +194,9 @@ export interface SpawnOptions {
    * `"null"` connects stdin/stdout/stderr to the null device, `"capture"` keeps the last 64 KiB of
    * stdout and stderr for `takeStdout()` / `stderrTail()`; default inherits them.
    */
-  readonly stdio?: "inherit" | "null" | "capture";
+  readonly stdio?: "inherit" | "null" | "capture" | "capture-lossless";
+  /** Total bytes allowed per stream in lossless mode (1..64 MiB, default 64 MiB). */
+  readonly maxOutputBytes?: number;
 }
 
 export interface ProcessStatus {
@@ -198,6 +205,12 @@ export interface ProcessStatus {
   readonly exitCode: number;
   readonly signal: number;
   readonly pid: number;
+}
+
+export interface ProcessOutput {
+  readonly stdout: Uint8Array;
+  readonly stderr: Uint8Array;
+  readonly status: ProcessStatus;
 }
 
 export interface HttpReadyOptions {
@@ -251,7 +264,17 @@ export class ManagedProcess implements Disposable {
     this.pid = pid;
   }
 
+  #assertLive(): void {
+    if (this.#released || this.#runtime.closed) {
+      throw new RuntimeError(
+        Status.InvalidHandle,
+        "process handle is released or its runtime is closed",
+      );
+    }
+  }
+
   status(): ProcessStatus {
+    this.#assertLive();
     const out = new Uint32Array(5);
     out[0] = 20; // struct_size
     check(this.#symbols, this.#symbols.yolo_process_status(this.#handle, ptr(out)));
@@ -264,10 +287,94 @@ export class ManagedProcess implements Disposable {
     };
   }
 
-  #read(stream: 1 | 2, mode: 0 | 1): string {
+  #readBytes(stream: 1 | 2, mode: 0 | 1): Uint8Array {
+    this.#assertLive();
     const buffer = new Uint8Array(BUFFER_BYTES);
     check(this.#symbols, this.#symbols.yolo_process_read(this.#handle, stream, mode, ptr(buffer)));
-    return readBuffer(this.#symbols, buffer);
+    return readBufferBytes(this.#symbols, buffer);
+  }
+
+  #read(stream: 1 | 2, mode: 0 | 1): string {
+    return new TextDecoder().decode(this.#readBytes(stream, mode));
+  }
+
+  /** Returns and clears stdout without UTF-8 decoding. Capture mode controls its budget. */
+  takeStdoutBytes(): Uint8Array {
+    return this.#readBytes(1, 0);
+  }
+
+  /** Returns and clears stderr without UTF-8 decoding. Capture mode controls its budget. */
+  takeStderrBytes(): Uint8Array {
+    return this.#readBytes(2, 0);
+  }
+
+  /** True when both capture workers have finished; reads can still report a capture error. */
+  outputComplete(): boolean {
+    this.#assertLive();
+    const out = new Uint32Array(1);
+    check(this.#symbols, this.#symbols.yolo_process_output_complete(this.#handle, ptr(out)));
+    return out[0] === 1;
+  }
+
+  /**
+   * Collects captured bytes through process exit and terminal drain. Use capture-lossless for
+   * complete responses. Timeout, abort and output-limit failures stop the owned child before
+   * rejecting. The caller still owns the handle and must release it.
+   */
+  async collectOutput(
+    options: {
+      timeoutMs?: number;
+      pollMs?: number;
+      signal?: AbortSignal;
+      /** Receives copied stderr chunks, including diagnostics before failure. */
+      onStderr?: (bytes: Uint8Array) => void;
+    } = {},
+  ): Promise<ProcessOutput> {
+    const { timeoutMs = 30_000, pollMs = 5, signal } = options;
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || !Number.isFinite(pollMs) || pollMs <= 0) {
+      throw new RangeError("timeoutMs and pollMs must be positive finite numbers");
+    }
+    const deadline = Date.now() + timeoutMs;
+    const stdout: Uint8Array[] = [];
+    const stderr: Uint8Array[] = [];
+    let stopped = false;
+    const drain = (): void => {
+      const err = this.takeStderrBytes();
+      if (err.length) {
+        stderr.push(err);
+        options.onStderr?.(err);
+      }
+      const out = this.takeStdoutBytes();
+      if (out.length) stdout.push(out);
+    };
+    const concat = (chunks: Uint8Array[]): Uint8Array => {
+      const bytes = new Uint8Array(chunks.reduce((size, chunk) => size + chunk.length, 0));
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.length;
+      }
+      return bytes;
+    };
+    try {
+      for (;;) {
+        signal?.throwIfAborted();
+        drain();
+        if (!this.status().running) {
+          const status = await this.stopAsync(0);
+          stopped = true;
+          signal?.throwIfAborted();
+          drain();
+          return { stdout: concat(stdout), stderr: concat(stderr), status };
+        }
+        if (Date.now() >= deadline) {
+          throw new RuntimeError(Status.Timeout, `process timed out after ${timeoutMs} ms`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, pollMs));
+      }
+    } finally {
+      if (!stopped && !this.#released && !this.#runtime.closed) await this.stopAsync(0);
+    }
   }
 
   /** Returns and clears the captured stdout (needs `stdio: "capture"`). */
@@ -316,9 +423,10 @@ export class ManagedProcess implements Disposable {
    * loop is never blocked. Resolves with the final status.
    */
   async stopAsync(graceMs = 2000): Promise<ProcessStatus> {
+    this.#assertLive();
     const out = new BigUint64Array(1);
     check(this.#symbols, this.#symbols.yolo_process_stop_start(this.#handle, graceMs, ptr(out)));
-    const operation = new Operation(this.#symbols, out[0] as bigint);
+    const operation = new Operation(this.#symbols, out[0] as bigint, this.#runtime);
     try {
       while (operation.waitRaw(0) === undefined) {
         await new Promise((resolve) => setTimeout(resolve, 5));
@@ -342,6 +450,7 @@ export class ManagedProcess implements Disposable {
 
   /** SIGTERM to the process group, SIGKILL after `graceMs`; waits and keeps the handle valid. */
   stop(graceMs = 2000): ProcessStatus {
+    this.#assertLive();
     check(this.#symbols, this.#symbols.yolo_process_stop(this.#handle, graceMs));
     return this.status();
   }
@@ -383,7 +492,9 @@ export class ManagedProcess implements Disposable {
   release(): void {
     if (this.#released) return;
     this.#released = true;
-    check(this.#symbols, this.#symbols.yolo_process_release(this.#handle));
+    if (!this.#runtime.closed) {
+      check(this.#symbols, this.#symbols.yolo_process_release(this.#handle));
+    }
   }
 
   [Symbol.dispose](): void {
@@ -396,10 +507,21 @@ export class Operation implements Disposable {
   #symbols: Symbols;
   #handle: bigint;
   #released = false;
+  #runtime: Runtime | undefined;
 
-  constructor(symbols: Symbols, handle: bigint) {
+  constructor(symbols: Symbols, handle: bigint, runtime?: Runtime) {
     this.#symbols = symbols;
     this.#handle = handle;
+    this.#runtime = runtime;
+  }
+
+  #assertLive(): void {
+    if (this.#released || this.#runtime?.closed) {
+      throw new RuntimeError(
+        Status.InvalidHandle,
+        "operation handle is released or its runtime is closed",
+      );
+    }
   }
 
   /** Waits up to `timeoutMs`. Resolves to `undefined` on timeout (the operation keeps running). */
@@ -410,6 +532,7 @@ export class Operation implements Disposable {
 
   /** Like `wait`, returning the raw JSON text of the result. */
   waitRaw(timeoutMs = 0): string | undefined {
+    this.#assertLive();
     const buffer = new Uint8Array(BUFFER_BYTES);
     const status = this.#symbols.yolo_operation_wait(this.#handle, timeoutMs, ptr(buffer));
     if (status === Status.Timeout) return undefined;
@@ -419,13 +542,16 @@ export class Operation implements Disposable {
 
   /** Requests cancellation; `wait()` then throws a `Cancelled` RuntimeError. */
   cancel(): void {
+    this.#assertLive();
     check(this.#symbols, this.#symbols.yolo_operation_cancel(this.#handle));
   }
 
   release(): void {
     if (this.#released) return;
     this.#released = true;
-    check(this.#symbols, this.#symbols.yolo_operation_release(this.#handle));
+    if (!this.#runtime?.closed) {
+      check(this.#symbols, this.#symbols.yolo_operation_release(this.#handle));
+    }
   }
 
   [Symbol.dispose](): void {
@@ -488,6 +614,11 @@ export class Runtime implements Disposable {
     return new Runtime(library, out[0] as bigint, { major, minor });
   }
 
+  /** Handles reject further calls after close without entering an unloaded library. */
+  get closed(): boolean {
+    return this.#closed;
+  }
+
   #live(): Symbols {
     if (this.#closed) throw new RuntimeError(Status.InvalidHandle, "runtime is closed");
     return this.#library.symbols;
@@ -514,7 +645,7 @@ export class Runtime implements Disposable {
     const symbols = this.#live();
     const out = new BigUint64Array(1);
     check(symbols, symbols.yolo_bench_start(this.#handle, iterations, ptr(out)));
-    return new Operation(symbols, out[0] as bigint);
+    return new Operation(symbols, out[0] as bigint, this);
   }
 
   /** Spawns a supervised process; the runtime stops it if it is still alive at `close()`. */
@@ -531,9 +662,24 @@ export class Runtime implements Disposable {
     );
     const cwd = options.cwd === undefined ? undefined : cString(options.cwd);
 
-    const info = new DataView(new ArrayBuffer(40));
-    info.setUint32(0, 40, true);
-    info.setUint32(4, options.stdio === "null" ? 1 : options.stdio === "capture" ? 2 : 0, true);
+    const lossless = options.stdio === "capture-lossless";
+    const budget = options.maxOutputBytes ?? 64 * 1024 * 1024;
+    if (
+      (options.maxOutputBytes !== undefined && !lossless) ||
+      !Number.isSafeInteger(budget) ||
+      budget < 1 ||
+      budget > 64 * 1024 * 1024
+    ) {
+      throw new RangeError("maxOutputBytes requires lossless capture and must be 1..64 MiB");
+    }
+    const info = new DataView(new ArrayBuffer(48));
+    info.setUint32(0, 48, true);
+    info.setBigUint64(40, lossless ? BigInt(budget) : 0n, true);
+    info.setUint32(
+      4,
+      lossless ? 4 : options.stdio === "null" ? 1 : options.stdio === "capture" ? 2 : 0,
+      true,
+    );
     info.setBigUint64(8, BigInt(ptr(program)), true);
     info.setBigUint64(16, BigInt(ptr(args)), true);
     info.setBigUint64(24, BigInt(ptr(env)), true);
@@ -574,7 +720,7 @@ export class Runtime implements Disposable {
         ptr(out),
       ),
     );
-    const operation = new Operation(symbols, out[0] as bigint);
+    const operation = new Operation(symbols, out[0] as bigint, this);
     try {
       for (;;) {
         const result = operation.waitRaw(0);

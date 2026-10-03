@@ -26,7 +26,7 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 pub const ABI_MAJOR: u32 = 1;
-pub const ABI_MINOR: u32 = 3;
+pub const ABI_MINOR: u32 = 4;
 /// Upper bound for `max_operations`.
 pub const MAX_OPERATIONS_LIMIT: u32 = 64;
 const DEFAULT_MAX_OPERATIONS: u32 = 4;
@@ -46,6 +46,7 @@ pub enum YoloStatus {
   Busy = 6,
   Internal = 7,
   Panic = 8,
+  OutputLimit = 9,
 }
 
 /// Buffer owned by the library. Release it with [`yolo_buffer_free`].

@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Runtime C ABI (slice R0, ABI 1.3)
+# Runtime C ABI (slice R0, ABI 1.4)
 
 First vertical slice of [PLAN.md](../PLAN.md) phase R0: one capability family behind a versioned
 C ABI, a precompiled artifact and a light TypeScript consumer. Nothing here qualifies later
@@ -28,7 +28,7 @@ bun run packages/runtime/examples/stats.ts
 | `system.stats`  | `yolo_system_stats`                                      | `yolo_core::current_system_stats`          |
 | `bench.compute` | `yolo_bench_start`, `yolo_operation_wait/cancel/release` | `yolo_core::compute_benchmark_cancellable` |
 
-| `process.supervise` | `yolo_process_spawn/status/read/stop/release` | `std::process` in its own process group (SIGTERM, then SIGKILL after a grace period; the whole group) |
+| `process.supervise` | `yolo_process_spawn/status/read/stop/release` | `std::process` with Unix process-group shutdown; direct-child shutdown on Windows |
 | `http.probe` | `yolo_http_probe_start` (an operation: the caller is never blocked) | `std::net`, HTTP/1.0 `GET` |
 
 `system.stats` and `bench.compute` were picked because they already existed and need no engine.
@@ -63,11 +63,16 @@ by the preload plugin of `packages/runtime`.
   `yolo_runtime_destroy` cancels and joins every operation of the runtime before it invalidates it,
   so unloading the library after destroy cannot leave a running worker.
   Processes count against the same limit and are stopped (group SIGTERM, 500 ms grace, SIGKILL)
-  when their runtime is destroyed. Handles are thread-safe: any thread may call any function.
+  when their runtime is destroyed. Capture workers are also joined before stop/release/destroy
+  returns. Unix shutdown signals surviving group members even after the leader exits. Windows
+  currently stops the direct child; process-tree ownership through Job Objects is not qualified.
+  SDK process and operation handles reject calls after runtime close without entering the
+  unloaded library. Handles are thread-safe: any thread may call any function.
 - **Versioning policy.** ABI 1.x is additive only (D1): 1.0 is the core, 1.1 added the process and
   probe functions, 1.2 the bounded stdout/stderr capture (`YOLO_SPAWN_CAPTURE`, `yolo_process_read`: the
   last 64 KiB of each stream, drained or peeked). `yolo_process_stop_start` (1.3) is the non-blocking stop. An older library is refused by the SDK with an ABI error before any symbol other
   than `yolo_abi_version` is bound.
+  ABI 1.4 adds lossless byte capture, an optional per-stream budget and output completion.
 
 ## What the light consumer needs
 
@@ -83,5 +88,46 @@ measured, so no saving is claimed.
   modified.
 - R2 is limited as stated in D11: the consumer's supervision code is retired, the Obscura binary is
   not (R4).
-- Only the build host target has been produced; there is no supported-target matrix, no signing and
-  no rollback procedure yet (R8). `manifest.json` identifies an artifact, it does not qualify it.
+- Only Linux x64 runtime behavior and packaging are qualified by this batch. Windows x64,
+  macOS x64/ARM64 and Linux ARM64 pass metadata checks; execution, signing and complete
+  distribution on those targets remain open. Artifact install/rollback is covered by release tests;
+  `manifest.json` alone does not qualify an artifact.
+
+## ABI 1.4: complete binary output
+
+`YOLO_SPAWN_CAPTURE` retains its bounded 64 KiB diagnostic tail. Select
+`YOLO_SPAWN_CAPTURE_LOSSLESS` (flag 4) for full stdout/stderr bytes. The original
+40-byte `YoloSpawnInfo` remains accepted with a default 64 MiB budget per stream.
+`YoloSpawnInfoV14` appends a `capture_limit` u64: set `base.struct_size` to the
+extended size and pass `&info.base`. Zero selects the default; positive budgets
+must not exceed 64 MiB. A budget counts all bytes produced during the process
+lifetime, including bytes already drained.
+
+An overflow is persistent `YOLO_OUTPUT_LIMIT` (status 9), never a successful
+truncated response. Workers continue draining after overflow so pipe pressure
+cannot deadlock the child. `yolo_process_output_complete` reports whether both
+readers finished; `yolo_process_read` still reports any output-limit or I/O error.
+Returned bytes use the existing library-owned `YoloBuffer` and free contract.
+
+The SDK exposes `takeStdoutBytes`, `takeStderrBytes`, `outputComplete` and
+`collectOutput`. Collection polls without blocking the JS event loop, copies
+buffers before freeing them, joins readers for the final drain, and stops the
+owned child before rejecting a timeout, abort or output error. The caller still
+owns the process handle and releases it. `capture-lossless` has an explicit
+64 MiB default per-stream ceiling; a product requiring larger payloads needs a
+separately qualified streaming contract.
+
+Pipe readers use nonblocking descriptors on Unix. On Windows they use a sole
+reader and [PeekNamedPipe](https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-peeknamedpipe)
+before reading available bytes from the borrowed
+[AsRawHandle](https://doc.rust-lang.org/std/os/windows/io/trait.AsRawHandle.html).
+Cancellation bounds worker teardown even if an escaped descendant keeps a pipe
+open; a lossless reader then reports an incomplete-output error. Escaped process
+groups are outside the owned group and are not silently claimed terminated.
+Runtime execution on Windows/macOS/ARM remains separate from cross-target checks.
+
+The producer packager selects `target/runtime/` (or an explicit
+`YOLO_RUNTIME_LIB`), independently of the runtime installed by the developer.
+The `runtime-test` recipe uses that same build for SDK tests. Build provenance
+also tracks the current Git ref and packed refs, so a new commit on the same
+branch refreshes the embedded revision.

@@ -14,12 +14,9 @@ with Tauri and Obscura, and sharply reduce Aphrody's routine compilation cost.
   Native WebViews keep platform engines. Preserve unwind where recovery needs it.
 - Preserve the Tauri vendor/import workflow and runtime identities while package
   names use aphrody-*. Separate build graphs can produce one unified distribution.
-- Implementation phases R0–R8 remain unqualified by this documentation change.
-  No runtime build, deployment or performance result is claimed here.
 - 2026-10-03: `yolo ship` became this repository's CI and release host (GitHub Actions has no
   billing to run on); see [PLAN.md](PLAN.md) for the current per-phase status and
-  [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) for the last verified commit. This line, not the
-  one above it, is current; it is kept for the history, not as a standing claim.
+  [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) for the last verified commit. Factory qualification remains distinct from installation and consumer activation.
 - The earlier Rust scan covers Aphrody only and is a lexical navigation aid;
   its profile statements and dependency inventory require scoped verification.
 - Keep repositories private, commits owner-authored and existing consumers intact
@@ -31,3 +28,11 @@ with Tauri and Obscura, and sharply reduce Aphrody's routine compilation cost.
   Dioxus 0.7 for Rust full-stack apps in Tauri; EU bare-metal (OVH fleet + Hetzner auction) + Cloudflare
   for hosting (PaaS avoided due to 2026 RAM price surge); React 19 + Material 3 web components
   (`@aphrody/material-web`) under Bun for UI.
+
+- 2026-10-03: ABI 1.4 adds lossless binary capture with explicit lifetime budgets,
+  joins capture workers and stops the owned Unix group after leader exit. SDK
+  handles reject calls after runtime close. Packaging selects the producer build,
+  and build provenance watches the branch ref. See
+  [batch evidence](docs/runtime-lossless-2026-10-03.json).
+  Linux x64 behavior is tested; other native targets pass metadata checks only.
+  Windows process-tree ownership and complete desktop/headless integration remain open.

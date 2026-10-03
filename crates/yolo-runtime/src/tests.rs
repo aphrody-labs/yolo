@@ -331,6 +331,7 @@ fn every_exported_function_is_declared_in_the_c_header() {
     "yolo_last_error",
     "yolo_process_spawn",
     "yolo_process_status",
+    "yolo_process_output_complete",
     "yolo_process_stop",
     "yolo_process_release",
     "yolo_process_read",
@@ -512,6 +513,195 @@ mod process {
     );
     yolo_process_release(noisy);
     yolo_runtime_destroy(rt);
+  }
+
+  fn read_bytes(process: YoloHandle, stream: u32) -> Result<Vec<u8>, YoloStatus> {
+    let mut out = empty();
+    let status = unsafe { yolo_process_read(process, stream, YOLO_READ_DRAIN, &mut out) };
+    if status != YoloStatus::Ok {
+      return Err(status);
+    }
+    let bytes = unsafe { std::slice::from_raw_parts(out.data, out.len) }.to_vec();
+    unsafe { yolo_buffer_free(&mut out) };
+    Ok(bytes)
+  }
+
+  #[test]
+  fn lossless_capture_preserves_large_binary_outputs_and_joins_readers() {
+    let rt = create(0);
+    let (_, child) = spawn_flags(
+      rt,
+      YOLO_SPAWN_CAPTURE_LOSSLESS,
+      "sh",
+      &[
+        "-c",
+        "head -c 204800 /dev/zero; printf '\\377\\376\\200' >&2",
+      ],
+    );
+    wait_exited(child);
+    // Stop joins both readers; no arbitrary post-exit sleep is needed for the final drain.
+    assert_eq!(yolo_process_stop(child, 0), YoloStatus::Ok);
+    let mut complete = 0;
+    assert_eq!(
+      unsafe { yolo_process_output_complete(child, &mut complete) },
+      YoloStatus::Ok
+    );
+    assert_eq!(complete, 1);
+    assert_eq!(
+      read_bytes(child, YOLO_STREAM_STDOUT).unwrap(),
+      vec![0; 204800]
+    );
+    assert_eq!(
+      read_bytes(child, YOLO_STREAM_STDERR).unwrap(),
+      vec![255, 254, 128]
+    );
+    assert!(read_bytes(child, YOLO_STREAM_STDOUT).unwrap().is_empty());
+    yolo_process_release(child);
+    yolo_runtime_destroy(rt);
+  }
+
+  #[repr(C)]
+  struct SpawnV14 {
+    base: YoloSpawnInfo,
+    capture_limit: u64,
+  }
+
+  #[test]
+  fn lossless_budget_is_total_across_drains_and_never_silently_truncates() {
+    let rt = create(0);
+    let program = CString::new("sh").unwrap();
+    let (_args_owned, args_ptrs) = cstrings(&["-c", "printf 12345678; sleep 0.1; printf 9"]);
+    let info = SpawnV14 {
+      base: YoloSpawnInfo {
+        struct_size: size_of::<SpawnV14>() as u32,
+        flags: YOLO_SPAWN_CAPTURE_LOSSLESS,
+        program: program.as_ptr(),
+        args: args_ptrs.as_ptr(),
+        env: ptr::null(),
+        cwd: ptr::null(),
+      },
+      capture_limit: 8,
+    };
+    let mut child = 0;
+    assert_eq!(
+      unsafe { yolo_process_spawn(rt, &info.base, &mut child) },
+      YoloStatus::Ok
+    );
+    let mut initial = Vec::new();
+    for _ in 0..100 {
+      initial.extend(read_bytes(child, YOLO_STREAM_STDOUT).unwrap());
+      if initial.len() == 8 {
+        break;
+      }
+      std::thread::sleep(Duration::from_millis(1));
+    }
+    assert_eq!(initial, b"12345678");
+    wait_exited(child);
+    yolo_process_stop(child, 0);
+    assert_eq!(
+      read_bytes(child, YOLO_STREAM_STDOUT),
+      Err(YoloStatus::OutputLimit)
+    );
+    assert!(last_error().contains("8 byte capture budget"));
+    // The error remains visible on subsequent reads, even after draining earlier chunks.
+    assert_eq!(
+      read_bytes(child, YOLO_STREAM_STDOUT),
+      Err(YoloStatus::OutputLimit)
+    );
+    yolo_process_release(child);
+    yolo_runtime_destroy(rt);
+  }
+
+  #[test]
+  fn capture_rejects_unknown_flags_and_null_output_without_losing_data() {
+    let rt = create(0);
+    assert_eq!(
+      spawn_flags(rt, 8, "true", &[]).0,
+      YoloStatus::InvalidArgument
+    );
+    assert_eq!(
+      spawn_flags(
+        rt,
+        YOLO_SPAWN_CAPTURE | YOLO_SPAWN_CAPTURE_LOSSLESS,
+        "true",
+        &[]
+      )
+      .0,
+      YoloStatus::InvalidArgument
+    );
+    let (_, child) = spawn_flags(
+      rt,
+      YOLO_SPAWN_CAPTURE_LOSSLESS,
+      "sh",
+      &["-c", "printf bytes"],
+    );
+    wait_exited(child);
+    yolo_process_stop(child, 0);
+    assert_eq!(
+      unsafe { yolo_process_read(child, 1, 0, ptr::null_mut()) },
+      YoloStatus::InvalidArgument
+    );
+    assert_eq!(read_bytes(child, 1).unwrap(), b"bytes");
+    assert_eq!(
+      unsafe { yolo_process_output_complete(child, ptr::null_mut()) },
+      YoloStatus::InvalidArgument
+    );
+    yolo_process_release(child);
+    yolo_runtime_destroy(rt);
+  }
+
+  #[test]
+  fn release_after_leader_exit_kills_descendants_and_joins_capture_workers() {
+    let rt = create(0);
+    let (_, child) = spawn_flags(rt, YOLO_SPAWN_CAPTURE, "sh", &["-c", "sleep 60 & exit 0"]);
+    let pid = status_of(child).pid as i32;
+    wait_exited(child);
+    assert_eq!(yolo_process_release(child), YoloStatus::Ok);
+    assert!(
+      group_is_gone(pid),
+      "descendant survived leader exit and handle release"
+    );
+    yolo_runtime_destroy(rt);
+  }
+
+  #[cfg(target_os = "linux")]
+  #[test]
+  fn escaped_writer_cannot_prevent_capture_worker_shutdown() {
+    let rt = create(0);
+    let (_, child) = spawn_flags(
+      rt,
+      YOLO_SPAWN_CAPTURE_LOSSLESS,
+      "sh",
+      &["-c", "setsid sh -c 'echo $$; sleep 60' & exit 0"],
+    );
+    wait_exited(child);
+    let mut pid_bytes = Vec::new();
+    for _ in 0..200 {
+      pid_bytes.extend(read_bytes(child, YOLO_STREAM_STDOUT).unwrap());
+      if pid_bytes.contains(&b'\n') {
+        break;
+      }
+      std::thread::sleep(Duration::from_millis(5));
+    }
+    let escaped: i32 = String::from_utf8(pid_bytes)
+      .unwrap()
+      .trim()
+      .parse()
+      .unwrap();
+    let started = Instant::now();
+    let stopped = yolo_process_stop(child, 0);
+    let read = read_bytes(child, YOLO_STREAM_STDOUT);
+    let mut complete = 0;
+    let completion = unsafe { yolo_process_output_complete(child, &mut complete) };
+    // The fixture deliberately escaped the owned process group; reclaim it explicitly.
+    unsafe { libc::kill(-escaped, libc::SIGKILL) };
+    yolo_process_release(child);
+    yolo_runtime_destroy(rt);
+    assert_eq!(stopped, YoloStatus::Ok);
+    assert!(started.elapsed() < Duration::from_secs(1));
+    assert_eq!(read, Err(YoloStatus::Internal));
+    assert_eq!((completion, complete), (YoloStatus::Ok, 1));
+    assert!(group_is_gone(escaped));
   }
 
   #[test]

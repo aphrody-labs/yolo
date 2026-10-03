@@ -26,7 +26,7 @@ suite("runtime SDK against the precompiled library", () => {
     expect(runtime.abi.major).toBe(1);
     const info = runtime.buildInfo();
     expect(info.name).toBe("yolo-runtime");
-    expect(info.abi).toBe("1.3");
+    expect(info.abi).toBe("1.4");
     expect(info.panic_recovery).toBe(true);
     expect(runtime.capabilities()).toEqual([
       "system.stats",
@@ -214,6 +214,85 @@ suite("process supervision (runtime:process)", () => {
     expect(child.takeStderr()).toBe(""); // draining clears
   });
 
+  unix("lossless output preserves binary bursts beyond the old 64 KiB tail", async () => {
+    using runtime = Runtime.load();
+    using child = runtime.spawn({
+      program: process.execPath,
+      args: [
+        "--eval",
+        "await Promise.all([Bun.write(Bun.stdout, new Uint8Array(200000).fill(255)), Bun.write(Bun.stderr, new Uint8Array([0, 254, 128]))]);",
+      ],
+      stdio: "capture-lossless",
+    });
+    const chunks: Uint8Array[] = [];
+    const output = await child.collectOutput({
+      timeoutMs: 5000,
+      onStderr: (bytes) => chunks.push(bytes),
+    });
+    expect(Buffer.concat(chunks)).toEqual(Buffer.from([0, 254, 128]));
+    expect(output.status).toMatchObject({ running: false, exitCode: 0, signal: 0 });
+    expect(output.stdout).toEqual(new Uint8Array(200000).fill(255));
+    expect(output.stderr).toEqual(new Uint8Array([0, 254, 128]));
+    expect(child.outputComplete()).toBe(true);
+    // Native buffers were copied and released; another drain cannot invalidate returned bytes.
+    expect(child.takeStdoutBytes()).toHaveLength(0);
+    expect(output.stdout[199999]).toBe(255);
+  });
+
+  unix("lossless budget overflow rejects and stops the process", async () => {
+    using runtime = Runtime.load();
+    using child = runtime.spawn({
+      program: process.execPath,
+      args: [
+        "--eval",
+        "await Bun.write(Bun.stdout, new Uint8Array(200000)); setInterval(() => {}, 1000);",
+      ],
+      stdio: "capture-lossless",
+      maxOutputBytes: 100000,
+    });
+    await expect(child.collectOutput()).rejects.toMatchObject({ status: Status.OutputLimit });
+    expect(child.status().running).toBe(false);
+    expect(child.outputComplete()).toBe(true);
+  });
+
+  unix("collectOutput stops the owned process on timeout and abort", async () => {
+    using runtime = Runtime.load();
+    using timed = runtime.spawn({ program: "sleep", args: ["60"], stdio: "capture-lossless" });
+    await expect(timed.collectOutput({ timeoutMs: 30 })).rejects.toMatchObject({
+      status: Status.Timeout,
+    });
+    expect(timed.status().running).toBe(false);
+    using aborted = runtime.spawn({ program: "sleep", args: ["60"], stdio: "capture-lossless" });
+    const controller = new AbortController();
+    const reason = new Error("caller stopped collection");
+    setTimeout(() => controller.abort(reason), 30);
+    await expect(aborted.collectOutput({ signal: controller.signal })).rejects.toBe(reason);
+    expect(aborted.status().running).toBe(false);
+    expect(aborted.outputComplete()).toBe(true);
+  });
+
+  unix("rejects invalid lossless budgets before spawning", () => {
+    using runtime = Runtime.load();
+    for (const maxOutputBytes of [0, -1, 1.5, 64 * 1024 * 1024 + 1, NaN]) {
+      expect(() =>
+        runtime.spawn({ program: "true", stdio: "capture-lossless", maxOutputBytes }),
+      ).toThrow(RangeError);
+    }
+    expect(() => runtime.spawn({ program: "true", stdio: "capture", maxOutputBytes: 100 })).toThrow(
+      RangeError,
+    );
+  });
+
+  unix("repeated runtime unload joins capture workers with a live child", () => {
+    for (let index = 0; index < 20; index++) {
+      const runtime = Runtime.load();
+      const child = runtime.spawn({ program: "sleep", args: ["60"], stdio: "capture" });
+      const pid = child.pid;
+      runtime.close();
+      expect(() => process.kill(-pid, 0)).toThrow();
+    }
+  });
+
   unix("waitForStdoutLine rejects when the process exits without a line", async () => {
     using runtime = Runtime.load();
     using child = runtime.spawn({ program: "sh", args: ["-c", "exit 4"], stdio: "capture" });
@@ -280,4 +359,41 @@ suite("process supervision (runtime:process)", () => {
       expect((error as RuntimeError).message).toContain("cannot spawn");
     }
   });
+});
+
+suite("process lifetime across runtime close", () => {
+  it("closing a runtime during an HTTP probe rejects before calling unloaded native code", async () => {
+    const server = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch: async () => {
+        await Bun.sleep(50);
+        return new Response("ready");
+      },
+    });
+    const runtime = Runtime.load();
+    try {
+      const pending = runtime.probeHttp("127.0.0.1", server.port!, "/", 100);
+      runtime.close();
+      await expect(pending).rejects.toMatchObject({ status: Status.InvalidHandle });
+    } finally {
+      runtime.close();
+      await server.stop(true);
+    }
+  });
+  const unix = process.platform !== "win32" ? it : it.skip;
+  unix(
+    "closing a runtime during collection rejects without calling unloaded native code",
+    async () => {
+      const runtime = Runtime.load();
+      using child = runtime.spawn({ program: "sleep", args: ["60"], stdio: "capture-lossless" });
+      const pending = child.collectOutput();
+      runtime.close();
+      expect(runtime.closed).toBe(true);
+      await expect(pending).rejects.toMatchObject({ status: Status.InvalidHandle });
+      expect(() => child.status()).toThrow(RuntimeError);
+      expect(() => child.takeStdoutBytes()).toThrow(RuntimeError);
+      expect(() => process.kill(-child.pid, 0)).toThrow();
+    },
+  );
 });

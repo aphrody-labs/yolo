@@ -4,8 +4,8 @@
 
 Owner direction, 2026-10-03 (revised the same day): remove the limits of the previous plan and design everything to
 be **deployable and installable with one command, like Bun**. The earlier plan treated publication, distribution and
-most phases as closed or unqualified; this one makes them the goal. A phase is finished when its acceptance
-command passes, nothing else is required to call it done.
+most phases as closed or unqualified; this one makes them the goal. Each acceptance command qualifies its tested surface. Production readiness also requires the
+artifact, installation, consumer behavior and supported-target evidence below.
 
 The [Aphrody plan](../aphrody/PLAN.md) keeps the cross-repository architecture; this file owns what Yolo ships.
 [docs/DECISIONS.md](docs/DECISIONS.md) records the choices, [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) the mechanics.
@@ -61,11 +61,45 @@ dependency keys, `links`, permission and command ids) never change with the `aph
 | D4    | Crates and npm packages published under the `aphrody-*` / `@aphrody/*` names      | `just publish-dry` clean, then published                              |
 | R8    | Measurements (startup, native-call latency, memory, build time) and signing       | reproducible benchmark report per target                              |
 
-Status is tracked by the acceptance commands, not by prose: R0, R1, R2 (patch), D0 and D2 pass, reproducibly, through
+Earlier factory evidence records R0, R1, R2 (patch), D0 and D2 pass, reproducibly, through
 `yolo ship` on the Aphrody build factory (linux-x64; see [DISTRIBUTION](docs/DISTRIBUTION.md) for exactly what was
 run and the last green commit). D1's workflow is written and correct but GitHub Actions does not currently run for
 this repository (billing); `yolo ship` publishes a tag's release instead, until that is resolved. The rest are the
 work queue, in this order: a first tag published this way, R3, R4, D3, D4, R5/R6, R8.
+
+## Production execution queue — 2026-10-03
+
+Finish these batches in order. Keep one active implementation batch per owner.
+Remove replaced executable paths and their dependencies in the same qualified
+consumer batch; do not leave a fallback implementation in the promoted build.
+
+- [ ] Ship ABI 1.4: bounded lossless binary output, joined capture workers,
+  descendants in the owned Unix group, safe SDK handles after runtime close.
+  Gate: serialized runtime/core tests and strict Clippy, SDK/release tests,
+  complete Bun suite, TypeScript, changed-file lint/format.
+- [ ] Rebuild from a clean commit, verify embedded revision and artifact hashes,
+  package the SDK, qualify install/rollback and pin the exact archive in Aphrody.
+  Install old/new artifacts through the release owner; no hand-edited symlinks.
+- [ ] Migrate Aphrody Web one-shot acquisition and engine lifetime; remove direct
+  Bun spawning and the permanent-library workaround. Preserve binary bytes,
+  CLI behavior, private-network permissions, diagnostics, abort and timeout.
+  Gate: native fixture tests and affected product suites, no residual owned child.
+- [ ] Implement R3 with the existing desktop owner: a rendered pilot, denied
+  capabilities, events, cancellation and clean shutdown in an installed bundle.
+- [ ] Implement R4 through the headless owner: package current Obscura, navigate,
+  extract and capture with isolated contexts through the stable SDK.
+- [ ] Migrate each product (R7 tracked in Aphrody); remove qualified old paths.
+  Produce application artifacts using the precompiled runtime; retain each
+  domain's product contracts and protected stores.
+- [ ] Qualify release/install/upgrade/rollback on each supported OS/architecture,
+  signing where required and failure recovery. Metadata checks alone do not
+  promote a target. Windows descendant ownership still needs Job Objects.
+- [ ] Qualify JSC against required Obscura behavior before retiring V8; then
+  measure cold/warm startup, latency, build time, size and memory reproducibly.
+
+Do not mark the whole plan complete from one package gate. No measured gains,
+cross-platform runtime behavior or production activation are inferred from
+source presence. Use the current release's provenance for what is installed.
 
 ## Working rules
 
