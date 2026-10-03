@@ -32,6 +32,8 @@ export * as curation from "./curation";
 export * as coord from "./coord";
 export * as distribution from "./distribution";
 export * as ledger from "./ledger";
+export * as redis from "./redis";
+export * as monitor from "./monitor";
 
 // Direct flat exports of core capabilities
 export {
@@ -145,3 +147,38 @@ export {
   type SpaceGate,
   type DiskDecision,
 } from "./fleet";
+
+export {
+  initLedgerDatabase,
+  recordSession,
+  recordAuditReport,
+  recordBenchmark,
+  recordQualityGate,
+  recordRemediation,
+  indexCodebaseFingerprints,
+  summarizeLedger,
+  recordAgentTelemetry,
+  recordTrainingSample,
+  type SessionRecord,
+  type AuditReportRecord,
+  type BenchmarkRecord,
+  type QualityGateRecord,
+  type RemediationRecord,
+  type CodebaseFingerprintRecord,
+  type AgentTelemetryRecord,
+  type TrainingSampleRecord,
+} from "./ledger";
+
+export {
+  NativeRedisClient,
+  indexCodebaseToRedis,
+  type RedisOptions,
+  type IndexResult,
+} from "./redis";
+
+export {
+  AgentWatcher,
+  type AgentWatcherOptions,
+  type InterceptedEvent,
+  type EndpointStatus,
+} from "./monitor";

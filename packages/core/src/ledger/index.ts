@@ -166,7 +166,76 @@ export function initLedgerDatabase(customPath?: string): Database {
     );
   `);
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS agent_telemetry (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      target_path TEXT NOT NULL,
+      timestamp TEXT NOT NULL
+    );
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS training_samples (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sample_id TEXT UNIQUE NOT NULL,
+      domain TEXT NOT NULL,
+      instruction TEXT NOT NULL,
+      input_context TEXT NOT NULL,
+      action TEXT NOT NULL,
+      outcome TEXT NOT NULL,
+      reward_score REAL NOT NULL,
+      created_at TEXT NOT NULL
+    );
+  `);
+
   return db;
+}
+
+export interface AgentTelemetryRecord {
+  agent: string;
+  sessionId: string;
+  eventType: string;
+  targetPath: string;
+  timestamp: string;
+}
+
+export interface TrainingSampleRecord {
+  sampleId: string;
+  domain: string;
+  instruction: string;
+  inputContext: string;
+  action: string;
+  outcome: string;
+  rewardScore: number;
+  createdAt: string;
+}
+
+export function recordAgentTelemetry(db: Database, event: AgentTelemetryRecord): void {
+  const stmt = db.prepare(`
+    INSERT INTO agent_telemetry (agent, session_id, event_type, target_path, timestamp)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  stmt.run(event.agent, event.sessionId, event.eventType, event.targetPath, event.timestamp);
+}
+
+export function recordTrainingSample(db: Database, sample: TrainingSampleRecord): void {
+  const stmt = db.prepare(`
+    INSERT OR REPLACE INTO training_samples (sample_id, domain, instruction, input_context, action, outcome, reward_score, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  stmt.run(
+    sample.sampleId,
+    sample.domain,
+    sample.instruction,
+    sample.inputContext,
+    sample.action,
+    sample.outcome,
+    sample.rewardScore,
+    sample.createdAt,
+  );
 }
 
 /**
@@ -298,7 +367,6 @@ export function indexCodebaseFingerprints(db: Database, rootDir: string): number
         scan(fullPath);
       } else if (entry.isFile()) {
         try {
-          const content = Bun.file(fullPath);
           const ext = entry.name.includes(".") ? entry.name.split(".").pop() || "" : "";
           const stat = statSync(fullPath);
           const hash = wyhash(entry.name + ":" + stat.size);

@@ -11,6 +11,8 @@ import {
   recordRemediation,
   recordSession,
   summarizeLedger,
+  recordAgentTelemetry,
+  recordTrainingSample,
 } from "../packages/core/src/ledger/index";
 import { findRepoRoot } from "../packages/core/src/vfs/index";
 
@@ -98,5 +100,39 @@ describe("Native Bun SQLite Audit & Training Ledger", () => {
     expect(count).toBeGreaterThan(0);
     const summary = summarizeLedger(db);
     expect(summary.fingerprintCount).toBeGreaterThan(0);
+  });
+
+  it("records agent telemetry and training samples cleanly", () => {
+    const now = new Date().toISOString();
+    recordAgentTelemetry(db, {
+      agent: "agy",
+      sessionId: "test-agent-session-123",
+      eventType: "write",
+      targetPath: "/home/aphro/.gemini/test.txt",
+      timestamp: now,
+    });
+
+    const telem = db
+      .query("SELECT * FROM agent_telemetry WHERE session_id = 'test-agent-session-123'")
+      .get() as { agent: string; event_type: string };
+    expect(telem.agent).toBe("agy");
+    expect(telem.event_type).toBe("write");
+
+    recordTrainingSample(db, {
+      sampleId: "sample-001",
+      domain: "bun_typescript7",
+      instruction: "Ensure strict TS without errors",
+      inputContext: "tsc --noEmit",
+      action: "Fix type annotations",
+      outcome: "0 errors",
+      rewardScore: 1.0,
+      createdAt: now,
+    });
+
+    const sample = db
+      .query("SELECT * FROM training_samples WHERE sample_id = 'sample-001'")
+      .get() as { domain: string; reward_score: number };
+    expect(sample.domain).toBe("bun_typescript7");
+    expect(sample.reward_score).toBe(1.0);
   });
 });

@@ -209,3 +209,13 @@ publish-npm-run:
     bun run scripts/vendor/publish_forks.ts --publish
 
 publish-dry: publish-crates-dry publish-npm-dry
+
+# Multi-Agent Ingestion, Redis Codebase Indexer & Interceptor Daemon
+ingest-sessions:
+    bun run scripts/ingest_all_sessions.ts
+
+index-redis:
+    bun run scripts/post_push_index.ts
+
+interceptor-daemon:
+    bun run scripts/agent_interceptor_daemon.ts
