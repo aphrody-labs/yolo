@@ -1,6 +1,6 @@
 # Contributing to the Bun fork
 
-Applies when the working directory is a Bun source checkout (`src/js/node/` and `src/runtime/bin_entry/` exist), for example `packages/bun` in the Gemini workbench (branch `google`, commit `49c076eb` when this was written). The fork's own `CLAUDE.md` / `AGENTS.md` (identical, ~17.6 KB) is authoritative; this file summarizes it. Re-read the original before relying on a detail.
+Applies when the working directory is a Bun source checkout (`src/js/node/` and `src/runtime/bin_entry/` exist), for example `packages/bun` (branch `google`, commit `49c076eb`). The fork's own `CLAUDE.md` / `AGENTS.md` (identical, ~17.6 KB) is authoritative; this file summarizes it. Re-read the original before relying on a detail.
 
 Architecture, crate suffixes, packages, vendored libraries, branch topology and upstream synchronization are in the `bun-upstream` skill (`references/fork-architecture.md`); they are not repeated here.
 

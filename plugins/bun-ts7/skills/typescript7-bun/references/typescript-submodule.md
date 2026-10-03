@@ -1,6 +1,6 @@
 # Working in the TypeScript repository
 
-Applies when the working directory is the TypeScript source, for example the `packages/typescript` submodule of the Gemini workbench (branch `main`, commit `09b1db06`). It holds the native compiler and language server (Go). Sources: `.github/copilot-instructions.md`, `CONTRIBUTING.md`, `packages/typescript/README.md`. Re-read them for exact rules.
+Applies when the working directory is the TypeScript source, for example the `packages/typescript` submodule (branch `main`, commit `f9f8d012`). It holds the native compiler and language server (Go). Sources: `.github/copilot-instructions.md`, `CONTRIBUTING.md`, `packages/typescript/README.md`. Re-read them for exact rules.
 
 ## Layout
 
@@ -50,4 +50,4 @@ go -C ./tsc test -run='TestLocal/<test name>' ./internal/testrunner
 
 `CONTRIBUTING.md` allows AI-assisted patches provided the contributor read and understands them, can discuss them in review, **and discloses AI authorship in the pull request description**; an undisclosed AI-looking PR is closed without review. The project does not accept bulk, agent-driven contributions (agents sweeping issues or labels to open PRs), nor automated comments. An autonomous agent must not open pull requests as part of a queue-driven workflow; a pull request is acceptable only when a specific human chose the issue and will shepherd it through review.
 
-This differs from the workbench's own rule for its private repository (root `AGENTS.md`, engineering loop item 5: commits under `aphrody-dev`, no agent attribution). Do not open an upstream pull request on the user's behalf without an explicit instruction naming the issue, and apply the upstream disclosure rule to it.
+This differs from the repository's own rule for its private branches (commits under `aphrody-dev`, no agent attribution). Do not open an upstream pull request on the user's behalf without an explicit instruction naming the issue, and apply the upstream disclosure rule to it.

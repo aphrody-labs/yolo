@@ -10,7 +10,7 @@ TypeScript 7 is the native port of the compiler, written in Go (code name **Cors
 
 ## Verify before asserting
 
-1. Run `tsc --version` (or `bunx tsc --version`) and read `node_modules/typescript/package.json`. Version 7.0.2 was observed in the Gemini workbench.
+1. Run `tsc --version` (or `bunx tsc --version`) and read `node_modules/typescript/package.json`. Version 7.0.2 is installed in the repository.
 2. Run `tsc --help --all` for the live option list and defaults, and report what it prints. In 7.0.2 it showed `--target` defaulting to `es2025`, `--strict` and `--esModuleInterop` to `true`, and no default for `--module`.
 3. For options not on disk (the handbook and tsconfig reference are not shipped), fetch `https://www.typescriptlang.org/tsconfig` or use Context7.
 

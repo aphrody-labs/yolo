@@ -1,0 +1,14 @@
+{
+  "name": "@aphrody/yolo-cli",
+  "version": "1.0.0",
+  "description": "Zero-dependency programmatic CLI for the YOLO Bun Industrial Engine",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "yolo": "./src/index.ts"
+  },
+  "engines": {
+    "bun": ">=1.4.2"
+  },
+  "dependencies": {}
+}

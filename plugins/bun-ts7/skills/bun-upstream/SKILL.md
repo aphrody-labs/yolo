@@ -6,18 +6,18 @@ version: 0.2.0
 
 # Bun fork: upstream sync and architecture
 
-Keep the Bun fork (`aphrody-labs/bun`, submodule `packages/bun` of the Gemini workbench) aligned with upstream `oven-sh/bun`, and navigate its source. Build, test and review rules for changing the fork are in the `bun-doctrine` skill (`references/fork-contribution.md`); this skill covers synchronization and layout.
+Keep the Bun fork (`aphrody-labs/bun`, submodule `packages/bun` of the YOLO repository) aligned with upstream `oven-sh/bun`, and navigate its source. Build, test and review rules for changing the fork are in the `bun-doctrine` skill (`references/fork-contribution.md`); this skill covers synchronization and layout.
 
 ## Branch topology (checked 2026-10-03)
 
 - Remotes in the checkout: `origin` is `aphrody-labs/bun`, `upstream` is `oven-sh/bun`.
 - `main` mirrors `upstream/main`.
-- `google` is the branch the submodule is pinned to (`.gemini` records `branch = google` in `.gitmodules`). At the last fetch it equalled `upstream/main`.
-- `aphrody` sits on top of `main` (3 commits ahead at the last fetch). It alone carries `APHRODY.md`, `bunfig.aphrody.toml` and `packages/aphrody-bun-runtime/` (the `@aphrody/bun-runtime` package), added by `patches/bun/0001-aphrody-bun-runtime-kernel.patch` of the workbench. None of these exist on `main` or `google`.
+- `google` is the branch the submodule is pinned to (`.gitmodules` records `branch = google`). At the last fetch it equalled `upstream/main`.
+- `aphrody` sits on top of `main`. It carries `APHRODY.md`, `bunfig.aphrody.toml` and `packages/aphrody-bun-runtime/` (the `@aphrody/bun-runtime` package). None of these exist on `main` or `google`.
 
 ## Synchronization
 
-All commands run from the workbench root and call `scripts/bun_upstream_sync.ts` (or `bun_upstream_tracker.ts`). Without `--apply` the script only analyzes.
+All commands run from the repository root and call `scripts/bun_upstream_sync.ts` (or `bun_upstream_tracker.ts`). Without `--apply` the script only analyzes.
 
 | Command | Effect |
 | --- | --- |
@@ -26,14 +26,14 @@ All commands run from the workbench root and call `scripts/bun_upstream_sync.ts`
 | `bun run bun:drift-fix` | `--apply --auto-fix`: on a merge conflict into `aphrody`, take upstream's version (`checkout --theirs`) for `bun.lock`, `Cargo.lock` and files under `completions/`; abort the merge if anything else conflicts. |
 | `bun run bun:track` | Report on upstream pull requests and issues. |
 | `--reapply-patches` flag | After the merge, `git apply` every `patches/bun/*.patch` on a clean tree and commit. Not part of the package scripts: pass it to the script directly. |
-| `scripts/auto_sync.sh` (in this skill) | Wrapper that runs the sync script from the workbench root (the git root, or `WORKSPACE_ROOT`) and passes its arguments through. |
+| `scripts/auto_sync.sh` (in this skill) | Wrapper that runs the sync script from the repository root (the git root, or `WORKSPACE_ROOT`) and passes its arguments through. |
 
 ## Rules
 
 1. Run `bun run bun:dry-run` first and read the drift numbers before anything else.
 2. `--apply` pushes three branches to `origin`, which is shared state. Run it only when the user asked for a sync, and name the pushes in the report. The script refuses to run when the submodule has uncommitted changes.
-3. After a sync the submodule stays on `google`. Record the new gitlink in the workbench as its own deliberate commit, after the submodule commit is pushed; keep submodule commits pinned (workbench `AGENTS.md`).
-4. Check which branch-naming rule applies before creating a branch in the fork: its `CLAUDE.md` requires a `claude/` prefix for its own CI, while the workbench keeps the submodule on `google`.
+3. After a sync the submodule stays on `google`. Record the new gitlink as its own deliberate commit, after the submodule commit is pushed; keep submodule commits pinned.
+4. Check which branch-naming rule applies before creating a branch in the fork: its `CLAUDE.md` requires a `claude/` prefix for its own CI, while the repository keeps the submodule on `google`.
 5. Never force-push; use `bun:drift-fix` rather than resolving lockfile conflicts by hand.
 
 ## Additional resources

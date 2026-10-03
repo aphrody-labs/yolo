@@ -35,7 +35,7 @@ Checked on `packages/bun` at commit `49c076eb` (Bun 1.4.3) on 2026-10-03, from `
 
 Per the fork's `CLAUDE.md`, third-party code is vendored under `vendor/` (not git submodules), with build configuration in `scripts/build/deps/*.ts`: BoringSSL, brotli, c-ares, hdrhistogram, highway (SIMD), libarchive, libdeflate, libuv (Windows event loop), lol-html (`HTMLRewriter`), lshpack, lsqpack and lsquic (HTTP/3), mimalloc, picohttpparser, rust-argon2 (`Bun.password`), tinycc (fork `oven-sh/tinycc`, for `bun:ffi`), WebKit (JavaScriptCore), zlib-ng, zstd, and the Node.js headers.
 
-In the workbench checkout `packages/bun/vendor/` does not exist (checked 2026-10-03): the libraries cannot be read on disk there.
+In the repository checkout `packages/bun/vendor/` does not exist: the libraries are handled by Bun's build orchestrator.
 
 ## JavaScript classes in C++ (`CLAUDE.md`)
 
