@@ -126,5 +126,5 @@ Packages are prefixed with `aphrody-`; library and binary names are unchanged.
 - `plugins-workspace`: `a50a1b7baf3b`
 - `wry`: `cab3eace9830`
 - `tao`: `d19f4c12a0d8`
-- `create-tauri-app`: `fa0a8296602e`
+- `create-tauri-app`: `c7692bb0dbd9`
 - `next`: `2d5a45a578af`
