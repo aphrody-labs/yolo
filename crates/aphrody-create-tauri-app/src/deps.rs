@@ -180,7 +180,7 @@ pub fn print_missing_deps(
                     "Run `{BLUE}{BOLD}cargo install tauri-cli --version ^1.0.0 --locked{RESET}`"
                 ),
                 TauriVersion::V2 => format!(
-                    "Run `{BLUE}{BOLD}cargo install tauri-cli --version ^3.0.0-alpha --locked{RESET}`"
+                    "Run `{BLUE}{BOLD}cargo install aphrody-tauri-cli --version ^3.0.0-alpha --locked{RESET}`"
                 ),
             },
             exists: &|| is_tauri_cli_installed(tauri_version),
