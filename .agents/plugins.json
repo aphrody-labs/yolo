@@ -1,0 +1,12 @@
+{
+  "entries": [
+    {
+      "path": "/home/aphro/plugins",
+      "include_only": [
+        "yolo",
+        "bun-ts7",
+        "bxc"
+      ]
+    }
+  ]
+}
