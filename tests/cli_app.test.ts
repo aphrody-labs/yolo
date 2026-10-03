@@ -174,7 +174,7 @@ describe("YOLO vendoring", () => {
     const { readVendorStatus } = await import("../apps/cli/src/index");
     const status = await readVendorStatus();
     expect(status?.crates).toBeGreaterThan(40);
-    expect(status?.sources.length).toBe(5);
+    expect(status?.sources.length).toBe(6);
   });
 });
 

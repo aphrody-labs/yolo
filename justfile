@@ -178,10 +178,10 @@ clean:
 
 # Publishing (dry-run by default; real publish needs explicit *-run recipes)
 publish-crates-dry:
-    cargo publish --workspace --dry-run --allow-dirty
+    cargo publish --workspace --exclude aphrody-tauri-runtime-cef --exclude 'aphrody-turbo*' --exclude 'aphrody-next*' --exclude aphrody-auto-hash-map --exclude aphrody-swc-ast-explorer --dry-run --allow-dirty
 
 publish-crates-run:
-    cargo publish --workspace
+    cargo publish --workspace --exclude aphrody-tauri-runtime-cef --exclude 'aphrody-turbo*' --exclude 'aphrody-next*' --exclude aphrody-auto-hash-map --exclude aphrody-swc-ast-explorer
 
 publish-npm-dry:
     bun run scripts/publish_forks.ts

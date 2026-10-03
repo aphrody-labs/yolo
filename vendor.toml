@@ -70,7 +70,7 @@ exclude = ["worker/**", ".scripts/**", "*.sh", "*.ps1", "package.json", "CONTRIB
 
 [[source]]
 name = "next"
-rustfmt = "default"
+rustfmt = ".rustfmt.toml"
 crates = [
   "crates/next-api",
   "crates/next-build",
