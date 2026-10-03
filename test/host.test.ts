@@ -470,6 +470,32 @@ const ctxFor = (
 
 // ---------------------------------------------------------------------------------------------- tests
 
+// The build factory comes from the Aphrody config; tests must not depend on the host's own checkout
+// (the build host has none at ~/aphrody), so they run against a fixture of the same shape.
+const factoryRoot = mkdtempSync(join(tmpdir(), "yolo-factory-"));
+const priorAphrodyRoot = process.env["YOLO_APHRODY_ROOT"];
+// eager: some describe blocks compute their plans while the file is being collected
+{
+  mkdirSync(join(factoryRoot, "config"), { recursive: true });
+  writeFileSync(
+    join(factoryRoot, "config/build-factory.json"),
+    JSON.stringify({
+      enabled: true,
+      target: "vps",
+      workspaceRoot: "/srv/aphrody-build/workspaces/aphrody",
+      cacheRoot: "/srv/aphrody-build/cache",
+      artifactRoot: "/srv/aphrody-build/artifacts",
+      lockPath: "/srv/aphrody-build/locks/heavy.lock",
+    }),
+  );
+  process.env["YOLO_APHRODY_ROOT"] = factoryRoot;
+}
+afterAll(() => {
+  if (priorAphrodyRoot === undefined) delete process.env["YOLO_APHRODY_ROOT"];
+  else process.env["YOLO_APHRODY_ROOT"] = priorAphrodyRoot;
+  rmSync(factoryRoot, { recursive: true, force: true });
+});
+
 describe("formatting and sections", () => {
   it("formats bytes and parses journald/docker sizes", () => {
     expect(fmtBytes(0)).toBe("0 B");

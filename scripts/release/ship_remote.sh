@@ -14,8 +14,8 @@ export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:/usr/lib/llvm-${YOLO_LLVM:-23}/bin:
 command -v sccache >/dev/null && export RUSTC_WRAPPER=sccache
 step "bun install" bun install --frozen-lockfile
 step "check (types, lint, format, clippy)" just check
-step "tests (bun + nextest)" just test-all
 step "runtime artifact" just runtime-build
+step "tests (bun + nextest)" just test-all
 step "release assets" bun run scripts/release/release.ts
 cp -r dist/release "$out/" 2>/dev/null || true
 echo "$sha" > "$out/SHA"
