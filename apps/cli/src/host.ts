@@ -60,6 +60,7 @@ import {
   removalRefusals,
   isDatabasePath,
 } from "./host-safety";
+import { estimateReclaim, parseDfSizeAvail, parseFindLinks, spaceGate } from "./host-space";
 
 export const HOSTS: readonly HostName[] = ["vps", "dbfr", "local"];
 export const HOST_COMMANDS = [
@@ -71,6 +72,7 @@ export const HOST_COMMANDS = [
   "net",
   "mount",
   "journal",
+  "space",
 ] as const;
 
 // -------------------------------------------------------------------------------------------- shell
@@ -2348,6 +2350,8 @@ const VALUE_FLAGS = new Set([
   "level",
   "threads",
   "stamp",
+  "min-free",
+  "fs",
 ]);
 
 export function parseFlags(args: readonly string[]): Flags {
@@ -2381,6 +2385,8 @@ const HELP = `Usage: yolo host <command> --host vps|dbfr|local [options]
   net                   Latency and bandwidth (--size BYTES, --url URL)
   mount <device>        Read-only by default; --rw needs --i-know-this-is-a-backup; --fstab adds a nofail entry
   journal               What --apply did (var/host/<host>/journal.jsonl); --tail N, --json
+  space <path..>        What deleting these paths really frees (hard-link aware) and whether the disk keeps
+                        --min-free RATIO (default 0.5, on --fs MOUNT, default /); read-only, --sudo, --json
 
 Every command is a plan unless --apply is given. --policy FILE selects another host-policy.toml.
 Mutations are refused while a build lock is held. Nothing is ever formatted or wiped.`;
@@ -2527,6 +2533,66 @@ export async function runHostCommand(
       const { rows, plan } = planTune(a, probe, owner, policy, host, now);
       if (!json) out(`${bold("Tuning")} on ${host}\n${renderTune(rows)}\n`);
       return finish(plan, ctx, apply, json);
+    }
+
+    if (sub === "space") {
+      if (f.positional.length === 0) {
+        console.error(
+          "Usage: yolo host space <path..> --host H [--min-free 0.5] [--fs /] [--sudo] [--json]",
+        );
+        return 2;
+      }
+      const minFree = Number(one("min-free") ?? 0.5);
+      const fs = one("fs") ?? "/";
+      const sudo = has("sudo") ? "sudo -n " : "";
+      const paths = f.positional.map(sq).join(" ");
+      const found = await transport.exec(
+        `${sudo}timeout 300 nice -n 19 ionice -c3 find ${paths} -xdev -type f -printf '%D %i %n %b\\n' 2>/dev/null`,
+        330,
+      );
+      const df = await transport.exec(`df -B1 --output=size,avail -- ${sq(fs)}`, 30);
+      if (df.code !== 0) {
+        console.error(`df ${fs} failed: ${df.stderr.trim()}`);
+        return 1;
+      }
+      const est = estimateReclaim(parseFindLinks(found.stdout));
+      const { totalBytes, freeBytes } = parseDfSizeAvail(df.stdout);
+      const before = spaceGate(totalBytes, freeBytes, minFree);
+      const after = spaceGate(totalBytes, freeBytes + est.freedBytes, minFree);
+      if (json) {
+        out(
+          JSON.stringify(
+            { host, fs, totalBytes, freeBytes, minFree, estimate: est, before, after },
+            null,
+            2,
+          ),
+        );
+      } else {
+        out(
+          table([
+            ["paths", f.positional.join(" ")],
+            ["links found", `${est.inodes} inodes, ${fmtBytes(est.naiveBytes)} summed per name`],
+            ["unique bytes", fmtBytes(est.uniqueBytes)],
+            [
+              "really freed",
+              `${fmtBytes(est.freedBytes)} (${fmtBytes(est.keptBytes)} kept alive by links outside)`,
+            ],
+            [
+              "free now",
+              `${fmtBytes(freeBytes)} of ${fmtBytes(totalBytes)} on ${fs} (${(before.freeRatio * 100).toFixed(1)} %)`,
+            ],
+            [
+              "free after",
+              `${fmtBytes(freeBytes + est.freedBytes)} (${(after.freeRatio * 100).toFixed(1)} %)`,
+            ],
+            [
+              `floor ${(minFree * 100).toFixed(0)} %`,
+              after.ok ? green("reached") : red(`short by ${fmtBytes(after.shortfallBytes)}`),
+            ],
+          ]),
+        );
+      }
+      return after.ok ? 0 : 3;
     }
 
     if (sub === "net") {

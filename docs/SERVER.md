@@ -84,6 +84,24 @@ just host audit --host vps                              # same thing through the
 | `net` | `ssh -G`, curl on the host | TCP connect latency to the ssh port (Bun.connect), ssh exec round trip, download of a known size on the host and from this machine, in ms, MB/s and Mbit/s. Measurement only; runs with `--apply` because it generates traffic. |
 | `mount` | lsblk | Read-only mount of a partition at `/mnt/yolo/<name>`, optional fstab entry. |
 | `journal` | `var/host/<host>/journal.jsonl` | Shows what was applied. |
+| `space <path..>` | `find -printf '%D %i %n %b'`, `df -B1` | What deleting the paths really frees, and whether `--fs` (default `/`) keeps `--min-free` (default 0.5). Read-only; exit 3 when the floor would not be reached. Details below. |
+
+## Space accounting (`yolo host space`)
+
+`du` over several directories counts a hard-linked file once per name, and a file whose other links stay outside
+the deleted set frees nothing. A deletion of a stale copy of Shenron, predicted at 43 GiB from `du`, freed 12 GiB
+on 2026-10-03. `host space` applies the exact rule instead: unlinking a set of paths returns the allocated blocks
+(`%b`, 512 bytes) of an inode if and only if every one of its links (`%n`) is inside the set. It reports the sum per
+name, the unique bytes, the bytes really freed and the bytes kept alive from outside, then checks the free-space
+floor on the result: free >= ceil(total x ratio), in integer arithmetic. The functions are pure
+(`apps/cli/src/host-space.ts`); `test/host-space.test.ts` checks freed <= unique <= naive on 300 seeded random sets
+and the shenron case, and a real run on hard-linked files gave 9.5 MiB freed and 47.7 MiB kept for a copy that
+shared 50 MB with a live one, matching `du`.
+
+Two operating facts from the same cleanup, not enforced by code: reformatting a disk that only holds a copy takes
+seconds where `rm -rf` takes hours (the 193 GiB backup disk: about 56 s for wipe and mkfs), and splitting a
+directory tree three levels deep over 24 `rm` workers removed 55 GiB of build output in 8 s on 12 CPUs. Long remote
+jobs run detached (`nohup`) because the ssh exec transport times out after about a minute.
 
 ## Bun feature map
 
