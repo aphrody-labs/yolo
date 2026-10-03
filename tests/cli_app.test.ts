@@ -238,3 +238,76 @@ describe("YOLO awesome", () => {
     expect(out.map((e: { name: string }) => e.name)).toEqual(["Docs"]);
   });
 });
+
+describe("YOLO awesome curation (Rust-based Bun)", () => {
+  const entry = (over: Record<string, unknown> = {}) => ({
+    name: "Thing",
+    url: "https://github.com/acme/thing",
+    description: "A thing",
+    section: "Tools",
+    github: "acme/thing",
+    ...over,
+  });
+  const facts = (over: Record<string, unknown> = {}) => ({
+    repo: "acme/thing",
+    archived: false,
+    disabled: false,
+    pushedAt: "2026-09-01T00:00:00Z",
+    stars: 1,
+    language: "TypeScript",
+    topics: [],
+    description: "",
+    license: "MIT",
+    ...over,
+  });
+  const since = "2026-05-14";
+
+  it("keeps active repositories and drops archived, stale, missing and Zig ones", async () => {
+    const { judge } = await import("../apps/cli/src/awesome");
+    expect(judge(entry(), facts(), undefined, since).verdict).toBe("keep");
+    expect(judge(entry(), facts({ archived: true }), undefined, since).reason).toMatch(/archived/);
+    expect(
+      judge(entry(), facts({ pushedAt: "2026-01-01T00:00:00Z" }), undefined, since).reason,
+    ).toMatch(/no activity since 2026-05-14/);
+    expect(judge(entry(), "missing", undefined, since).verdict).toBe("drop");
+    expect(judge(entry(), "error", undefined, since).reason).toMatch(/could not be verified/);
+    expect(judge(entry(), facts({ language: "Zig" }), undefined, since).reason).toMatch(/Zig/);
+    expect(judge(entry({ description: "Zig bindings" }), facts(), undefined, since).verdict).toBe(
+      "drop",
+    );
+  });
+
+  it("verifies links inside repositories and external pages", async () => {
+    const { judge } = await import("../apps/cli/src/awesome");
+    const tree = entry({ url: "https://github.com/acme/thing/tree/main/examples" });
+    expect(judge(tree, facts(), 404, since).reason).toMatch(/404/);
+    expect(judge(tree, facts(), 200, since).verdict).toBe("keep");
+    const site = entry({ url: "https://bun.com/docs", github: undefined });
+    expect(judge(site, undefined, 200, since).verdict).toBe("keep");
+    expect(judge(site, undefined, "error", since).verdict).toBe("drop");
+    const blog = entry({ url: "https://blog.example/post", github: undefined });
+    expect(judge(blog, undefined, 200, since).reason).toMatch(/cannot be verified/);
+    const article = entry({ section: "Articles", github: undefined, url: "https://bun.com/blog" });
+    expect(judge(article, undefined, 200, since).reason).toMatch(/before the Rust rewrite/);
+  });
+
+  it("renders a cleaned README with only the kept sections", async () => {
+    const { judge, renderCleanReadme, parseAwesome } = await import("../apps/cli/src/awesome");
+    const readme = `<p>header</p>\n\n## Contents\n\n- [Tools](#tools)\n\n## Tools\n\n- [A](https://github.com/acme/a) - good\n- [B](https://github.com/acme/b)\n\n## Videos\n\n- [V](https://example.com/v)\n`;
+    const entries = parseAwesome(readme).flatMap((s) => s.entries);
+    const curated = entries.map((e) =>
+      judge(
+        e,
+        e.name === "A" ? facts() : e.github ? facts({ archived: true }) : undefined,
+        200,
+        since,
+      ),
+    );
+    const out = renderCleanReadme(readme, curated, since);
+    expect(out).toContain("<p>header</p>");
+    expect(out).toContain("- [A](https://github.com/acme/a) - good");
+    expect(out).not.toContain("[B]");
+    expect(out).not.toContain("## Videos");
+    expect(out).toContain("- [Tools](#tools)");
+  });
+});

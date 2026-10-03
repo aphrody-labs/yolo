@@ -111,6 +111,14 @@ runtime-list:
 awesome *args:
     bun run apps/cli/src/index.ts awesome {{args}}
 
+# Scaffold an Aphrody stack project: just create ../my-app --with web,desktop --framework hono
+create *args:
+    bun run apps/cli/src/index.ts create {{args}}
+
+# Re-audit and re-curate awesome-bun for the Rust-based Bun (network): stack/AWESOME.md + JSON
+awesome-curate:
+    bun run apps/cli/src/index.ts awesome curate
+
 # Vendoring of the forks into crates/aphrody-* (see docs/VENDORING.md)
 import-scan:
     bun run apps/cli/src/index.ts import --scan

@@ -272,6 +272,11 @@ export class ManagedProcess implements Disposable {
     return this.#read(1, 0);
   }
 
+  /** Returns and clears the captured stderr (needs `stdio: "capture"`). */
+  takeStderr(): string {
+    return this.#read(2, 0);
+  }
+
   /** The last captured stderr bytes (at most 64 KiB), without clearing them. */
   stderrTail(maxBytes = 8192): string {
     return this.#read(2, 1).slice(-maxBytes);

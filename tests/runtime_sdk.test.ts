@@ -208,6 +208,8 @@ suite("process supervision (runtime:process)", () => {
     for (let i = 0; i < 100 && !child.stderrTail().includes("boom"); i++) Bun.sleepSync(10);
     expect(child.stderrTail()).toContain("boom");
     expect(child.stderrTail()).toContain("boom"); // peek does not clear
+    expect(child.takeStderr()).toContain("boom");
+    expect(child.takeStderr()).toBe(""); // draining clears
   });
 
   unix("waitForStdoutLine rejects when the process exits without a line", async () => {

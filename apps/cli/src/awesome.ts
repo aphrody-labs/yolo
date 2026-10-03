@@ -190,6 +190,211 @@ export async function checkLinks(
 }
 
 // ---------------------------------------------------------------------------------------------
+// Audit and curation against the Rust-based Bun
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Bun was rewritten in Rust on 2026-05-14 (commit 23427dbc12 "Rewrite Bun in Rust (#30412)" in the
+ * Bun fork). An entry is only kept when there is evidence it lives in that era.
+ */
+export const RUST_BUN_SINCE = "2026-05-14";
+
+export interface RepoFacts {
+  readonly repo: string;
+  readonly archived: boolean;
+  readonly disabled: boolean;
+  readonly pushedAt: string;
+  readonly stars: number;
+  readonly language: string | null;
+  readonly topics: readonly string[];
+  readonly description: string;
+  readonly license: string | null;
+}
+
+export type Verdict = "keep" | "drop";
+
+export interface CuratedEntry extends AwesomeEntry {
+  readonly verdict: Verdict;
+  readonly reason: string;
+  readonly facts?: RepoFacts | undefined;
+  readonly httpStatus?: number | "error" | undefined;
+}
+
+const OFFICIAL_HOSTS = new Set(["bun.sh", "bun.com", "www.bun.sh", "www.bun.com"]);
+/** Sections made of undated posts and videos: they predate the Rust rewrite and cannot be verified. */
+const DATED_SECTIONS = new Set(["articles", "videos"]);
+
+async function githubToken(): Promise<string | undefined> {
+  const fromEnv = process.env["GITHUB_TOKEN"] ?? process.env["GH_TOKEN"];
+  if (fromEnv) return fromEnv;
+  try {
+    const proc = Bun.spawn(["gh", "auth", "token"], { stdout: "pipe", stderr: "ignore" });
+    const out = (await new Response(proc.stdout).text()).trim();
+    return (await proc.exited) === 0 && out !== "" ? out : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function fetchRepoFacts(
+  repo: string,
+  token: string | undefined,
+): Promise<RepoFacts | "missing" | "error"> {
+  try {
+    const response = await fetch(`https://api.github.com/repos/${repo}`, {
+      headers: {
+        accept: "application/vnd.github+json",
+        "user-agent": "yolo-awesome/1",
+        ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (response.status === 404 || response.status === 410) return "missing";
+    if (!response.ok) return "error";
+    const json = (await response.json()) as Record<string, any>;
+    return {
+      repo: String(json["full_name"] ?? repo),
+      archived: json["archived"] === true,
+      disabled: json["disabled"] === true,
+      pushedAt: String(json["pushed_at"] ?? ""),
+      stars: Number(json["stargazers_count"] ?? 0),
+      language: (json["language"] as string | null) ?? null,
+      topics: (json["topics"] as string[] | undefined) ?? [],
+      description: String(json["description"] ?? ""),
+      license: (json["license"]?.["spdx_id"] as string | undefined) ?? null,
+    };
+  } catch {
+    return "error";
+  }
+}
+
+/** Pure decision rule, so it can be tested without network. */
+export function judge(
+  entry: AwesomeEntry,
+  facts: RepoFacts | "missing" | "error" | undefined,
+  httpStatus: number | "error" | undefined,
+  since: string,
+): CuratedEntry {
+  const drop = (reason: string): CuratedEntry => ({
+    ...entry,
+    verdict: "drop",
+    reason,
+    facts: typeof facts === "object" ? facts : undefined,
+    httpStatus,
+  });
+  const keep = (reason: string): CuratedEntry => ({
+    ...entry,
+    verdict: "keep",
+    reason,
+    facts: typeof facts === "object" ? facts : undefined,
+    httpStatus,
+  });
+
+  if (DATED_SECTIONS.has(slugify(entry.section)))
+    return drop("undated content from before the Rust rewrite");
+  const text = `${entry.name} ${entry.description}`.toLowerCase();
+  if (/\bzig\b/.test(text)) return drop("depends on Zig-era internals");
+
+  if (entry.github !== undefined) {
+    if (facts === "missing") return drop("repository not found");
+    if (facts === "error" || facts === undefined)
+      return drop("repository state could not be verified");
+    if (facts.archived || facts.disabled) return drop("archived or disabled repository");
+    if (httpStatus === "error" || (httpStatus !== undefined && httpStatus >= 400))
+      return drop(`link answers ${String(httpStatus)}`);
+    if (
+      /\bzig\b/i.test(`${facts.description} ${facts.topics.join(" ")}`) ||
+      facts.language === "Zig"
+    )
+      return drop("Zig project");
+    if (facts.pushedAt.slice(0, 10) < since) return drop(`no activity since ${since}`);
+    return keep(`active since the Rust rewrite (last push ${facts.pushedAt.slice(0, 10)})`);
+  }
+
+  let host = "";
+  try {
+    host = new URL(entry.url).hostname;
+  } catch {
+    return drop("invalid URL");
+  }
+  if (httpStatus === "error" || (httpStatus !== undefined && httpStatus >= 400))
+    return drop(`link answers ${String(httpStatus)}`);
+  if (OFFICIAL_HOSTS.has(host)) return keep("official Bun site");
+  return drop("external page that cannot be verified against the Rust Bun");
+}
+
+export async function auditEntries(
+  entries: readonly AwesomeEntry[],
+  options: { since: string; concurrency: number; timeoutMs: number },
+): Promise<CuratedEntry[]> {
+  const token = await githubToken();
+  // Links outside GitHub, and GitHub links that point inside a repository (tree/blob paths).
+  const linkChecked = entries.filter(
+    (e) =>
+      !DATED_SECTIONS.has(slugify(e.section)) &&
+      (e.github === undefined || /\/(?:tree|blob)\//.test(e.url)),
+  );
+  const links = new Map(
+    (await checkLinks(linkChecked, options)).map((r) => [r.entry.url, r.status] as const),
+  );
+  const facts = new Map<string, RepoFacts | "missing" | "error">();
+  const repos = [...new Set(entries.flatMap((e) => (e.github === undefined ? [] : [e.github])))];
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.max(1, Math.min(options.concurrency, 6)) }, async () => {
+      while (next < repos.length) {
+        const repo = repos[next++] as string;
+        facts.set(repo, await fetchRepoFacts(repo, token));
+      }
+    }),
+  );
+  return entries.map((entry) =>
+    judge(
+      entry,
+      entry.github === undefined ? undefined : facts.get(entry.github),
+      links.get(entry.url),
+      options.since,
+    ),
+  );
+}
+
+/** README of the cleaned list: same shape as upstream (header block + sections), kept entries only. */
+export function renderCleanReadme(
+  original: string,
+  curated: readonly CuratedEntry[],
+  since: string,
+): string {
+  const kept = new Map<string, CuratedEntry[]>();
+  for (const entry of curated) {
+    if (entry.verdict !== "keep") continue;
+    kept.set(entry.section, [...(kept.get(entry.section) ?? []), entry]);
+  }
+  const headerEnd = original.search(/^## Contents/m);
+  const header = headerEnd > 0 ? original.slice(0, headerEnd).trimEnd() : "# Awesome Bun";
+  const sectionTitles = [...kept.keys()];
+  const contents = sectionTitles.map((t) => `- [${t}](#${slugify(t)})`).join("\n");
+  const body = sectionTitles
+    .map((title) => {
+      const lines = (kept.get(title) ?? []).map((e) =>
+        e.description ? `- [${e.name}](${e.url}) - ${e.description}` : `- [${e.name}](${e.url})`,
+      );
+      return `## ${title}\n\n${lines.join("\n")}`;
+    })
+    .join("\n\n");
+  return `${header}
+
+> Curated for the Rust-based Bun (rewritten ${RUST_BUN_SINCE}): only entries verified alive, not archived and
+> active since ${since} are listed. Generated by \`yolo awesome curate\`; the audit lives in the yolo repository.
+
+## Contents
+
+${contents}
+
+${body}
+`;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Command
 // ---------------------------------------------------------------------------------------------
 
@@ -201,6 +406,10 @@ const HELP = `\x1b[1myolo awesome\x1b[0m — browse ${DEFAULT_REPO}
   awesome search <words..>   Entries matching every word (name, url, description, section)
   awesome github             GitHub repositories referenced by the list
   awesome check [section]    HTTP check of the links (network; --concurrency N, --timeout MS)
+  awesome audit              Judge every entry for the Rust-based Bun (network, GitHub API);
+                             writes stack/awesome-audit.json
+  awesome curate [--out f]   audit + stack/awesome.curated.json + cleaned README (default
+                             stack/AWESOME.md); --since YYYY-MM-DD (default ${RUST_BUN_SINCE})
 
 Options: --repo owner/name  --ref branch (default ${DEFAULT_REF})  --refresh  --offline
          --file README.md   --json`;
@@ -215,6 +424,8 @@ export async function runAwesomeCommand(args: readonly string[], rootDir: string
   let file: string | undefined;
   let concurrency = 8;
   let timeoutMs = 8000;
+  let since = RUST_BUN_SINCE;
+  let out: string | undefined;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i] as string;
     const value = (): string => {
@@ -230,6 +441,8 @@ export async function runAwesomeCommand(args: readonly string[], rootDir: string
     else if (arg === "--file") file = resolve(rootDir, value());
     else if (arg === "--concurrency") concurrency = Number(value());
     else if (arg === "--timeout") timeoutMs = Number(value());
+    else if (arg === "--since") since = value();
+    else if (arg === "--out") out = resolve(rootDir, value());
     else if (arg === "--help" || arg === "-h") {
       console.log(HELP);
       return 0;
@@ -333,6 +546,51 @@ export async function runAwesomeCommand(args: readonly string[], rootDir: string
         console.log(`${results.length} checked, ${broken.length} broken`);
       });
       return broken.length === 0 ? 0 : 1;
+    }
+    case "audit":
+    case "curate": {
+      const all = sections.flatMap((s) => s.entries);
+      const curated = await auditEntries(all, { since, concurrency, timeoutMs });
+      const kept = curated.filter((e) => e.verdict === "keep");
+      const record = {
+        source: `${repo}@${ref}`,
+        rustBunSince: since,
+        evidence: "23427dbc12 Rewrite Bun in Rust (#30412), 2026-05-14",
+        total: curated.length,
+        kept: kept.length,
+        dropped: curated.length - kept.length,
+        entries: curated,
+      };
+      await Bun.write(
+        resolve(rootDir, "stack/awesome-audit.json"),
+        `${JSON.stringify(record, null, 2)}\n`,
+      );
+      if (command === "curate") {
+        await Bun.write(
+          resolve(rootDir, "stack/awesome.curated.json"),
+          `${JSON.stringify(
+            kept.map(({ facts: _facts, ...e }) => e),
+            null,
+            2,
+          )}\n`,
+        );
+        await Bun.write(
+          out ?? resolve(rootDir, "stack/AWESOME.md"),
+          renderCleanReadme(text, curated, since),
+        );
+      }
+      print({ total: record.total, kept: record.kept, dropped: record.dropped }, () => {
+        const reasons = new Map<string, number>();
+        for (const e of curated)
+          if (e.verdict === "drop") reasons.set(e.reason, (reasons.get(e.reason) ?? 0) + 1);
+        console.log(`${record.kept}/${record.total} kept (since ${since})`);
+        for (const [reason, count] of [...reasons].toSorted((a, b) => b[1] - a[1])) {
+          console.log(
+            `  dropped ${String(count).padStart(3)}  ${reason.replace(/\(last push.*\)/, "")}`,
+          );
+        }
+      });
+      return 0;
     }
     default:
       console.error(`Unknown awesome command: ${command}`);
