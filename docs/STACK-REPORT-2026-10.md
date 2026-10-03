@@ -157,12 +157,12 @@ On the Rust side: use Dioxus 0.7 for all-Rust apps (inside the Tauri shell), or 
 
 ---
 
-## 4. Follow-ups in yolo (pending implementation)
+## 4. Follow-ups in yolo (1-3 done on 2026-10-03, 4 pending)
 
-1. Add a React + Material 3 web template built by Bun's HTML bundler, depending on `@aphrody/material-web` and `@lit/react`.
-2. The `create-tauri-app` `vanilla-ts` template still runs Vite (`"dev": "vite"`, `vite ^8.0.16`). Moving it to Bun's HTML bundler and dev server would finish the Bun-only refactor.
-3. The Yew template still pins `yew 0.21`, while `0.23.0` has been out since 2026-03-10. The Dioxus 0.7, Leptos 0.8 and Sycamore 0.9 pins are current.
-4. Build and ship the `linux-arm64` target before considering Arm hosts.
+1. Add a React + Material 3 web template built by Bun's HTML bundler, depending on `@aphrody/material-web` and `@lit/react`. **Done:** `yolo create --with react` (`templates/react`, commit `4596954`). Checked on a scaffold (install, `tsc`, oxlint, oxfmt, 7 tests, `build:bin`) and the compiled executable in headless Chromium 157, light and dark; the system WebViews were not run.
+2. The `create-tauri-app` `vanilla-ts` template still runs Vite (`"dev": "vite"`, `vite ^8.0.16`). Moving it to Bun's HTML bundler and dev server would finish the Bun-only refactor. **Done:** it now runs `Bun.serve` on the fixed port 1420 (a taken port is an error, as with Vite's `strictPort`) and `Bun.build` (fork commit `516da1d`). `tauri dev` and `tauri build` were not run.
+3. The Yew template still pins `yew 0.21`, while `0.23.0` has been out since 2026-03-10. The Dioxus 0.7, Leptos 0.8 and Sycamore 0.9 pins are current. **Done:** bumped to 0.23 with no source change (fork commit `c7692bb`); built for `wasm32-unknown-unknown` and run in headless Chromium with a stand-in for `invoke`. `trunk` was not run.
+4. Build and ship the `linux-arm64` target before considering Arm hosts. **Not started.**
 
 > [!NOTE]
 > Not verified: what current OVH VPS plans actually cost after the April 2026 increase, and live Hetzner auction stock. Check the OVH manager and Hetzner's auction page before ordering anything.
