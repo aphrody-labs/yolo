@@ -9,6 +9,9 @@ import {
 } from "../apps/cli/src/index";
 
 const rootDir = resolve(import.meta.dir, "..");
+// These tests read the Bun fork submodule (`git submodule update --init packages/bun`); the public CI
+// checkout has no access to the private fork and skips them.
+const haveBunFork = existsSync(resolve(rootDir, "packages/bun/LATEST"));
 const cliPkgPath = resolve(rootDir, "apps/cli/package.json");
 const cliEntryPath = resolve(rootDir, "apps/cli/src/index.ts");
 const generatedCatalogPath = resolve(rootDir, "apps/web/src/generated/bun-catalog.ts");
@@ -64,74 +67,80 @@ describe("YOLO apps/cli Suite (Zero External Dependencies, 100% Native Bun)", ()
     expect(cargo?.members).toContain("crates/*");
   });
 
-  it("should autonomously scan upstream Bun and generate capability catalog", async () => {
-    const report = await generateBunCatalog();
-    expect(report).toBeDefined();
-    expect(report.domains.length).toBe(7);
-    expect(report.totalDocFilesIndexed).toBeGreaterThan(100);
-    expect(report.totalTypeFilesIndexed).toBeGreaterThan(10);
-    expect(existsSync(generatedCatalogPath)).toBe(true);
+  it.skipIf(!haveBunFork)(
+    "should autonomously scan upstream Bun and generate capability catalog",
+    async () => {
+      const report = await generateBunCatalog();
+      expect(report).toBeDefined();
+      expect(report.domains.length).toBe(7);
+      expect(report.totalDocFilesIndexed).toBeGreaterThan(100);
+      expect(report.totalTypeFilesIndexed).toBeGreaterThan(10);
+      expect(existsSync(generatedCatalogPath)).toBe(true);
 
-    const generatedContent = await Bun.file(generatedCatalogPath).text();
-    expect(generatedContent).toContain("MONOREPO_BUN_CATALOG");
-    expect(generatedContent).toContain("web_api");
-    expect(generatedContent).toContain("server");
-    expect(generatedContent).toContain("react");
-    expect(generatedContent).toContain("css");
-    expect(generatedContent).toContain("img");
-    expect(generatedContent).toContain("json");
-    expect(generatedContent).toContain("markdown");
-  });
+      const generatedContent = await Bun.file(generatedCatalogPath).text();
+      expect(generatedContent).toContain("MONOREPO_BUN_CATALOG");
+      expect(generatedContent).toContain("web_api");
+      expect(generatedContent).toContain("server");
+      expect(generatedContent).toContain("react");
+      expect(generatedContent).toContain("css");
+      expect(generatedContent).toContain("img");
+      expect(generatedContent).toContain("json");
+      expect(generatedContent).toContain("markdown");
+    },
+  );
 
-  it("should execute the CLI binary via Bun.spawn with status, parse, bench, docs, and generate commands", async () => {
-    const procStatus = Bun.spawn(["bun", cliEntryPath, "status"], {
-      cwd: rootDir,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const stdoutStatus = await new Response(procStatus.stdout).text();
-    const exitCodeStatus = await procStatus.exited;
+  it.skipIf(!haveBunFork)(
+    "should execute the CLI binary via Bun.spawn with status, parse, bench, docs, and generate commands",
+    async () => {
+      const procStatus = Bun.spawn(["bun", cliEntryPath, "status"], {
+        cwd: rootDir,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const stdoutStatus = await new Response(procStatus.stdout).text();
+      const exitCodeStatus = await procStatus.exited;
 
-    expect(exitCodeStatus).toBe(0);
-    expect(stdoutStatus).toContain("=== YOLO Monorepo Status");
-    expect(stdoutStatus).toContain("packages/bun");
-    expect(stdoutStatus).toContain("packages/obscura");
+      expect(exitCodeStatus).toBe(0);
+      expect(stdoutStatus).toContain("=== YOLO Monorepo Status");
+      expect(stdoutStatus).toContain("packages/bun");
+      expect(stdoutStatus).toContain("packages/obscura");
 
-    const procBench = Bun.spawn(["bun", cliEntryPath, "bench"], {
-      cwd: rootDir,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const stdoutBench = await new Response(procBench.stdout).text();
-    const exitCodeBench = await procBench.exited;
-    expect(exitCodeBench).toBe(0);
-    expect(stdoutBench).toContain("Bun.hash.wyhash");
-    expect(stdoutBench).toContain("Bun.stringWidth");
+      const procBench = Bun.spawn(["bun", cliEntryPath, "bench"], {
+        cwd: rootDir,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const stdoutBench = await new Response(procBench.stdout).text();
+      const exitCodeBench = await procBench.exited;
+      expect(exitCodeBench).toBe(0);
+      expect(stdoutBench).toContain("Bun.hash.wyhash");
+      expect(stdoutBench).toContain("Bun.stringWidth");
 
-    const procDocs = Bun.spawn(["bun", cliEntryPath, "docs", "server"], {
-      cwd: rootDir,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const stdoutDocs = await new Response(procDocs.stdout).text();
-    const exitCodeDocs = await procDocs.exited;
+      const procDocs = Bun.spawn(["bun", cliEntryPath, "docs", "server"], {
+        cwd: rootDir,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const stdoutDocs = await new Response(procDocs.stdout).text();
+      const exitCodeDocs = await procDocs.exited;
 
-    expect(exitCodeDocs).toBe(0);
-    expect(stdoutDocs).toContain("=== Bun Docs Corpus");
-    expect(stdoutDocs).toContain("Found");
+      expect(exitCodeDocs).toBe(0);
+      expect(stdoutDocs).toContain("=== Bun Docs Corpus");
+      expect(stdoutDocs).toContain("Found");
 
-    const procGen = Bun.spawn(["bun", cliEntryPath, "generate"], {
-      cwd: rootDir,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const stdoutGen = await new Response(procGen.stdout).text();
-    const exitCodeGen = await procGen.exited;
+      const procGen = Bun.spawn(["bun", cliEntryPath, "generate"], {
+        cwd: rootDir,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const stdoutGen = await new Response(procGen.stdout).text();
+      const exitCodeGen = await procGen.exited;
 
-    expect(exitCodeGen).toBe(0);
-    expect(stdoutGen).toContain("=== Autonomous Bun Upstream Generator ===");
-    expect(stdoutGen).toContain("[SUCCESS]");
-  });
+      expect(exitCodeGen).toBe(0);
+      expect(stdoutGen).toContain("=== Autonomous Bun Upstream Generator ===");
+      expect(stdoutGen).toContain("[SUCCESS]");
+    },
+  );
 });
 
 describe("YOLO vendoring", () => {

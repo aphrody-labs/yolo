@@ -50,7 +50,7 @@ suite("runtime artifact verification, install and rollback", () => {
 
     const foreign = variant("0.0.3-target");
     const f = JSON.parse(readFileSync(join(foreign, "manifest.json"), "utf8"));
-    f.target = "aarch64-apple-darwin";
+    f.target = "riscv64gc-unknown-linux-gnu"; // never a supported host
     writeFileSync(join(foreign, "manifest.json"), JSON.stringify(f));
     expect(() => verifyArtifact(foreign)).toThrow(/targets/);
   });
