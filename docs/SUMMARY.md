@@ -2,3 +2,6 @@
 
 - [Bun Fork](BUN_FORK.md)
 - [Bun Upstream Tracker](BUN_UPSTREAM_TRACKER.md)
+- [Vendoring the Tauri stack](VENDORING.md)
+- [Tooling](TOOLING.md)
+- [Imported crates](CRATES.md)

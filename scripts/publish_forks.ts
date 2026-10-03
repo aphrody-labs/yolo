@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 /**
- * Publishes the npm packages of the Aphrody forks (packages/*) and apps.
+ * Publishes the npm packages of the Aphrody forks (crates/*, packages/*) and apps.
  * Dry-run by default; pass --publish to really publish (needs NPM_TOKEN or `npm login`).
- * Only packages named `@aphrody/*` that are not `private` are published, so upstream
- * names (`@tauri-apps/*`, `bun-types`) must be renamed in the fork before release.
+ * Only packages named `@aphrody/*` that are not `private` are published; packages that still
+ * carry an upstream name are skipped.
  */
 import { Glob } from "bun";
 import { resolve } from "node:path";
@@ -20,13 +20,23 @@ interface Manifest {
 
 const results: { name: string; version: string; status: string }[] = [];
 
-for await (const rel of new Glob("{apps,packages}/**/package.json").scan({ cwd: root })) {
+// `crates/` holds the vendored plugin packages and is scanned first: the same package also exists
+// in the pinned submodule sources under `packages/`, so names are published only once.
+const seen = new Set<string>();
+const manifests: string[] = [];
+for (const pattern of ["crates/**/package.json", "{apps,packages}/**/package.json"]) {
+  for await (const rel of new Glob(pattern).scan({ cwd: root })) manifests.push(rel);
+}
+
+for (const rel of manifests) {
   if (rel.includes("node_modules/")) continue;
   const manifest = await Bun.file(resolve(root, rel))
     .json()
     .then((json) => json as Manifest)
     .catch(() => ({}) as Manifest);
   if (!manifest.name?.startsWith(SCOPE) || manifest.private === true) continue;
+  if (seen.has(manifest.name)) continue;
+  seen.add(manifest.name);
 
   const dir = resolve(root, rel, "..");
   const args = ["publish", "--access", "public", ...(publish ? [] : ["--dry-run"])];

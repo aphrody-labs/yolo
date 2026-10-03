@@ -8,12 +8,14 @@ default: status
 # Status & Diagnostics
 status:
     @echo -e "\033[1;36m=== YOLO Monorepo Status ===\033[0m"
+    @bun run apps/cli/src/index.ts status
+    @echo -e "\n\033[1;36m=== Submodules ===\033[0m"
     @bun run scripts/packages_upstream_sync.ts
     @echo -e "\n\033[1;36m=== Cargo Workspace ===\033[0m"
-    @cargo check --workspace --message-format=short
+    @cargo check --message-format=short
 
 # Quality gates & verification
-check: typecheck lint
+check: typecheck lint fmt-check rust-fmt-check clippy
     @echo -e "\033[1;32m[OK] Quality gates passed\033[0m"
 
 typecheck:
@@ -28,11 +30,27 @@ fmt:
 fmt-check:
     oxfmt --check scripts/ tests/ apps/cli/src/ apps/web/src/
 
+# Rust formatting. Each vendored crate carries the rustfmt.toml of its upstream repository.
+rust-fmt:
+    cargo fmt --all
+
+rust-fmt-check:
+    cargo fmt --all --check
+
+# Clippy is enforced on our own crates only; vendored crates keep their upstream lint level.
+clippy:
+    cargo clippy -p yolo-core -p yolo-desktop --all-targets -- -D warnings
+
+# Licenses, advisories, sources (cargo-deny, policy in deny.toml)
+deny:
+    cargo deny check
+
 test:
     bun test tests/
 
+# Rust tests of the default workspace members (cargo-nextest)
 test-crates:
-    cargo test --workspace
+    cargo nextest run --no-fail-fast
 
 test-all: test test-crates
 
@@ -47,15 +65,43 @@ web-dev:
     cd apps/web && bun run dev
 
 desktop-build: web-build
+    cargo build -p yolo-desktop
 
 desktop-dev: web-dev
 
 desktop-tauri-check:
-    cargo check --manifest-path crates/yolo-desktop/Cargo.toml
+    cargo check -p yolo-desktop
+
+# Install the forked Tauri CLI (`cargo tauri`) from crates/aphrody-tauri-cli
+install-cli:
+    cargo install --path crates/aphrody-tauri-cli --locked
 
 # Autonomous Code Generation Engine (from Bun upstream)
 generate:
     bun run apps/cli/src/index.ts generate
+
+# Vendoring of the forks into crates/aphrody-* (see docs/VENDORING.md)
+import-scan:
+    bun run apps/cli/src/index.ts import --scan
+
+# Dry run of the import
+import:
+    bun run apps/cli/src/index.ts import
+
+# The `vendor` branch lives in a worktree: it only ever receives generated imports.
+vendor-worktree:
+    @test -d .cache/vendor/.git -o -f .cache/vendor/.git || git worktree add .cache/vendor vendor
+
+# Fails if crates/ differs from a fresh import of the pinned submodule commits
+import-check: vendor-worktree
+    bun run apps/cli/src/index.ts import --check --out .cache/vendor
+
+# Re-import the submodules on `vendor`, then merge it into the current branch
+vendor-update: vendor-worktree
+    bun run apps/cli/src/index.ts import --apply --out .cache/vendor
+    git -C .cache/vendor add -A
+    git -C .cache/vendor diff --cached --quiet || git -C .cache/vendor commit -m "vendor: update crates from the pinned submodule commits"
+    git merge vendor
 
 # Documentation (mdBook)
 docs-build:
@@ -64,9 +110,9 @@ docs-build:
 docs-serve:
     mdbook serve docs --open
 
-# Upgrades & Toolchain freshness
+# Fetch the upstream branches of every fork (no merge); then run `just vendor-update`
 upgrade-latest:
-    @echo -e "\033[1;36m=== Upgrading Submodules & Forks to latest upstream commits ===\033[0m"
+    @echo -e "\033[1;36m=== Fetching upstream commits of the forks ===\033[0m"
     @git submodule update --init --recursive
     @cd packages/bun && git fetch upstream main --depth=100 && git checkout yolo && git merge --ff-only upstream/main || true
     @cd packages/obscura && git fetch origin main --depth=50 && git checkout yolo && git merge --ff-only origin/main || true
@@ -77,27 +123,25 @@ upgrade-latest:
     @cd packages/tao && git fetch upstream dev --depth=50 || git fetch origin dev --depth=50 || true
     @echo -e "\n\033[1;36m=== Upgrading Bun to latest ===\033[0m"
     @bun upgrade || true
-    @echo -e "\n\033[1;36m=== Upgrading Global CLI Tools (TSC, Oxlint, Oxfmt, Tauri 3, Types) ===\033[0m"
-    @bun add -g typescript@latest oxlint@latest oxfmt@latest @tauri-apps/cli@3.0.0-alpha.4 @types/bun@latest
-    @cargo install tauri-cli --version 3.0.0-alpha.4 --locked || true
-    @echo -e "\n\033[1;36m=== Upgrading Local Workspace Dependencies ===\033[0m"
+    @echo -e "\n\033[1;36m=== Upgrading global JS tooling ===\033[0m"
+    @bun add -g typescript@latest oxlint@latest oxfmt@latest @types/bun@latest
+    @echo -e "\n\033[1;36m=== Upgrading local workspace dependencies ===\033[0m"
     @bun update
     @cd apps/web && bun update
-    @echo -e "\033[1;32m[OK] All components & submodules upgraded to the absolute latest commits\033[0m"
+    @echo -e "\033[1;32m[OK] Upstream fetched. Merge it in the forks, then run: just vendor-update\033[0m"
 
 # Cleaning
 clean:
-    rm -rf .cache *.log var target dist apps/web/dist crates/yolo-desktop/target
+    -git worktree remove --force .cache/vendor
+    rm -rf .cache *.log var target dist apps/web/dist
     @echo -e "\033[1;32m[OK] Workspace cleaned\033[0m"
-
-
 
 # Publishing (dry-run by default; real publish needs explicit *-run recipes)
 publish-crates-dry:
-    cargo publish --dry-run --allow-dirty -p yolo-core
+    cargo publish --workspace --dry-run --allow-dirty
 
 publish-crates-run:
-    cargo publish -p yolo-core
+    cargo publish --workspace
 
 publish-npm-dry:
     bun run scripts/publish_forks.ts

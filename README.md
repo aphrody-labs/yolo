@@ -9,19 +9,20 @@ The repository operates as a unified **Cargo Workspace** and **Bun Workspace**:
 ### 1. Rust Crates (`crates/`)
 - [`crates/yolo-core`](crates/yolo-core) : High-performance native Rust core providing cross-platform hardware detection, system metrics, and micro-benchmarking algorithms.
 - [`crates/yolo-desktop`](crates/yolo-desktop) : Tauri 3 desktop application shell wrapping `crates/yolo-core` with direct native IPC.
+- `crates/aphrody-*` : the Rust crates of the Tauri stack (Tauri 3 alpha, its plugins, wry, tao, create-tauri-app), generated from the fork submodules by `yolo import`. Package names carry the `aphrody-` prefix; library names are unchanged, so `use tauri::…` still works. See [docs/CRATES.md](docs/CRATES.md) for the full list and [docs/VENDORING.md](docs/VENDORING.md) for the workflow.
 
 ### 2. Fork Packages & Submodules (`packages/`)
-Active upstream forks are isolated, submodule-managed under `packages/`, with dedicated `yolo` branches and bi-directional Bun $\leftrightarrow$ Tauri deep integrations:
+Active upstream forks are isolated, submodule-managed under `packages/`, with dedicated `yolo` branches (their `main` mirrors the upstream). The Tauri-stack submodules are the pinned sources of `crates/aphrody-*`; `bun` and `obscura` stay standalone:
 
 | Submodule | Active Branch | Upstream Source | Fork Target (`aphrody-labs`) | Primary Role |
 | :--- | :--- | :--- | :--- | :--- |
 | [`packages/bun`](packages/bun) | `yolo` | `oven-sh/bun` | `aphrody-labs/bun` | Upstream Bun repository (`bun-types`, native APIs, SIMD image/markdown engines, Tauri-aware types) |
 | [`packages/obscura`](packages/obscura) | `yolo` | `aphrody-labs/obscura` | `aphrody-labs/obscura` | Stealth CDP automation and browser engine in Rust |
-| [`packages/tauri`](packages/tauri) | `yolo` | `tauri-apps/tauri` | `aphrody-labs/tauri` | Tauri 3 core desktop engine, converted to full native Bun engine scripts & bunfig |
-| [`packages/plugins-workspace`](packages/plugins-workspace) | `yolo` | `tauri-apps/plugins-workspace` | `aphrody-labs/plugins-workspace` | Tauri plugins monorepo converted to Bun native workspaces |
-| [`packages/create-tauri-app`](packages/create-tauri-app) | `yolo` | `tauri-apps/create-tauri-app` | `aphrody-labs/create-tauri-app` | Scaffolding CLI for modern Tauri applications with Bun default runtime |
-| [`packages/wry`](packages/wry) | `yolo` | `tauri-apps/wry` | `aphrody-labs/wry` | Cross-platform WebView rendering library, patched into Tauri via `[patch.crates-io]` |
-| [`packages/tao`](packages/tao) | `yolo` | `tauri-apps/tao` | `aphrody-labs/tao` | Cross-platform windowing library, patched into Tauri via `[patch.crates-io]` |
+| [`packages/tauri`](packages/tauri) | `yolo` | `tauri-apps/tauri` | `aphrody-labs/tauri` | Tauri 3 core desktop engine (source of `aphrody-tauri*`, JS packages `@aphrody/api`, `@aphrody/cli`) |
+| [`packages/plugins-workspace`](packages/plugins-workspace) | `yolo` | `tauri-apps/plugins-workspace` | `aphrody-labs/plugins-workspace` | Tauri plugins (source of `aphrody-tauri-plugin-*`, JS packages `@aphrody/plugin-*`) |
+| [`packages/create-tauri-app`](packages/create-tauri-app) | `yolo` | `tauri-apps/create-tauri-app` | `aphrody-labs/create-tauri-app` | Scaffolding CLI (source of `aphrody-create-tauri-app`) |
+| [`packages/wry`](packages/wry) | `yolo` | `tauri-apps/wry` | `aphrody-labs/wry` | WebView rendering library (source of `aphrody-wry`) |
+| [`packages/tao`](packages/tao) | `yolo` | `tauri-apps/tao` | `aphrody-labs/tao` | Windowing library (source of `aphrody-tao`) |
 
 ### Wayland & Custom Compositor Architecture (WSLg)
 - **Compositor Engine**: Native Rust Wayland compositor stack based on **Smithay** (pure Rust protocol toolkit) and **Niri** architecture for maximum zero-copy frame pacing.
@@ -70,6 +71,10 @@ just web-dev
 
 # Build docs (mdBook)
 just docs-build
+
+# Vendoring of the fork crates into crates/aphrody-* (see docs/VENDORING.md)
+just import-scan      # every manifest of the sources and whether it is imported
+just vendor-update    # re-import from the pinned submodules on `vendor`, then merge it
 
 # Sync Bun fork upstream
 bun run bun:sync

@@ -30,6 +30,7 @@
   "exclude": [
     "packages/**/*",
     "crates/**/*",
+    "examples/**/*",
     "node_modules/**/*"
   ]
 }

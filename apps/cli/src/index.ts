@@ -163,6 +163,39 @@ export async function parseTsSource(filePath: string): Promise<TsParseResult> {
 /**
  * Parses root Cargo.toml using native Bun.TOML parser.
  */
+export interface VendorSourceStatus {
+  readonly name: string;
+  readonly lockedSha: string;
+  readonly headSha: string | undefined;
+  readonly inSync: boolean;
+}
+
+/** Compares `vendor.lock` with the current HEAD of each vendored submodule. */
+export async function readVendorStatus(): Promise<{
+  crates: number;
+  sources: readonly VendorSourceStatus[];
+} | null> {
+  const lockFile = Bun.file(resolve(ROOT_DIR, "vendor.lock"));
+  if (!(await lockFile.exists())) return null;
+  const lock = (await lockFile.json()) as {
+    sources: { name: string; sha: string }[];
+    crates: unknown[];
+  };
+  const pkgs = await inspectPackages();
+  return {
+    crates: lock.crates.length,
+    sources: lock.sources.map((source) => {
+      const headSha = pkgs.find((p) => p.name === source.name)?.headCommit;
+      return {
+        name: source.name,
+        lockedSha: source.sha,
+        headSha,
+        inSync: headSha === source.sha,
+      };
+    }),
+  };
+}
+
 export async function readWorkspaceCargo(): Promise<WorkspaceCargoSummary | null> {
   try {
     const cargoFile = Bun.file(resolve(ROOT_DIR, "Cargo.toml"));
@@ -179,7 +212,7 @@ export async function readWorkspaceCargo(): Promise<WorkspaceCargoSummary | null
     };
 
     return {
-      resolver: parsed.workspace?.resolver ?? "2",
+      resolver: parsed.workspace?.resolver ?? "3",
       members: parsed.workspace?.members ?? [],
       releaseProfile: parsed.profile?.release ?? {},
     };
@@ -423,6 +456,18 @@ async function main(): Promise<void> {
         console.log(
           `  ${status} packages/${p.name.padEnd(10)} ${commit.padEnd(14)} ${sampleCount}`,
         );
+      }
+
+      const vendor = await readVendorStatus();
+      if (vendor) {
+        console.log(`\n\x1b[1m\x1b[36m=== Vendored crates (vendor.lock) ===\x1b[0m`);
+        console.log(`  ${vendor.crates} crates imported into crates/aphrody-*`);
+        for (const source of vendor.sources) {
+          const state = source.inSync
+            ? "\x1b[32min sync\x1b[0m"
+            : `\x1b[33mdrift (submodule at ${source.headSha?.slice(0, 10) ?? "?"}), run \`just vendor-update\`\x1b[0m`;
+          console.log(`  ${source.name.padEnd(18)} ${source.lockedSha.slice(0, 10)} ${state}`);
+        }
       }
 
       const cargo = await readWorkspaceCargo();

@@ -60,7 +60,7 @@ describe("YOLO apps/cli Suite (Zero External Dependencies, 100% Native Bun)", ()
   it("should read root Cargo.toml using native Bun.TOML parser", async () => {
     const cargo = await readWorkspaceCargo();
     expect(cargo).not.toBeNull();
-    expect(cargo?.resolver).toBe("2");
+    expect(cargo?.resolver).toBe("3");
     expect(cargo?.members).toContain("crates/*");
   });
 
@@ -131,6 +131,41 @@ describe("YOLO apps/cli Suite (Zero External Dependencies, 100% Native Bun)", ()
     expect(exitCodeGen).toBe(0);
     expect(stdoutGen).toContain("=== Autonomous Bun Upstream Generator ===");
     expect(stdoutGen).toContain("[SUCCESS]");
+  });
+});
+
+describe("YOLO vendoring", () => {
+  it("keeps vendor.lock consistent with crates/ and vendor.toml", async () => {
+    const lock = (await Bun.file(resolve(rootDir, "vendor.lock")).json()) as {
+      sources: { name: string; sha: string }[];
+      crates: { name: string; package: string; dir: string; version: string }[];
+    };
+    const config = Bun.TOML.parse(await Bun.file(resolve(rootDir, "vendor.toml")).text()) as {
+      prefix: string;
+      source: { name: string }[];
+    };
+    expect(lock.sources.map((s) => s.name).sort()).toEqual(config.source.map((s) => s.name).sort());
+    for (const crate of lock.crates) {
+      expect(crate.package.startsWith(config.prefix)).toBe(true);
+      const manifest = Bun.TOML.parse(
+        await Bun.file(resolve(rootDir, crate.dir, "Cargo.toml")).text(),
+      ) as {
+        package: { name: string };
+        lib?: { name?: string };
+      };
+      expect(manifest.package.name).toBe(crate.package);
+      // library names stay unchanged so `use tauri::...` keeps compiling
+      if (manifest.lib?.name !== undefined) {
+        expect(manifest.lib.name).not.toContain(config.prefix.replace("-", "_"));
+      }
+    }
+  });
+
+  it("reports vendored sources against the submodule HEADs", async () => {
+    const { readVendorStatus } = await import("../apps/cli/src/index");
+    const status = await readVendorStatus();
+    expect(status?.crates).toBeGreaterThan(40);
+    expect(status?.sources.length).toBe(5);
   });
 });
 
