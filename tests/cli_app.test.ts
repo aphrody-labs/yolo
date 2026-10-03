@@ -125,3 +125,13 @@ describe("YOLO apps/cli Suite (Zero External Dependencies, 100% Native Bun)", ()
     expect(stdoutGen).toContain("[SUCCESS]");
   });
 });
+
+describe("YOLO rename engine", () => {
+  it("renames npm scopes only on identifier boundaries", async () => {
+    const { applyRules, PRESETS } = await import("../apps/cli/src/rename");
+    const input = `import "@tauri-apps/api"; "x@tauri-apps/api"; github.com/tauri-apps/tauri`;
+    const { output, count } = applyRules(input, PRESETS.aphrody!);
+    expect(count).toBe(1);
+    expect(output).toBe(`import "@aphrody/api"; "x@tauri-apps/api"; github.com/tauri-apps/tauri`);
+  });
+});

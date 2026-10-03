@@ -14,6 +14,7 @@
 
 import { existsSync } from "node:fs";
 import { relative, resolve } from "node:path";
+import { runRenameCommand } from "./rename";
 
 const ROOT_DIR = resolve(import.meta.dir, "../../..");
 const PACKAGES_DIR = resolve(ROOT_DIR, "packages");
@@ -395,6 +396,7 @@ ${header}
   \x1b[32mgenerate\x1b[0m            Autonomously scan upstream Bun and generate code & capability catalogs
   \x1b[32mparse <file>\x1b[0m        Fast AST & token analysis via Bun file streaming + wyhash
   \x1b[32mdocs [query]\x1b[0m        Search or inspect version-matched Bun documentation in packages/bun/docs
+  \x1b[32mrename [opts] [dir..]\x1b[0m Mass boundary-aware rename (--preset aphrody | --from X --to Y, --apply, --paths)
   \x1b[32mbench\x1b[0m               Run native Bun nanoseconds and hashing micro-benchmark
   \x1b[32mhelp\x1b[0m                Display this help message
 
@@ -569,6 +571,11 @@ async function main(): Promise<void> {
           console.log(`    - ${r}`);
         }
       }
+      break;
+    }
+
+    case "rename": {
+      process.exitCode = await runRenameCommand(args.slice(1), ROOT_DIR);
       break;
     }
 
