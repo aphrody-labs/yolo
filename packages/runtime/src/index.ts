@@ -777,3 +777,4 @@ export class Runtime implements Disposable {
 }
 
 export * from "./compute";
+export * from "./privilege";

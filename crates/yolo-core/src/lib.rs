@@ -1,3 +1,8 @@
+pub mod privilege;
+pub use privilege::{
+  ElevationInfo, can_sudo_non_interactive, get_elevation_info, is_elevated, wrap_elevated_command,
+};
+
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
