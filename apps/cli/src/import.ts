@@ -19,6 +19,11 @@ export interface SourceConfig {
   readonly crates: readonly string[];
   readonly excludeCrates?: readonly string[] | undefined;
   readonly exclude?: readonly string[] | undefined;
+  /**
+   * rustfmt style of the upstream repository: a path to its `rustfmt.toml` (copied into each
+   * crate) or `"default"` (a marker file keeps the default style despite the root config).
+   */
+  readonly rustfmt?: string | undefined;
   /** Optional new base name for crates whose upstream name is too generic (`api` → `tauri-api`). */
   readonly rename?: Readonly<Record<string, string>> | undefined;
 }
@@ -465,6 +470,7 @@ export async function loadVendorConfig(path: string): Promise<VendorConfig> {
       excludeCrates: list<string>(s.exclude_crates),
       exclude: list<string>(s.exclude),
       rename: (s.rename ?? {}) as Record<string, string>,
+      rustfmt: s.rustfmt === undefined ? undefined : String(s.rustfmt),
     })),
     copy: list<Table>(raw.copy).map((c) => ({
       from: String(c.from),
@@ -606,6 +612,19 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
         const mode = lstatSync(abs).mode & 0o111 ? 0o755 : 0o644;
         put(dest, new Uint8Array(await Bun.file(abs).arrayBuffer()), mode);
       }
+    }
+  }
+
+  // Keep each crate formatted with the style of its upstream repository.
+  for (const source of cfg.sources) {
+    if (source.rustfmt === undefined) continue;
+    const checkout = checkouts.get(source.name) as string;
+    const style =
+      source.rustfmt === "default"
+        ? "# Vendored crate: upstream uses the default rustfmt style (the root rustfmt.toml does not apply).\n"
+        : await Bun.file(join(checkout, source.rustfmt)).text();
+    for (const c of crates.filter((o) => o.source === source.name)) {
+      put(posix.join(c.newDir, "rustfmt.toml"), style);
     }
   }
 
