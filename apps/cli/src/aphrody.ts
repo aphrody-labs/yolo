@@ -85,6 +85,36 @@ export function remoteCommand(factory: Factory, sha: string): string {
   ].join(" && ");
 }
 
+/** HTTPS form of the origin remote (the build host authenticates with `gh`, not with this machine's ssh aliases). */
+export function originUrl(cwd: string): string {
+  const raw = git(cwd, "remote", "get-url", "origin");
+  return raw
+    .replace(/^git@[^:]+:/, "https://github.com/")
+    .replace(/^ssh:\/\/git@[^/]+\//, "https://github.com/");
+}
+
+/**
+ * Transport is git and gh only: clone/fetch the pushed commit on the build host and update the submodules through
+ * HTTPS. The commit may still be in flight when the pre-push hook starts this, so the fetch retries for a while.
+ */
+export function remoteSyncCommand(factory: Factory, sha: string, url: string): string {
+  const p = remotePaths(factory, sha);
+  const ws = `'${p.workspace}'`;
+  return [
+    "set -e",
+    "gh auth setup-git",
+    `git config --global url."https://github.com/".insteadOf "git@github-dev:"`,
+    `mkdir -p "$(dirname ${ws})"`,
+    `[ -d ${ws}/.git ] || git clone --filter=blob:none '${url}' ${ws}`,
+    `cd ${ws}`,
+    `i=0; until git cat-file -e '${sha}^{commit}' 2>/dev/null; do git fetch --prune --filter=blob:none origin || true; i=$((i+1)); [ $i -ge 40 ] && { echo "commit ${sha} not on origin"; exit 1; }; sleep 15; done`,
+    `git checkout -f --detach '${sha}'`,
+    "git submodule sync --recursive",
+    "git submodule update --init --recursive --jobs 8 --filter=blob:none",
+    "echo synced",
+  ].join("\n");
+}
+
 function ssh(host: string, command: string, timeoutSecs = 120): number {
   return run(["aphrody-infra", "ssh", "exec", "--host", host, "--cmd", command], aphrodyRoot(), {
     APHRODY_SSH_COMMAND_TIMEOUT_SECS: String(timeoutSecs),
@@ -210,35 +240,19 @@ async function runShip(args: readonly string[], yoloRoot: string): Promise<numbe
   }
 
   console.log(`\x1b[1myolo ship\x1b[0m ${sha.slice(0, 12)} -> ${host}:${p.workspace}`);
-  console.log(`  1. aphrody-infra ssh sync   ${yoloRoot} -> ${p.workspace}`);
+  console.log(
+    `  1. git (gh auth) on ${host}  fetch ${sha.slice(0, 12)} + submodules -> ${p.workspace}`,
+  );
   console.log(`  2. remote (heavy lock)      scripts/release/ship_remote.sh -> ${p.artifacts}`);
   if (!apply) {
-    console.log("\nPlan only. Re-run with --apply to sync and start the build.");
+    console.log("\nPlan only. Re-run with --apply to fetch the pushed commit and start the build.");
     return 0;
   }
-  const dirty = git(yoloRoot, "status", "--porcelain");
-  if (dirty !== "")
-    console.log("  note: the working tree has uncommitted changes; they are synced as-is");
-  let code = run(
-    [
-      "aphrody-infra",
-      "ssh",
-      "sync",
-      "--host",
-      host,
-      "--source",
-      yoloRoot,
-      "--destination",
-      p.workspace,
-      "--apply",
-    ],
-    aphrodyRoot(),
-    // rclone remote defined from the environment: transport is the user's own `ssh <alias>`, no stored secret
-    {
-      [`RCLONE_CONFIG_${host.toUpperCase()}_TYPE`]: "sftp",
-      [`RCLONE_CONFIG_${host.toUpperCase()}_SSH`]: `ssh ${host}`,
-    },
-  );
+  if (git(yoloRoot, "status", "--porcelain") !== "")
+    console.log(
+      "  note: uncommitted changes are not shipped; the remote checks out the pushed commit",
+    );
+  let code = ssh(host, remoteSyncCommand(factory, sha, originUrl(yoloRoot)), 3600);
   if (code !== 0) return code;
   code = ssh(host, remoteCommand(factory, sha));
   if (code === 0)
