@@ -24,6 +24,11 @@ import { findCheckout, isCompiled, yoloHome } from "./home";
 import { runImportCommand } from "./import";
 import { runPluginCommand } from "./plugin";
 import { runRenameCommand } from "./rename";
+import { runScanCommand } from "./scan";
+import { runMcpServer } from "./mcp";
+import { runApiCommand } from "./api";
+import { yoloVersion } from "./home";
+import { hostTarget } from "../../../packages/runtime/src/artifact";
 
 const ROOT_DIR = yoloHome();
 const VENDOR_DIR = resolve(ROOT_DIR, "vendor");
@@ -240,6 +245,191 @@ export async function readWorkspaceCargo(): Promise<WorkspaceCargoSummary | null
   } catch {
     return null;
   }
+}
+
+export interface StatusReport {
+  readonly schema: "yolo.status/1";
+  readonly timestamp: string;
+  readonly root: string;
+  readonly packages: readonly SubmoduleStatus[];
+  readonly vendor: { crates: number; sources: readonly VendorSourceStatus[] } | null;
+  readonly cargo: WorkspaceCargoSummary | null;
+}
+
+export async function collectStatusReport(): Promise<StatusReport> {
+  const [packages, vendor, cargo] = await Promise.all([
+    inspectPackages(),
+    readVendorStatus(),
+    readWorkspaceCargo(),
+  ]);
+  return {
+    schema: "yolo.status/1",
+    timestamp: new Date().toISOString(),
+    root: ROOT_DIR,
+    packages,
+    vendor,
+    cargo,
+  };
+}
+
+export function renderStatusMarkdown(report: StatusReport): string {
+  const lines = [
+    `# yolo status`,
+    "",
+    `**Root:** \`${report.root}\``,
+    "",
+    "## Submodule Forks (`vendor/`)",
+    "",
+    "| Submodule | Status | Commit | Files |",
+    "| :--- | :--- | :--- | ---: |",
+  ];
+
+  for (const p of report.packages) {
+    const status = p.exists ? "✔ loaded" : "✘ missing";
+    const commit = p.headCommit ? `\`${p.headCommit}\`` : "-";
+    const count = p.filesCount !== undefined ? `~${p.filesCount}+` : "-";
+    lines.push(`| \`vendor/${p.name}\` | ${status} | ${commit} | ${count} |`);
+  }
+
+  if (report.vendor) {
+    lines.push(
+      "",
+      "## Vendored Crates (`vendor.lock`)",
+      "",
+      `- **Total Crates:** ${report.vendor.crates} imported into \`crates/aphrody-*\``,
+      "",
+      "| Source | Locked SHA | Status |",
+      "| :--- | :--- | :--- |",
+    );
+    for (const s of report.vendor.sources) {
+      const syncStatus = s.inSync ? "✔ in sync" : "⚠ drift";
+      lines.push(`| \`${s.name}\` | \`${s.lockedSha.slice(0, 10)}\` | ${syncStatus} |`);
+    }
+  }
+
+  if (report.cargo) {
+    lines.push(
+      "",
+      "## Cargo Workspace Config",
+      "",
+      `- **Resolver:** v${report.cargo.resolver}`,
+      `- **Members:** ${report.cargo.members.join(", ")}`,
+      `- **Release Profile:** opt-level=${String(report.cargo.releaseProfile["opt-level"] ?? "z")}, strip=${String(report.cargo.releaseProfile["strip"] ?? true)}`,
+    );
+  }
+
+  return lines.join("\n");
+}
+
+export function renderParseMarkdown(result: TsParseResult): string {
+  const lines = [
+    `# yolo parse: \`${result.path}\``,
+    "",
+    `- **Lines:** ${result.lines.toLocaleString()}`,
+    `- **Bytes:** ${result.bytes.toLocaleString()} B`,
+    `- **Checksum:** \`wyhash:0x${result.checksum}\``,
+    `- **Parse Time:** ${result.parseTimeMs} ms`,
+    "",
+    "## Exported Symbols",
+  ];
+  if (result.exports.length > 0) {
+    for (const exp of result.exports) lines.push(`- \`${exp}\``);
+  } else {
+    lines.push("*(none)*");
+  }
+
+  lines.push("", "## Imported Modules");
+  if (result.imports.length > 0) {
+    for (const imp of result.imports) lines.push(`- \`${imp}\``);
+  } else {
+    lines.push("*(none)*");
+  }
+
+  return lines.join("\n");
+}
+
+export interface BenchMetrics {
+  readonly schema: "yolo.bench/1";
+  readonly timestamp: string;
+  readonly iterations: number;
+  readonly wyhash: {
+    readonly elapsedMs: number;
+    readonly opsPerSec: number;
+    readonly sample: string;
+  };
+  readonly crc32: {
+    readonly elapsedMs: number;
+    readonly opsPerSec: number;
+    readonly sample: string;
+  };
+  readonly stringWidth: {
+    readonly sample: string;
+    readonly width: number;
+    readonly stripped: string;
+  };
+}
+
+export function runBenchMetrics(iterations: number = 500_000): BenchMetrics {
+  const testBuffer = Buffer.from("Aphrody YOLO Bun Industrial Engine Benchmark Data String");
+
+  // 1. Wyhash
+  const t0 = Bun.nanoseconds();
+  let lastHash = 0n;
+  for (let i = 0; i < iterations; i++) {
+    lastHash = Bun.hash.wyhash(testBuffer, BigInt(i));
+  }
+  const elapsedWyhash = Number(((Bun.nanoseconds() - t0) / 1_000_000).toFixed(2));
+
+  // 2. CRC32
+  const t1 = Bun.nanoseconds();
+  let lastCrc = 0;
+  for (let i = 0; i < iterations; i++) {
+    lastCrc = Bun.hash.crc32(testBuffer, i);
+  }
+  const elapsedCrc = Number(((Bun.nanoseconds() - t1) / 1_000_000).toFixed(2));
+
+  // 3. String width
+  const sampleAnsi = "\x1b[32mYOLO\x1b[0m 🚀 \x1b[34mAntigravity Core\x1b[0m";
+  const width = Bun.stringWidth(sampleAnsi);
+  const stripped = Bun.stripANSI(sampleAnsi);
+
+  return {
+    schema: "yolo.bench/1",
+    timestamp: new Date().toISOString(),
+    iterations,
+    wyhash: {
+      elapsedMs: elapsedWyhash,
+      opsPerSec: Math.round((iterations / (elapsedWyhash || 1)) * 1000),
+      sample: lastHash.toString(16).slice(0, 8),
+    },
+    crc32: {
+      elapsedMs: elapsedCrc,
+      opsPerSec: Math.round((iterations / (elapsedCrc || 1)) * 1000),
+      sample: String(lastCrc),
+    },
+    stringWidth: {
+      sample: sampleAnsi,
+      width,
+      stripped,
+    },
+  };
+}
+
+export function renderBenchMarkdown(metrics: BenchMetrics): string {
+  return [
+    `# yolo bench: Native Bun Micro-Benchmark Suite`,
+    "",
+    `- **Iterations:** ${metrics.iterations.toLocaleString()}`,
+    "",
+    "| Benchmark | Elapsed (ms) | Throughput (ops/sec) | Sample Value |",
+    "| :--- | ---: | ---: | :--- |",
+    `| \`Bun.hash.wyhash\` | ${metrics.wyhash.elapsedMs} ms | ${metrics.wyhash.opsPerSec.toLocaleString()} ops/s | \`${metrics.wyhash.sample}\` |`,
+    `| \`Bun.hash.crc32\` | ${metrics.crc32.elapsedMs} ms | ${metrics.crc32.opsPerSec.toLocaleString()} ops/s | \`${metrics.crc32.sample}\` |`,
+    "",
+    "## Terminal String Measurement",
+    `- **Input:** \`${metrics.stringWidth.stripped}\``,
+    `- **Rendered Width:** ${metrics.stringWidth.width}`,
+  ].join("\n");
 }
 
 /**
@@ -468,12 +658,15 @@ ${header}
   yolo <command> [options]
 
 \x1b[1mCOMMANDS:\x1b[0m
-  \x1b[32mstatus\x1b[0m              Inspect active package forks & Cargo workspace status
+  \x1b[32mstatus [--json|--md]\x1b[0m Inspect active package forks & Cargo workspace status
+  \x1b[32mscan [dir] [--json|--md]\x1b[0m Fast parallel recursive scanner (lines, bytes, wyhash)
+  \x1b[32mmcp\x1b[0m                 Model Context Protocol (MCP 2024-11-05) stdio server for AI agents
+  \x1b[32mapi [--port N]\x1b[0m      Serve local HTTP / REST / OpenAPI micro-server (Bun.serve)
   \x1b[32mweb [build|dev]\x1b[0m     Manage and build the zero-overhead Web & Desktop frontend
-  \x1b[32mgenerate\x1b[0m            Autonomously scan upstream Bun and generate code & capability catalogs
-  \x1b[32mparse <file>\x1b[0m        Fast AST & token analysis via Bun file streaming + wyhash
-  \x1b[32mdocs [query]\x1b[0m        Search or inspect version-matched Bun documentation in vendor/bun/docs
-  \x1b[32mversion | doctor\x1b[0m       Installed version, target; check the installation (runtime verified and loadable)
+  \x1b[32mgenerate [--json]\x1b[0m   Autonomously scan upstream Bun and generate code & capability catalogs
+  \x1b[32mparse <file> [--json|--md]\x1b[0m Fast AST & token analysis via Bun file streaming + wyhash
+  \x1b[32mdocs [query] [--json|--md]\x1b[0m Search or inspect version-matched Bun documentation in vendor/bun/docs
+  \x1b[32mversion [--json] | doctor [--json|--md]\x1b[0m Installed version, target; check the installation
   \x1b[32mruntime install|list|verify|rollback|info\x1b[0m  Manage installed runtime artifacts
   \x1b[32mupgrade [--check]\x1b[0m     Install the latest release; \x1b[32muninstall [--yes]\x1b[0m removes ~/.yolo
   \x1b[32mcreate <dir> [--with web,desktop]\x1b[0m Scaffold an Aphrody stack project (Bun + runtime SDK + Tauri) from templates/
@@ -485,8 +678,12 @@ ${header}
   \x1b[32mhost audit|reclaim|archive|services|tune|net|mount|journal --host vps|dbfr|local [--apply]\x1b[0m Manage a Linux server (plan by default, journaled, safety-checked)
   \x1b[32mship [--apply] [status|log|attach|stop]\x1b[0m Build all of yolo on the build factory host; \x1b[32mhooks install\x1b[0m does it on every push to main/dev
   \x1b[32mplugin <create|status>\x1b[0m Generate or inspect unified YOLO & Bun-TS7 plugin
-  \x1b[32mbench\x1b[0m               Run native Bun nanoseconds and hashing micro-benchmark
+  \x1b[32mbench [--json|--md]\x1b[0m Run native Bun nanoseconds and hashing micro-benchmark
   \x1b[32mhelp\x1b[0m                Display this help message
+
+\x1b[1mAGENT-FIRST PROTOCOLS:\x1b[0m
+  --json              Machine-readable structured JSON with strict schema (e.g. yolo.verify/1)
+  --md                GitHub-flavored Markdown tables and summaries
 
 \x1b[1mENGINE BASELINE:\x1b[0m
   Runtime: Bun ${Bun.version} (${Bun.revision.slice(0, 10)})
@@ -501,6 +698,10 @@ async function main(): Promise<void> {
   // Source-tree commands need a checkout; the installed executable carries the distribution ones.
   const CHECKOUT_ONLY = new Set([
     "status",
+    "scan",
+    "mcp",
+    "api",
+    "serve",
     "generate",
     "web",
     "desktop",
@@ -537,20 +738,28 @@ async function main(): Promise<void> {
 
   switch (command) {
     case "status": {
+      const report = await collectStatusReport();
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(report, null, 2));
+        break;
+      }
+      if (args.includes("--md")) {
+        console.log(renderStatusMarkdown(report));
+        break;
+      }
+
       console.log(`\x1b[1m\x1b[36m=== YOLO Monorepo Status (Native Bun Engine) ===\x1b[0m`);
-      const pkgs = await inspectPackages();
-      for (const p of pkgs) {
+      for (const p of report.packages) {
         const status = p.exists ? `\x1b[32m[LOADED]\x1b[0m` : `\x1b[31m[MISSING]\x1b[0m`;
         const commit = p.headCommit ? `(${p.headCommit})` : "";
         const sampleCount = p.filesCount !== undefined ? `[~${p.filesCount}+ files]` : "";
         console.log(`  ${status} vendor/${p.name.padEnd(10)} ${commit.padEnd(14)} ${sampleCount}`);
       }
 
-      const vendor = await readVendorStatus();
-      if (vendor) {
+      if (report.vendor) {
         console.log(`\n\x1b[1m\x1b[36m=== Vendored crates (vendor.lock) ===\x1b[0m`);
-        console.log(`  ${vendor.crates} crates imported into crates/aphrody-*`);
-        for (const source of vendor.sources) {
+        console.log(`  ${report.vendor.crates} crates imported into crates/aphrody-*`);
+        for (const source of report.vendor.sources) {
           const state = source.inSync
             ? "\x1b[32min sync\x1b[0m"
             : `\x1b[33mdrift (submodule at ${source.headSha?.slice(0, 10) ?? "?"}), run \`just vendor-update\`\x1b[0m`;
@@ -558,19 +767,23 @@ async function main(): Promise<void> {
         }
       }
 
-      const cargo = await readWorkspaceCargo();
-      if (cargo) {
+      if (report.cargo) {
         console.log(`\n\x1b[1m\x1b[36m=== Cargo Workspace Config (via Bun.TOML) ===\x1b[0m`);
-        console.log(`  Resolver: v${cargo.resolver}`);
-        console.log(`  Members:  ${cargo.members.join(", ")}`);
+        console.log(`  Resolver: v${report.cargo.resolver}`);
+        console.log(`  Members:  ${report.cargo.members.join(", ")}`);
         console.log(
-          `  Release:  opt-level=${String(cargo.releaseProfile["opt-level"] ?? "z")}, strip=${String(cargo.releaseProfile["strip"] ?? true)}`,
+          `  Release:  opt-level=${String(report.cargo.releaseProfile["opt-level"] ?? "z")}, strip=${String(report.cargo.releaseProfile["strip"] ?? true)}`,
         );
       }
       break;
     }
 
     case "generate": {
+      if (args.includes("--json")) {
+        const report = await generateBunCatalog();
+        console.log(JSON.stringify(report, null, 2));
+        break;
+      }
       console.log(`\x1b[1m\x1b[36m=== Autonomous Bun Upstream Generator ===\x1b[0m`);
       console.log(
         `  Scanning upstream vendor/bun for Web APIs, Server, React, CSS, Image, JSON, Markdown...`,
@@ -591,7 +804,7 @@ async function main(): Promise<void> {
     }
 
     case "parse": {
-      const target = args[1];
+      const target = args.find((a) => !a.startsWith("-") && a !== "parse");
       if (!target) {
         console.error("\x1b[31mError:\x1b[0m Please provide a file to parse.");
         process.exit(1);
@@ -602,6 +815,14 @@ async function main(): Promise<void> {
         process.exit(1);
       }
       const result = await parseTsSource(absPath);
+      if (args.includes("--json")) {
+        console.log(JSON.stringify({ schema: "yolo.parse/1", ...result }, null, 2));
+        break;
+      }
+      if (args.includes("--md")) {
+        console.log(renderParseMarkdown(result));
+        break;
+      }
       console.log(`\x1b[1m\x1b[36m=== Parsed Source: ${relative(ROOT_DIR, absPath)} ===\x1b[0m`);
       console.log(`  Lines:    ${result.lines}`);
       console.log(`  Bytes:    ${result.bytes} B`);
@@ -617,36 +838,26 @@ async function main(): Promise<void> {
     }
 
     case "bench": {
+      const metrics = runBenchMetrics();
+      if (args.includes("--json")) {
+        console.log(JSON.stringify(metrics, null, 2));
+        break;
+      }
+      if (args.includes("--md")) {
+        console.log(renderBenchMarkdown(metrics));
+        break;
+      }
       console.log(`\x1b[1m\x1b[36m=== YOLO Bun Micro-Benchmark Suite ===\x1b[0m`);
-      const iterations = 500_000;
-      const testBuffer = Buffer.from("Aphrody YOLO Bun Industrial Engine Benchmark Data String");
-
-      // 1. Wyhash speed
-      const t0 = Bun.nanoseconds();
-      let lastHash = 0n;
-      for (let i = 0; i < iterations; i++) {
-        lastHash = Bun.hash.wyhash(testBuffer, BigInt(i));
-      }
-      const elapsedWyhash = (Bun.nanoseconds() - t0) / 1_000_000;
       console.log(
-        `  Bun.hash.wyhash:  ${iterations.toLocaleString()} iterations in ${elapsedWyhash.toFixed(2)} ms (${lastHash.toString(16).slice(0, 8)})`,
+        `  Bun.hash.wyhash:  ${metrics.iterations.toLocaleString()} iterations in ${metrics.wyhash.elapsedMs.toFixed(2)} ms (${metrics.wyhash.sample})`,
       );
-
-      // 2. CRC32 speed
-      const t1 = Bun.nanoseconds();
-      let lastCrc = 0;
-      for (let i = 0; i < iterations; i++) {
-        lastCrc = Bun.hash.crc32(testBuffer, i);
-      }
-      const elapsedCrc = (Bun.nanoseconds() - t1) / 1_000_000;
       console.log(
-        `  Bun.hash.crc32:   ${iterations.toLocaleString()} iterations in ${elapsedCrc.toFixed(2)} ms (${lastCrc.toString(16)})`,
+        `  Bun.hash.crc32:   ${metrics.iterations.toLocaleString()} iterations in ${metrics.crc32.elapsedMs.toFixed(2)} ms (${metrics.crc32.sample})`,
       );
-
-      // 3. String width measurement
-      const sampleAnsi = "\x1b[32mYOLO\x1b[0m 🚀 \x1b[34mAntigravity Core\x1b[0m";
-      console.log(`  Bun.stringWidth:  "${sampleAnsi}" -> width = ${Bun.stringWidth(sampleAnsi)}`);
-      console.log(`  Bun.stripANSI:    "${Bun.stripANSI(sampleAnsi)}"`);
+      console.log(
+        `  Bun.stringWidth:  "${metrics.stringWidth.sample}" -> width = ${metrics.stringWidth.width}`,
+      );
+      console.log(`  Bun.stripANSI:    "${metrics.stringWidth.stripped}"`);
       break;
     }
 
@@ -681,28 +892,61 @@ async function main(): Promise<void> {
 
     case "docs": {
       const docsDir = resolve(VENDOR_DIR, "bun/docs");
-      const query = args[1]?.toLowerCase();
+      const query = args.find((a) => !a.startsWith("-") && a !== "docs")?.toLowerCase();
+      let matches: string[] = [];
+      if (existsSync(docsDir)) {
+        if (!query) {
+          const glob = new Bun.Glob("*.{md,mdx}");
+          matches = Array.from(glob.scanSync({ cwd: docsDir, onlyFiles: true })).sort();
+        } else {
+          const glob = new Bun.Glob("**/*.{md,mdx}");
+          for (const filePath of glob.scanSync({ cwd: docsDir, onlyFiles: true })) {
+            if (filePath.toLowerCase().includes(query)) {
+              matches.push(filePath);
+            }
+          }
+          matches.sort();
+        }
+      }
+
+      if (args.includes("--json")) {
+        console.log(
+          JSON.stringify(
+            {
+              schema: "yolo.docs/1",
+              query: query ?? null,
+              totalMatches: matches.length,
+              matches,
+            },
+            null,
+            2,
+          ),
+        );
+        break;
+      }
+
+      if (args.includes("--md")) {
+        const mdLines = [
+          `# yolo docs: ${query ? `"${query}"` : "vendor/bun/docs"}`,
+          "",
+          `- **Matches:** ${matches.length}`,
+          "",
+          ...matches.map((m) => `- \`${m}\``),
+        ];
+        console.log(mdLines.join("\n"));
+        break;
+      }
+
       console.log(`\x1b[1m\x1b[36m=== Bun Docs Corpus (via Bun.Glob) ===\x1b[0m`);
       if (!existsSync(docsDir)) {
         console.log(`  \x1b[31mDocs not found at ${docsDir}\x1b[0m`);
         break;
       }
       if (!query) {
-        const glob = new Bun.Glob("*.{md,mdx}");
-        const pages = Array.from(glob.scanSync({ cwd: docsDir, onlyFiles: true }));
-        console.log(`  Docs directory: vendor/bun/docs (${pages.length} root items)`);
+        console.log(`  Docs directory: vendor/bun/docs (${matches.length} root items)`);
       } else {
-        const searchQuery = query;
-        console.log(`  Searching for "${searchQuery}" with Bun.Glob...`);
-        const glob = new Bun.Glob("**/*.{md,mdx}");
-        const results: string[] = [];
-        for (const filePath of glob.scanSync({ cwd: docsDir, onlyFiles: true })) {
-          if (filePath.toLowerCase().includes(searchQuery)) {
-            results.push(filePath);
-          }
-        }
-        console.log(`  Found ${results.length} match(es):`);
-        for (const r of results.slice(0, 10)) {
+        console.log(`  Found ${matches.length} match(es):`);
+        for (const r of matches.slice(0, 10)) {
           console.log(`    - ${r}`);
         }
       }
@@ -711,13 +955,46 @@ async function main(): Promise<void> {
 
     case "version":
     case "--version":
-    case "-v":
-      process.exitCode = runVersion();
+    case "-v": {
+      if (args.includes("--json")) {
+        console.log(
+          JSON.stringify(
+            {
+              schema: "yolo.version/1",
+              version: yoloVersion(),
+              target: hostTarget(),
+              bunVersion: Bun.version,
+            },
+            null,
+            2,
+          ),
+        );
+        process.exitCode = 0;
+      } else {
+        process.exitCode = runVersion();
+      }
       break;
+    }
 
     case "doctor":
-      process.exitCode = runDoctor();
+      process.exitCode = runDoctor(args.slice(1));
       break;
+
+    case "scan": {
+      process.exitCode = await runScanCommand(args.slice(1), ROOT_DIR);
+      break;
+    }
+
+    case "mcp": {
+      await runMcpServer(ROOT_DIR);
+      break;
+    }
+
+    case "api":
+    case "serve": {
+      process.exitCode = await runApiCommand(args.slice(1), ROOT_DIR);
+      break;
+    }
 
     case "runtime":
       process.exitCode = await runRuntimeCommand(args.slice(1));

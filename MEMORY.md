@@ -14,6 +14,7 @@ Relevé : 2026-10-03. [PLAN.md](PLAN.md) possède les jalons ;
 | Templates | `4596954` : `yolo create --with react` (React 19, `@aphrody/material-web` via `@lit/react`, bundler HTML Bun ; `build:bin` en `NODE_ENV=production`). Fork create-tauri-app : `516da1d` vanilla-ts sur `Bun.serve`/`Bun.build`, `c7692bb` yew 0.23 | Rendu vérifié dans Chromium 157 headless seulement ; WebViews système, `tauri dev/build`, `trunk` non exécutés |
 | Espace disque | `6b3d315`, `ed7ab7e` : `yolo host space` (gain réel par inode, liens physiques compris), scan récursif parallèle ; plancher variable appliqué par `audit` et `ship` (`dfdf8cc`) | 79 000 fichiers en local : ~200 ms sériel, ~120 ms parallèle 8 ; latence SSH et refus `ship` sur disque plein non exécutés |
 | Gates locaux | `313bc40` : `yolo verify`, rapport `yolo.verify/1` dans `var/verify/` | Ici 13,1 s sériel, 4,2 s parallèle ; clippy, nextest, `cargo deny` et runtime natif listés non exécutés |
+| Agent-First & MCP/API | `yolo scan` (wyhash composite), `yolo mcp` (stdio MCP 2024-11-05), `yolo api` (REST OpenAPI 3.1), protocoles `--json` et `--md` généralisés sur toutes les commandes (`status`, `parse`, `bench`, `docs`, `doctor`, `scan`, `version`), runner `./bin/yolo` ; 225 tests unitaires passés en 4,9 s, gates `yolo verify` en 5,7 s (speedup 2,5x) | FFI et supervision locale qualifiés ; agents distants et transport SSE temps réel ouverts |
 
 Runtime Linux x64 installé localement via le propriétaire release :
 ABI 1.4, révision native `0ade1c71ccb5`,

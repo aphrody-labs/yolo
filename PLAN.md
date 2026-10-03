@@ -94,3 +94,4 @@ Dépôts privés ; source, tests, artefact, installation et activation sont dist
 - [Commandes et gates](docs/TOOLING.md)
 - [Serveur, espace disque et plancher](docs/SERVER.md)
 - [Rapport de stack 2026-10](docs/STACK-REPORT-2026-10.md)
+- [Architecture Agent-First & Maturation Stack](docs/STACK-DECISION.md)

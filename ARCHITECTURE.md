@@ -22,6 +22,8 @@ Yolo delivery states: [PLAN.md](PLAN.md). This page owns source layout and flows
   [RUNTIME-ABI](docs/RUNTIME-ABI.md).
 - Distribution: pinned tag → factory gates → assets/installers → qualified
   install/rollback. [DISTRIBUTION](docs/DISTRIBUTION.md).
+- Stack maturation, agent-first rigor and protocols (CLI ↔ MCP ↔ API ↔ FFI):
+  [STACK-DECISION](docs/STACK-DECISION.md).
 - Heavy builds use Workspace/Infra and its existing remote checkout, locks and
   resource policy. [TOOLING](docs/TOOLING.md). No research/test clone is required.
 

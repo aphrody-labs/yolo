@@ -12,3 +12,4 @@
 - [Consumers (R2)](CONSUMERS.md)
 - [Distribution](DISTRIBUTION.md)
 - [Stack report: October 2026](STACK-REPORT-2026-10.md)
+- [Architecture & Maturation de la Stack](STACK-DECISION.md)

@@ -27,62 +27,229 @@ export function runVersion(): number {
   return 0;
 }
 
-/** Checks the installation; returns 1 if something required is missing. */
-export function runDoctor(): number {
+export interface DoctorComponent {
+  readonly label: string;
+  readonly path: string;
+  readonly exists: boolean;
+  readonly required: boolean;
+}
+
+export interface DoctorReport {
+  readonly schema: "yolo.doctor/1";
+  readonly timestamp: string;
+  readonly home: string;
+  readonly yoloVersion: string;
+  readonly hostTarget: string;
+  readonly bunVersion: string;
+  readonly tools: readonly { name: string; found: boolean }[];
+  readonly components: readonly DoctorComponent[];
+  readonly stack: {
+    readonly bun: { version: string; ok: boolean };
+    readonly rust: { found: boolean; cargo?: string | undefined; rustc?: string | undefined };
+    readonly cCompiler: { found: boolean; bin?: string | undefined };
+    readonly python: { found: boolean; uv?: string | undefined; python?: string | undefined };
+  };
+  readonly runtime: {
+    readonly installed: boolean;
+    readonly active?: string | undefined;
+    readonly abi?: string | undefined;
+    readonly version?: string | undefined;
+    readonly capabilities?: readonly string[] | undefined;
+    readonly panicRecovery?: boolean | undefined;
+    readonly error?: string | undefined;
+  };
+  readonly rollbackAvailable?: string | undefined;
+  readonly binOnPath: boolean;
+  readonly ghFound: boolean;
+  readonly ok: boolean;
+}
+
+/** Collects full diagnostic and stack report into a structured object. */
+export function collectDoctorReport(): DoctorReport {
   const home = yoloHome();
-  let failures = 0;
-  console.log(`\x1b[1myolo doctor\x1b[0m  home ${home}`);
-  ok(`version ${yoloVersion()}, target ${hostTarget()}, Bun ${Bun.version}`);
+  let okStatus = true;
 
-  for (const tool of aphrodyTools()) {
-    if (tool.found) ok(`${tool.name} on PATH (yolo infra|ops|workflow|ship)`);
-    else warn(`${tool.name} not on PATH (Aphrody control plane commands unavailable)`);
-  }
+  const tools = aphrodyTools();
 
+  const components: DoctorComponent[] = [];
   for (const [path, label, required] of [
     ["templates/stack.toml", "templates (yolo create)", true],
     ["packages/runtime/package.json", "runtime SDK", true],
     ["crates/yolo-desktop/icons", "desktop scaffold sources (crates/)", false],
   ] as const) {
-    if (existsSync(join(home, path))) ok(label);
-    else if (required) {
-      bad(`${label} missing (${path})`);
-      failures++;
-    } else warn(`${label} not installed: \`yolo create --with desktop\` needs it`);
+    const exists = existsSync(join(home, path));
+    if (!exists && required) okStatus = false;
+    components.push({ label, path, exists, required });
   }
 
+  // Stack maturation toolchain probe
+  const cargoBin = Bun.which("cargo");
+  const rustcBin = Bun.which("rustc");
+  const cBin = Bun.which("clang") ?? Bun.which("gcc");
+  const uvBin = Bun.which("uv");
+  const pyBin = Bun.which("python3") ?? Bun.which("python");
+
+  const stack = {
+    bun: { version: Bun.version, ok: true },
+    rust: {
+      found: Boolean(cargoBin && rustcBin),
+      cargo: cargoBin ?? undefined,
+      rustc: rustcBin ?? undefined,
+    },
+    cCompiler: {
+      found: Boolean(cBin),
+      bin: cBin ?? undefined,
+    },
+    python: {
+      found: Boolean(uvBin || pyBin),
+      uv: uvBin ?? undefined,
+      python: pyBin ?? undefined,
+    },
+  };
+
+  let runtimeInfo: DoctorReport["runtime"] = { installed: false };
   const active = list().find((e) => e.current);
   if (active === undefined) {
-    bad(
-      `no runtime artifact installed in ${join(runtimeHome(), hostTarget())} (run: yolo runtime install <dir>)`,
-    );
-    failures++;
+    okStatus = false;
+    runtimeInfo = { installed: false, error: "no runtime artifact installed" };
   } else {
     try {
       using runtime = loadArtifact(join(runtimeHome(), hostTarget(), active.name));
       const info = runtime.buildInfo();
-      ok(`runtime ${info.version} (ABI ${info.abi}, ${active.name}) verified and loadable`);
-      ok(`capabilities: ${runtime.capabilities().join(", ")}`);
-      if (!info.panic_recovery) warn("runtime built without panic recovery");
-    } catch (error) {
-      bad(
-        `runtime ${active.name} does not verify: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      failures++;
+      runtimeInfo = {
+        installed: true,
+        active: active.name,
+        abi: info.abi,
+        version: info.version,
+        capabilities: runtime.capabilities(),
+        panicRecovery: info.panic_recovery,
+      };
+    } catch (err) {
+      okStatus = false;
+      runtimeInfo = {
+        installed: true,
+        active: active.name,
+        error: err instanceof Error ? err.message : String(err),
+      };
     }
   }
-  const previous = list().find((e) => e.previous);
-  if (previous !== undefined) ok(`rollback available: ${previous.name}`);
 
+  const previous = list().find((e) => e.previous);
   const bin = join(home, "bin");
-  if ((process.env["PATH"] ?? "").split(":").includes(bin)) ok(`${bin} is on PATH`);
+  const binOnPath = (process.env["PATH"] ?? "").split(":").includes(bin);
+  const ghFound = Boolean(Bun.which("gh"));
+
+  return {
+    schema: "yolo.doctor/1",
+    timestamp: new Date().toISOString(),
+    home,
+    yoloVersion: yoloVersion(),
+    hostTarget: hostTarget(),
+    bunVersion: Bun.version,
+    tools,
+    components,
+    stack,
+    runtime: runtimeInfo,
+    rollbackAvailable: previous?.name,
+    binOnPath,
+    ghFound,
+    ok: okStatus,
+  };
+}
+
+export function renderDoctorMarkdown(report: DoctorReport): string {
+  const statusIcon = (val: boolean): string => (val ? "✔ pass" : "✘ fail");
+  const lines = [
+    `# yolo doctor: ${report.ok ? "PASS" : "WARN/FAIL"}`,
+    "",
+    `- **Home:** \`${report.home}\``,
+    `- **Version:** \`${report.yoloVersion}\` (\`${report.hostTarget}\`)`,
+    `- **Bun:** \`${report.bunVersion}\``,
+    `- **Bin on PATH:** ${report.binOnPath ? "Yes" : "No"}`,
+    "",
+    "## Stack Maturation Toolchain",
+    "",
+    "| Tier | Technology | Status | Path / Info |",
+    "| :--- | :--- | :--- | :--- |",
+    `| Tier 1 (Default) | Bun / TypeScript | ✔ active | v${report.stack.bun.version} |`,
+    `| Tier 2 (Critique) | Rust & Cargo | ${report.stack.rust.found ? "✔ installed" : "! missing"} | ${report.stack.rust.cargo ?? "none"} |`,
+    `| Tier 3 (Natif) | C / C++ Compiler | ${report.stack.cCompiler.found ? "✔ installed" : "! missing"} | ${report.stack.cCompiler.bin ?? "none"} |`,
+    `| Tier 5 (Python/uv) | Python via uv | ${report.stack.python.uv ? "✔ uv ready" : report.stack.python.found ? "! python without uv" : "! missing"} | ${report.stack.python.uv ?? report.stack.python.python ?? "none"} |`,
+    "",
+    "## Installed Components",
+    "",
+    "| Component | Path | Status |",
+    "| :--- | :--- | :--- |",
+  ];
+
+  for (const c of report.components) {
+    lines.push(`| ${c.label} | \`${c.path}\` | ${statusIcon(c.exists)} |`);
+  }
+
+  lines.push("", "## Native Runtime Artifact", "");
+  if (report.runtime.installed && !report.runtime.error) {
+    lines.push(
+      `- **Active:** \`${report.runtime.active}\` (ABI ${report.runtime.abi}, v${report.runtime.version})`,
+      `- **Capabilities:** ${(report.runtime.capabilities ?? []).join(", ") || "none"}`,
+      `- **Panic Recovery:** ${report.runtime.panicRecovery ? "enabled" : "disabled"}`,
+    );
+  } else {
+    lines.push(`- **Status:** ✘ ${report.runtime.error ?? "Not installed"}`);
+  }
+
+  return lines.join("\n");
+}
+
+/** Checks the installation; returns 1 if something required is missing. */
+export function runDoctor(args: readonly string[] = []): number {
+  const report = collectDoctorReport();
+
+  if (args.includes("--json")) {
+    console.log(JSON.stringify(report, null, 2));
+    return report.ok ? 0 : 1;
+  }
+
+  if (args.includes("--md")) {
+    console.log(renderDoctorMarkdown(report));
+    return report.ok ? 0 : 1;
+  }
+
+  console.log(`\x1b[1myolo doctor\x1b[0m  home ${report.home}`);
+  ok(`version ${report.yoloVersion}, target ${report.hostTarget}, Bun ${report.bunVersion}`);
+
+  for (const tool of report.tools) {
+    if (tool.found) ok(`${tool.name} on PATH (yolo infra|ops|workflow|ship)`);
+    else warn(`${tool.name} not on PATH (Aphrody control plane commands unavailable)`);
+  }
+
+  for (const comp of report.components) {
+    if (comp.exists) ok(comp.label);
+    else if (comp.required) bad(`${comp.label} missing (${comp.path})`);
+    else warn(`${comp.label} not installed: \`yolo create --with desktop\` needs it`);
+  }
+
+  if (report.runtime.installed && !report.runtime.error) {
+    ok(
+      `runtime ${report.runtime.version} (ABI ${report.runtime.abi}, ${report.runtime.active}) verified and loadable`,
+    );
+    ok(`capabilities: ${(report.runtime.capabilities ?? []).join(", ")}`);
+    if (!report.runtime.panicRecovery) warn("runtime built without panic recovery");
+  } else {
+    bad(`runtime: ${report.runtime.error ?? "not installed"}`);
+  }
+
+  if (report.rollbackAvailable) ok(`rollback available: ${report.rollbackAvailable}`);
+  const bin = join(report.home, "bin");
+  if (report.binOnPath) ok(`${bin} is on PATH`);
   else warn(`${bin} is not on PATH`);
+
   warn(
-    Bun.which("gh")
+    report.ghFound
       ? "gh found (private release downloads)"
       : "gh not found (public releases and GITHUB_TOKEN only)",
   );
-  return failures === 0 ? 0 : 1;
+
+  return report.ok ? 0 : 1;
 }
 
 export async function runRuntimeCommand(args: readonly string[]): Promise<number> {

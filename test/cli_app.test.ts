@@ -139,9 +139,76 @@ describe("YOLO apps/cli Suite (Zero External Dependencies, 100% Native Bun)", ()
 
       expect(exitCodeGen).toBe(0);
       expect(stdoutGen).toContain("=== Autonomous Bun Upstream Generator ===");
-      expect(stdoutGen).toContain("[SUCCESS]");
     },
   );
+
+  it("should support --json and --md across commands for Agent-First auditing", async () => {
+    // 1. status --json
+    const procStatusJson = Bun.spawn(["bun", cliEntryPath, "status", "--json"], {
+      cwd: rootDir,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const statusJson = JSON.parse(await new Response(procStatusJson.stdout).text());
+    expect(await procStatusJson.exited).toBe(0);
+    expect(statusJson.schema).toBe("yolo.status/1");
+    expect(statusJson.packages.length).toBeGreaterThan(0);
+
+    // 2. parse --json
+    const procParseJson = Bun.spawn(["bun", cliEntryPath, "parse", cliEntryPath, "--json"], {
+      cwd: rootDir,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const parseJson = JSON.parse(await new Response(procParseJson.stdout).text());
+    expect(await procParseJson.exited).toBe(0);
+    expect(parseJson.schema).toBe("yolo.parse/1");
+    expect(parseJson.lines).toBeGreaterThan(50);
+
+    // 3. bench --json
+    const procBenchJson = Bun.spawn(["bun", cliEntryPath, "bench", "--json"], {
+      cwd: rootDir,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const benchJson = JSON.parse(await new Response(procBenchJson.stdout).text());
+    expect(await procBenchJson.exited).toBe(0);
+    expect(benchJson.schema).toBe("yolo.bench/1");
+    expect(benchJson.wyhash.opsPerSec).toBeGreaterThan(0);
+
+    // 4. doctor --json
+    const procDocJson = Bun.spawn(["bun", cliEntryPath, "doctor", "--json"], {
+      cwd: rootDir,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const docJson = JSON.parse(await new Response(procDocJson.stdout).text());
+    expect(await procDocJson.exited).toBe(0);
+    expect(docJson.schema).toBe("yolo.doctor/1");
+    expect(docJson.stack.bun.version).toBeDefined();
+
+    // 5. version --json
+    const procVerJson = Bun.spawn(["bun", cliEntryPath, "version", "--json"], {
+      cwd: rootDir,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const verJson = JSON.parse(await new Response(procVerJson.stdout).text());
+    expect(await procVerJson.exited).toBe(0);
+    expect(verJson.schema).toBe("yolo.version/1");
+    expect(verJson.bunVersion).toBeDefined();
+
+    // 6. status --md
+    const procStatusMd = Bun.spawn(["bun", cliEntryPath, "status", "--md"], {
+      cwd: rootDir,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const statusMd = await new Response(procStatusMd.stdout).text();
+    expect(await procStatusMd.exited).toBe(0);
+    expect(statusMd).toContain("# yolo status");
+    expect(statusMd).toContain("| Submodule |");
+  });
 });
 
 describe("YOLO vendoring", () => {

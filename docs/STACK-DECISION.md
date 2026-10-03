@@ -1,0 +1,122 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+# Architecture Agent-First & Maturation de la Stack
+
+Document normatif définissant l'arbre de décision technologique, la rigueur d'auditabilité Agent-First, la boucle récursive d'outillage et l'exposition multiprotocole (MCP, FFI, API).
+
+---
+
+## 1. Rigueur & Auditabilité
+
+### Mesure absolue
+Toute opération doit être systématiquement mesurée, testée et vérifiée :
+- Horodatages ISO-8601 stricts (`startedAt`, `timestamp`).
+- Durées et débits en haute précision nanoseconde (`Bun.nanoseconds()`).
+- Empreintes cryptographiques et d'intégrité déterministes (`Bun.hash.wyhash`, `crc32`).
+- Métriques d'accélération et de parallélisme (`wallMs`, `sumGateMs`, `speedup`).
+
+### Agent-First
+Toutes les sorties de la CLI interne (`yolo`) doivent être directement exploitables sans scraping textuel ou regex fragile :
+- **`--json` :** Schémas versionnés stricts (`yolo.verify/1`, `yolo.status/1`, `yolo.scan/1`, `yolo.parse/1`, `yolo.bench/1`, `yolo.doctor/1`, `yolo.tools/1`).
+- **`--md` :** Tableaux Markdown GitHub-Flavored propres, sans codes d'échappement ANSI.
+
+---
+
+## 2. Boucle Récursive de l'Outillage (CLI ↔ Projet)
+
+```
+┌─────────────────────────────────────────────────────────┐
+│               BOUCLE RÉCURSIVE DE L'OUTILLAGE          │
+└─────────────────────────────────────────────────────────┘
+        ▲                                         │
+        │ Projets & Besoins                       │ Outillage interne
+        │ (tests, scans, FFI,                     │ (`yolo` CLI, MCP,
+        │  diagnostics, gates)                    │  serveur REST)
+        │                                         ▼
+   ┌─────────┐    Factorisation Native     ┌──────────────┐
+   │ One-    │ ─────────────────────────► │ yolo CLI     │
+   │ Liners  │    (Bun.Glob, wyhash,      │  (Bun / TS7) │
+   │ Éliminés│     Bun.serve, FFI)        └──────────────┘
+```
+
+- **Symbiose :** La CLI répond immédiatement aux besoins du projet ; chaque besoin récurrent ou opération d'inspection enrichit la CLI sous forme de commande typée.
+- **Factorisation immédiate :** Élimination systématique des commandes lentes et des *one-liners* (`find | xargs wc -l`, scripts Python ad-hoc, inline `bun -e`) au profit de sous-commandes natives intégrées (`yolo scan`, `yolo parse`, `yolo bench`, `yolo doctor`).
+- **Exécution YOLO autonome :** Workflows nativement récursifs, massivement parallèles (via limiteurs de concurrence partagés), automatisables sans intervention humaine intermédiaire.
+
+---
+
+## 3. Maturation de la Stack (Arbre de Décision)
+
+```
+                       Besoin Fonctionnel / Technique
+                                     │
+                                     ▼
+        ┌────────────────────────────────────────────────────────┐
+        │  Tier 1 : Bun / TypeScript Natif (Socle par défaut)    │
+        │  Orchestration, CLI interne, I/O zero-copy, prototypage│
+        └────────────────────────────────────────────────────────┘
+                                     │
+               Critical path performance / sûreté mémoire ?
+                                     ├──► OUI ──┐
+                                     │          │
+                                     ▼          ▼
+   ┌───────────────────────────────────┐  ┌──────────────────────────────┐
+   │ Bibliothèque C/C++ officielle ?   │  │ Tier 2 : Rust (Maturation)   │
+   │ (WebKitGTK, SQLite, lol-html, etc)│  │ Crates workspace, C ABI,     │
+   └───────────────────────────────────┘  │ calcul intensif, SIMD, FFI   │
+            ├──► OUI                      └──────────────────────────────┘
+            │
+            ▼
+   ┌───────────────────────────────────┐
+   │ Tier 3 : C / C++ (Adoption immédi)│
+   │ C ABI / `bun:ffi` direct          │
+   └───────────────────────────────────┘
+            │
+            ├──► Écosystème tiers IA / ML / Data incontournable ?
+            │
+            ▼
+   ┌─────────────────────────────────────────────────────────────┐
+   │ Tier 5 : Python via `uv` (Écosystème externe / Modèles ML)  │
+   │ Environnements isolés, zéro pollution globale              │
+   └─────────────────────────────────────────────────────────────┘
+            │
+            └──► Besoin système très bas niveau lié à l'interpréteur ?
+                 └──► Tier 4 : CPython (Réservé / Restreint)
+```
+
+1. **Bun / TypeScript (Natif) :** Socle par défaut pour l'orchestration, l'outillage interne, la CLI et le prototypage rapide. Exploite les primitives natives Bun (`Bun.file`, `Bun.Glob`, `Bun.hash.wyhash`, `Bun.serve`, `Bun.TOML`, `Bun.JSONL`).
+2. **Rust :** Cible finale de maturation pour remplacer le code TypeScript/Bun critique dès que la performance brute, le calcul intensif, la sûreté mémoire ou la distribution binaire autonome l'exigent (`crates/yolo-core`, `crates/yolo-runtime`, `crates/yolo-desktop`).
+3. **C / C++ :** Adoption immédiate dès qu'une bibliothèque officielle existe déjà en C/C++ (WebKitGTK, Wry, SQLite, zstd), interfacée via le C ABI ou `bun:ffi`.
+4. **CPython :** Réservé exclusivement aux besoins système très bas niveau liés aux détails internes de l'interpréteur.
+5. **Python via `uv` :** Préféré dès qu'un écosystème tiers plus large (PyTorch, HuggingFace, NumPy, pandas) est incontournable pour le cas d'usage.
+
+---
+
+## 4. Exposition & Protocoles Modulaires
+
+Chaque fonctionnalité de la CLI `yolo` est conçue pour être exposée via quatre protocoles complémentaires :
+
+### 1. CLI Entrypoint
+- Exécutable autonome ou script repo `./bin/yolo`.
+- Formatage adaptatif : terminal couleur ANSI pour l'humain, `--json` et `--md` pour les agents IA.
+
+### 2. MCP (Model Context Protocol 2024-11-05)
+- Commande `yolo mcp`.
+- Serveur stdio JSON-RPC 2.0 natif zéro dépendance npm.
+- Expose le catalogue d'outils aux agents IA (Antigravity, Claude Code, Gemini CLI, etc.) :
+  - `yolo_verify` : exécution parallèle des quality gates.
+  - `yolo_status` : état des submodules, crates vendored et Cargo workspace.
+  - `yolo_scan` : scan récursif rapide (lignes, octets, wyhash).
+  - `yolo_parse` : analyse AST, imports, exports et checksum.
+  - `yolo_bench` : micro-benchmarks wyhash, crc32, stringWidth.
+  - `yolo_doctor` : diagnostic toolchain et runtime.
+  - `yolo_host_space` : mesure d'espace disque avec déduplication d'inodes.
+
+### 3. API / REST / OpenAPI 3.1
+- Commande `yolo api [--port N] [--host H]`.
+- Serveur HTTP haute performance sous `Bun.serve` avec support CORS.
+- Endpoints REST : `/health`, `/api/status`, `/api/verify`, `/api/parse`, `/api/bench`, `/api/doctor`, `/api/scan`, `/api/tools`, `/api/openapi.json`.
+
+### 4. FFI (Foreign Function Interface)
+- Couche `packages/runtime` (`@aphrody/runtime-sdk`) interfacée avec `crates/yolo-runtime` via `bun:ffi`.
+- C ABI versionné (`EXPECTED_ABI_MAJOR = 1`, `EXPECTED_ABI_MINOR = 4`).
+- Zéro dépendance d'en-tête externe, gestion stricte des lifetimes et panic boundaries.
