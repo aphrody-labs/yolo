@@ -61,7 +61,7 @@ EOF
 say "cargo addons (locked): sccache cargo-nextest cargo-deny"
 for crate in sccache cargo-nextest cargo-deny; do
   bin=${crate#cargo-}; [ "$crate" = sccache ] && bin=sccache
-  command -v "$crate" >/dev/null || command -v "$bin" >/dev/null || cargo install --locked "$crate"
+  command -v "$crate" >/dev/null || command -v "$bin" >/dev/null || RUSTC_WRAPPER= cargo install --locked "$crate"
 done
 
 grep -q BUN_BUILD_CACHE_DIR "$HOME/.profile" 2>/dev/null || cat >> "$HOME/.profile" <<EOF

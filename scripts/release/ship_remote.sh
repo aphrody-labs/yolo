@@ -11,6 +11,7 @@ step() { status "running: $1"; echo "=== $1 ($(date -u +%FT%TZ))"; shift; "$@" |
 cd "$ws" || exit 1
 step "toolchain bootstrap" bash "$ws/scripts/release/bootstrap_remote.sh"
 export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:/usr/lib/llvm-${YOLO_LLVM:-23}/bin:$PATH"
+command -v sccache >/dev/null && export RUSTC_WRAPPER=sccache
 step "bun install" bun install --frozen-lockfile
 step "check (types, lint, format, clippy)" just check
 step "tests (bun + nextest)" just test-all
