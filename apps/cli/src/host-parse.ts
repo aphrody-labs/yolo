@@ -6,7 +6,7 @@
  * is the plain output of one standard tool (lsblk, df, swapon, systemctl, ps, ss, ...).
  */
 
-import { MIN_FREE_RATIO, spaceGate } from "./host-space";
+import { DEFAULT_MIN_FREE, spaceGate } from "./host-space";
 
 export type HostName = "vps" | "dbfr" | "local";
 
@@ -907,7 +907,7 @@ export interface Finding {
 }
 
 /** Readable findings derived from an audit, most severe first. */
-export function analyze(a: Audit): Finding[] {
+export function analyze(a: Audit, minFree: number = DEFAULT_MIN_FREE): Finding[] {
   const out: Finding[] = [];
   const add = (f: Finding): number => out.push(f);
 
@@ -918,7 +918,7 @@ export function analyze(a: Audit): Finding[] {
     const key = `${fs.filesystem}:${fs.sizeBytes}:${fs.usedBytes}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const floor = spaceGate(fs.sizeBytes, fs.availBytes, MIN_FREE_RATIO);
+    const floor = spaceGate(fs.sizeBytes, fs.availBytes, minFree);
     if (!floor.ok) {
       const base = fs.mount === "/" ? "/" : `${fs.mount}/`;
       const picked: string[] = [];
@@ -936,8 +936,8 @@ export function analyze(a: Audit): Finding[] {
       add({
         id: `free-floor:${fs.mount}`,
         severity: "critical",
-        title: `${fs.mount} keeps ${(floor.freeRatio * 100).toFixed(0)}% free, below the ${(MIN_FREE_RATIO * 100).toFixed(0)}% floor`,
-        detail: `${fmtBytes(floor.shortfallBytes)} must still be freed; yolo ship refuses to build below the floor`,
+        title: `${fs.mount} keeps ${(floor.freeRatio * 100).toFixed(0)}% free, below the ${(minFree * 100).toFixed(0)}% floor`,
+        detail: `${fmtBytes(floor.shortfallBytes)} must still be freed; yolo ship refuses to build below the floor (--min-free, YOLO_MIN_FREE or [space] min_free change it)`,
         action:
           picked.length > 0
             ? `yolo host space ${picked.join(" ")} --host ${a.host} --fs ${fs.mount}  (what deleting them really frees, hard links included)`

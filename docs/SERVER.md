@@ -98,13 +98,25 @@ floor on the result: free >= ceil(total x ratio), in integer arithmetic. The fun
 and the shenron case, and a real run on hard-linked files gave 9.5 MiB freed and 47.7 MiB kept for a copy that
 shared 50 MB with a live one, matching `du`.
 
-The floor is enforced in two places and has no override flag: `yolo host audit` raises a critical
-`free-floor:<mount>` finding for every real filesystem below 50 % free, whose action is the ready-to-run
-`yolo host space` command for the three largest non-nested directories on that filesystem; `yolo ship --apply`
-probes the free space of the build host's workspace filesystem first (walking up to the nearest existing parent) and
-exits 3 below the floor, or when the probe cannot be read. Checked on the real vps after the cleanup (89 % free:
-no finding) and in `test/host.test.ts` / `test/host-space.test.ts`; the refusal of `ship` itself was not run
-against a real full disk.
+The floor is a variable, not a constant (the first version fixed it at 50 %, which was only meant to be temporary).
+It is resolved in this order, and an invalid value is an error, never a silent fall-through to a laxer source:
+`--min-free` (`0.3`, `30` or `30%`), the `YOLO_MIN_FREE` environment variable, `[space] min_free` of
+`host-policy.toml` (a `[hosts.<name>.space]` table overrides it for one host), then the built-in 0.2, which is also
+the point where `audit` already warned. It is enforced in two places: `yolo host audit` raises a critical
+`free-floor:<mount>` finding for every real filesystem below it, whose action is the ready-to-run `yolo host space`
+command for the three largest non-nested directories of that filesystem; `yolo ship --apply` probes the free space
+of the build host's workspace filesystem first (walking up to the nearest existing parent) and exits 3 below the
+floor, or when the probe cannot be read.
+
+`host space` scans recursively and concurrently, with no human step: directories down to `--depth` levels
+(`split_depth`, default 2) become independent `find` runs, the loose files of each level are batched, and one
+limiter bounds the commands in flight (`--parallel`, `parallel`, default 8). Records are merged by (device, inode),
+so the answer equals a single `find`'s; `test/host-space.test.ts` checks that on a real tree with hard links across
+sibling subtrees at depths 0, 1, 2 and 5 and parallelism 1 and 4, and that the limiter never exceeds its limit.
+Measured on 79 000 files with a warm cache on this machine (16 CPUs): about 200 ms serial, about 120 ms with
+parallel 8 and depth 2 (1.7x), and about 340 ms with parallel 16 and depth 3 because each command's start-up then
+dominates; identical results. The remote case, where one command costs an ssh round trip, was not measured. The
+refusal of `ship` itself was not run against a really full disk.
 
 Two operating facts from the same cleanup, not enforced by code: reformatting a disk that only holds a copy takes
 seconds where `rm -rf` takes hours (the 193 GiB backup disk: about 56 s for wipe and mkfs), and splitting a

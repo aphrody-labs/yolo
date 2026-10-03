@@ -60,7 +60,13 @@ import {
   removalRefusals,
   isDatabasePath,
 } from "./host-safety";
-import { estimateReclaim, parseDfSizeAvail, parseFindLinks, spaceGate } from "./host-space";
+import {
+  estimateReclaim,
+  parseDfSizeAvail,
+  resolveMinFree,
+  scanLinks,
+  spaceGate,
+} from "./host-space";
 
 export const HOSTS: readonly HostName[] = ["vps", "dbfr", "local"];
 export const HOST_COMMANDS = [
@@ -2352,6 +2358,8 @@ const VALUE_FLAGS = new Set([
   "stamp",
   "min-free",
   "fs",
+  "parallel",
+  "depth",
 ]);
 
 export function parseFlags(args: readonly string[]): Flags {
@@ -2386,7 +2394,8 @@ const HELP = `Usage: yolo host <command> --host vps|dbfr|local [options]
   mount <device>        Read-only by default; --rw needs --i-know-this-is-a-backup; --fstab adds a nofail entry
   journal               What --apply did (var/host/<host>/journal.jsonl); --tail N, --json
   space <path..>        What deleting these paths really frees (hard-link aware) and whether the disk keeps
-                        --min-free RATIO (default 0.5, on --fs MOUNT, default /); read-only, --sudo, --json
+                        --min-free RATIO (variable: flag, YOLO_MIN_FREE, [space] min_free, default 0.2) on --fs MOUNT (default /);
+                        scanned recursively and in parallel (--parallel N, --depth N); read-only, --sudo, --json
 
 Every command is a plan unless --apply is given. --policy FILE selects another host-policy.toml.
 Mutations are refused while a build lock is held. Nothing is ever formatted or wiped.`;
@@ -2474,7 +2483,14 @@ export async function runHostCommand(
         return 0;
       }
       const a = await collect(transport, policy);
-      const findings = analyze(a);
+      const findings = analyze(
+        a,
+        resolveMinFree({
+          flag: one("min-free"),
+          env: process.env["YOLO_MIN_FREE"],
+          policy: policy.space.minFree,
+        }),
+      );
       const plan = planReclaim(a, policy, host);
       const suggestions = archiveSuggestions(a, policy, host);
       if (json)
@@ -2538,31 +2554,58 @@ export async function runHostCommand(
     if (sub === "space") {
       if (f.positional.length === 0) {
         console.error(
-          "Usage: yolo host space <path..> --host H [--min-free 0.5] [--fs /] [--sudo] [--json]",
+          "Usage: yolo host space <path..> --host H [--min-free R] [--fs /] [--parallel N] [--depth N] [--sudo] [--json]",
         );
         return 2;
       }
-      const minFree = Number(one("min-free") ?? 0.5);
+      let minFree: number;
+      try {
+        minFree = resolveMinFree({
+          flag: one("min-free"),
+          env: process.env["YOLO_MIN_FREE"],
+          policy: policy.space.minFree,
+        });
+      } catch (e) {
+        console.error((e as Error).message);
+        return 2;
+      }
       const fs = one("fs") ?? "/";
-      const sudo = has("sudo") ? "sudo -n " : "";
-      const paths = f.positional.map(sq).join(" ");
-      const found = await transport.exec(
-        `${sudo}timeout 300 nice -n 19 ionice -c3 find ${paths} -xdev -type f -printf '%D %i %n %b\\n' 2>/dev/null`,
-        330,
-      );
+      const parallel = Math.max(1, Number(one("parallel") ?? policy.space.parallel));
+      const depth = Math.max(0, Number(one("depth") ?? policy.space.splitDepth));
+      const scanStart = performance.now();
+      const links = await scanLinks(f.positional, {
+        run: async (cmd) =>
+          (await transport.exec(`timeout 300 nice -n 19 ionice -c3 ${cmd}`, 330)).stdout,
+        depth,
+        parallel,
+        sudo: has("sudo"),
+      });
+      const scanMs = Math.round(performance.now() - scanStart);
       const df = await transport.exec(`df -B1 --output=size,avail -- ${sq(fs)}`, 30);
       if (df.code !== 0) {
         console.error(`df ${fs} failed: ${df.stderr.trim()}`);
         return 1;
       }
-      const est = estimateReclaim(parseFindLinks(found.stdout));
+      const est = estimateReclaim(links);
       const { totalBytes, freeBytes } = parseDfSizeAvail(df.stdout);
       const before = spaceGate(totalBytes, freeBytes, minFree);
       const after = spaceGate(totalBytes, freeBytes + est.freedBytes, minFree);
       if (json) {
         out(
           JSON.stringify(
-            { host, fs, totalBytes, freeBytes, minFree, estimate: est, before, after },
+            {
+              host,
+              fs,
+              totalBytes,
+              freeBytes,
+              minFree,
+              parallel,
+              depth,
+              scanMs,
+              estimate: est,
+              before,
+              after,
+            },
             null,
             2,
           ),
@@ -2571,7 +2614,10 @@ export async function runHostCommand(
         out(
           table([
             ["paths", f.positional.join(" ")],
-            ["links found", `${est.inodes} inodes, ${fmtBytes(est.naiveBytes)} summed per name`],
+            [
+              "links found",
+              `${est.inodes} inodes, ${fmtBytes(est.naiveBytes)} summed per name (${scanMs} ms, ${parallel} parallel, depth ${depth})`,
+            ],
             ["unique bytes", fmtBytes(est.uniqueBytes)],
             [
               "really freed",

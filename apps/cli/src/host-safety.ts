@@ -386,6 +386,12 @@ export interface Policy {
     readonly cacheDirs: readonly string[];
     readonly swapFileGlobs: readonly string[];
   };
+  /** `yolo host space` and the build gate: free-space floor (a variable, see resolveMinFree) and scan shape */
+  readonly space: {
+    readonly minFree: number;
+    readonly parallel: number;
+    readonly splitDepth: number;
+  };
   readonly tune: {
     readonly nginxWorkers: string;
     readonly governor: string;
@@ -448,6 +454,7 @@ export const DEFAULT_POLICY: Policy = {
     cacheDirs: ["~/.cache/pip", "~/.cache/thumbnails", "~/.npm/_logs"],
     swapFileGlobs: ["/swapfile*", "/swap.img", "/var/swapfile*"],
   },
+  space: { minFree: 0.2, parallel: 8, splitDepth: 2 },
   tune: { nginxWorkers: "auto", governor: "performance", thp: "madvise", swappiness: 10 },
 };
 
@@ -476,6 +483,7 @@ export function parsePolicy(toml: string | null, host: string): Policy {
     const svc = (layer["services"] ?? {}) as Json;
     const rec = (layer["reclaim"] ?? {}) as Json;
     const tune = (layer["tune"] ?? {}) as Json;
+    const space = (layer["space"] ?? {}) as Json;
     const locks = (layer["locks"] ?? {}) as Json;
     const n = (v: unknown, d: number): number => (typeof v === "number" && v >= 0 ? v : d);
     const s = (v: unknown, d: string): string => (typeof v === "string" ? v : d);
@@ -501,6 +509,12 @@ export function parsePolicy(toml: string | null, host: string): Policy {
         excludeNames: merge(p.reclaim.excludeNames, rec["exclude_names"]),
         cacheDirs: merge(p.reclaim.cacheDirs, rec["cache_dirs"]),
         swapFileGlobs: merge(p.reclaim.swapFileGlobs, rec["swap_file_globs"]),
+      },
+      space: {
+        minFree: ((v: unknown, d: number): number =>
+          typeof v === "number" && v >= 0 && v <= 1 ? v : d)(space["min_free"], p.space.minFree),
+        parallel: Math.max(1, Math.floor(n(space["parallel"], p.space.parallel))),
+        splitDepth: Math.floor(n(space["split_depth"], p.space.splitDepth)),
       },
       tune: {
         nginxWorkers: s(tune["nginx_workers"], p.tune.nginxWorkers),

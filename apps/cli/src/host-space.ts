@@ -98,8 +98,41 @@ export function parseDfSizeAvail(text: string): { totalBytes: number; freeBytes:
   throw new Error("df output has no size/avail line");
 }
 
-/** The owner's floor: below this free ratio on the build host, no new work on yolo (no override flag by design). */
-export const MIN_FREE_RATIO = 0.5;
+/**
+ * Built-in free-space floor, used only when nothing else says otherwise. The floor is a variable: resolveMinFree
+ * takes `--min-free`, then `YOLO_MIN_FREE`, then `[space] min_free` of host-policy.toml (per host), then this.
+ */
+export const DEFAULT_MIN_FREE = 0.2;
+
+/** "0.3", "30" (percent when > 1) and "30%" all mean 30 %. Returns null for anything that is not a ratio in [0, 1]. */
+export function parseRatio(text: string | number | undefined | null): number | null {
+  if (text === undefined || text === null || text === "") return null;
+  const raw = typeof text === "number" ? text : Number(String(text).trim().replace(/%$/, ""));
+  if (!Number.isFinite(raw)) return null;
+  const pct = typeof text === "string" && text.trim().endsWith("%");
+  const ratio = pct || raw > 1 ? raw / 100 : raw;
+  return ratio >= 0 && ratio <= 1 ? ratio : null;
+}
+
+/** First valid source wins; a value that is present but invalid is an error, never silently skipped. */
+export function resolveMinFree(sources: {
+  flag?: string | undefined;
+  env?: string | undefined;
+  policy?: number | undefined;
+}): number {
+  for (const [name, value] of [
+    ["--min-free", sources.flag],
+    ["YOLO_MIN_FREE", sources.env],
+    ["[space] min_free", sources.policy],
+  ] as const) {
+    if (value === undefined || value === "") continue;
+    const r = parseRatio(value);
+    if (r === null)
+      throw new Error(`${name}: "${value}" is not a ratio between 0 and 1 (or 0 and 100 %)`);
+    return r;
+  }
+  return DEFAULT_MIN_FREE;
+}
 
 /** `df` of the filesystem that holds `path`, walking up to the nearest existing parent (the path may not exist yet). */
 export function diskProbeCommand(path: string): string {
@@ -115,7 +148,7 @@ export interface DiskDecision {
 /** Decide from the stdout of {@link diskProbeCommand}; an unreadable probe refuses, it never assumes free space. */
 export function diskDecision(
   probeStdout: string | null,
-  minFreeRatio: number = MIN_FREE_RATIO,
+  minFreeRatio: number = DEFAULT_MIN_FREE,
 ): DiskDecision {
   if (probeStdout === null)
     return { ok: false, message: "cannot read the free space of the build host" };
@@ -133,4 +166,91 @@ export function diskDecision(
         ok: false,
         message: `${pct} % free is below the ${(minFreeRatio * 100).toFixed(0)} % floor (short by ${Math.ceil(g.shortfallBytes / 1024 ** 3)} GiB)`,
       };
+}
+
+// ---------------------------------------------------------------------------------- parallel recursive scan
+
+/** Counting semaphore with direct hand-off: at most `limit` tasks run at once, FIFO, no slot is ever skipped. */
+export function limiter(limit: number): <T>(task: () => Promise<T>) => Promise<T> {
+  const max = Math.max(1, Math.floor(limit));
+  let active = 0;
+  const waiting: (() => void)[] = [];
+  return async <T>(task: () => Promise<T>): Promise<T> => {
+    if (active >= max) await new Promise<void>((resolve) => waiting.push(resolve));
+    else active++;
+    try {
+      return await task();
+    } finally {
+      const next = waiting.shift();
+      if (next !== undefined) next();
+      else active--;
+    }
+  };
+}
+
+const quote = (v: string): string => `'${v.replaceAll("'", `'\\''`)}'`;
+
+export interface ScanOptions {
+  /** runs one shell command and returns its stdout (ssh exec on a remote host, sh -c locally) */
+  readonly run: (command: string) => Promise<string>;
+  /** how many directory levels are split into independent scans (0 = one `find` per path) */
+  readonly depth: number;
+  /** concurrent commands in flight, shared by the whole recursion */
+  readonly parallel: number;
+  readonly sudo?: boolean;
+  /** file names per `find` when a directory's loose files are batched */
+  readonly batch?: number;
+}
+
+/**
+ * Link records under `paths`, scanned recursively and concurrently: directories down to `depth` levels become
+ * independent scans, the loose files of each level are batched, and one limiter bounds the commands in flight.
+ * The records are the same multiset a single `find` would print, so estimateReclaim gives the same answer: an
+ * inode seen through several subtrees is merged by (device, inode), not by path.
+ */
+export async function scanLinks(paths: readonly string[], o: ScanOptions): Promise<LinkRecord[]> {
+  const gate = limiter(o.parallel);
+  const sh = (command: string): Promise<string> => gate(() => o.run(command));
+  const pre = o.sudo === true ? "sudo -n " : "";
+  const batch = Math.max(1, o.batch ?? 200);
+  const links = (args: string): string =>
+    `${pre}find ${args} -xdev -type f -printf '%D %i %n %b\\n' 2>/dev/null || true`;
+
+  async function files(names: readonly string[]): Promise<LinkRecord[]> {
+    const chunks: string[][] = [];
+    for (let i = 0; i < names.length; i += batch) chunks.push(names.slice(i, i + batch));
+    const parts = await Promise.all(
+      chunks.map(async (c) =>
+        parseFindLinks(await sh(links(`${c.map(quote).join(" ")} -maxdepth 0`))),
+      ),
+    );
+    return parts.flat();
+  }
+
+  async function walk(path: string, depth: number): Promise<LinkRecord[]> {
+    if (depth <= 0) return parseFindLinks(await sh(links(quote(path))));
+    const listing = await sh(
+      `${pre}find ${quote(path)} -mindepth 1 -maxdepth 1 -xdev -printf '%y\\t%p\\n' 2>/dev/null || true`,
+    );
+    const dirs: string[] = [];
+    const loose: string[] = [];
+    for (const line of listing.split("\n")) {
+      const tab = line.indexOf("\t");
+      if (tab < 0) continue;
+      (line.slice(0, tab) === "d" ? dirs : loose).push(line.slice(tab + 1));
+    }
+    const parts = await Promise.all([...dirs.map((d) => walk(d, depth - 1)), files(loose)]);
+    return parts.flat();
+  }
+
+  const roots = await Promise.all(
+    paths.map(async (path) => {
+      const kind = (
+        await sh(`${pre}find ${quote(path)} -maxdepth 0 -printf '%y' 2>/dev/null || true`)
+      ).trim();
+      if (kind === "d") return walk(path, o.depth);
+      return kind === "" ? [] : files([path]);
+    }),
+  );
+  return roots.flat();
 }

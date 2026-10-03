@@ -10,7 +10,8 @@
  * `aphrody-workspace` (workspace gates). Heavy builds run on the host declared in the Aphrody
  * `config/build-factory.json`, behind its heavy lock; secrets stay on that host.
  */
-import { diskDecision, diskProbeCommand } from "./host-space";
+import { diskDecision, diskProbeCommand, resolveMinFree } from "./host-space";
+import { parsePolicy } from "./host-safety";
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -352,7 +353,23 @@ async function runShip(args: readonly string[], yoloRoot: string): Promise<numbe
     return 0;
   }
   const probe = await sshCapture(host, diskProbeCommand(factory.workspaceRoot), 60);
-  const disk = diskDecision(probe.code === 0 ? probe.stdout : null);
+  const policyFile = join(yoloRoot, "host-policy.toml");
+  const policy = parsePolicy(
+    existsSync(policyFile) ? readFileSync(policyFile, "utf8") : null,
+    host,
+  );
+  let minFree: number;
+  try {
+    minFree = resolveMinFree({
+      flag: flag("--min-free"),
+      env: process.env["YOLO_MIN_FREE"],
+      policy: policy.space.minFree,
+    });
+  } catch (e) {
+    console.error(`yolo ship: ${(e as Error).message}`);
+    return 2;
+  }
+  const disk = diskDecision(probe.code === 0 ? probe.stdout : null, minFree);
   if (!disk.ok) {
     console.error(
       `yolo ship refused: ${host}: ${disk.message}. Free space first (yolo host space <paths> --host ${host}), then retry.`,

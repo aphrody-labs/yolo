@@ -708,10 +708,16 @@ describe("probe parsers", () => {
 
 describe("free-space floor finding", () => {
   it("is critical below 50 % free and names the space command with the largest non-nested paths", () => {
-    const f = analyze(audit()).find((x) => x.id === "free-floor:/mnt/backup");
+    const f = analyze(audit(), 0.5).find((x) => x.id === "free-floor:/mnt/backup");
     expect(f?.severity).toBe("critical");
     expect(f?.action).toContain("yolo host space");
     expect(f?.action).toContain("--host vps --fs /mnt/backup");
+  });
+
+  it("follows the floor it is given: 93 % full is below 20 % free, a 1 % floor is met", () => {
+    const a = audit();
+    expect(analyze(a, 0.2).some((x) => x.id === "free-floor:/mnt/backup")).toBe(true);
+    expect(analyze(a, 0.01).some((x) => x.id === "free-floor:/mnt/backup")).toBe(false);
   });
 
   it("disappears once every filesystem keeps more than half free", () => {
@@ -724,7 +730,7 @@ describe("free-space floor finding", () => {
         usePercent: 40,
       })),
     };
-    expect(analyze(roomy).some((x) => x.id.startsWith("free-floor:"))).toBe(false);
+    expect(analyze(roomy, 0.5).some((x) => x.id.startsWith("free-floor:"))).toBe(false);
   });
 });
 

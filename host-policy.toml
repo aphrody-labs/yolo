@@ -16,6 +16,14 @@ paths = []
 # Extra trees only reachable through `yolo host archive` (the build factory cache and artifacts are added for its host).
 paths = []
 
+[space]
+# Free-space floor of `yolo host audit` and `yolo ship` (ratio 0..1). A variable: --min-free and YOLO_MIN_FREE win
+# over this value, a [hosts.<name>.space] table wins over it for one host.
+min_free = 0.2
+# `yolo host space`: commands in flight, and how many directory levels are scanned as independent subtrees.
+parallel = 8
+split_depth = 2
+
 [reclaim]
 build_artifact_min_age_days = 7
 journal_max_size = "500M"
