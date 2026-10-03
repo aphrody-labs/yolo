@@ -121,3 +121,53 @@ describe("yolo create", () => {
     expect(toIdent("2fast")).toBe("app_2fast");
   });
 });
+
+describe("distribution", () => {
+  it("keeps VERSION, the stack manifest and the installers consistent", async () => {
+    const version = readFileSync(join(rootDir, "VERSION"), "utf8").trim();
+    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+    const installer = readFileSync(join(rootDir, "install.sh"), "utf8");
+    for (const variable of [
+      "YOLO_VERSION",
+      "YOLO_HOME",
+      "YOLO_REPO",
+      "YOLO_RELEASE_DIR",
+      "GITHUB_TOKEN",
+    ]) {
+      expect(installer).toContain(variable);
+    }
+    expect(installer).toContain("SHA256SUMS");
+    expect(readFileSync(join(rootDir, "install.ps1"), "utf8")).toContain("Get-FileHash");
+    // every supported target of the SDK has a CI job in the release workflow
+    const { SUPPORTED_TARGETS } = await import("../sdk/runtime/src/artifact");
+    const workflow = readFileSync(join(rootDir, ".github/workflows/release.yml"), "utf8");
+    for (const target of Object.values(SUPPORTED_TARGETS)) expect(workflow).toContain(target);
+  });
+
+  it("installs from a local release directory into an isolated home (when a release was built)", async () => {
+    const version = readFileSync(join(rootDir, "VERSION"), "utf8").trim();
+    const release = join(rootDir, "dist/release", version);
+    if (!existsSync(join(release, "SHA256SUMS"))) return; // built by `bun run scripts/release.ts`
+    const home = join(sandbox, "install-home");
+    const proc = Bun.spawn(["sh", join(rootDir, "install.sh")], {
+      env: {
+        ...process.env,
+        HOME: home,
+        YOLO_RELEASE_DIR: release,
+        YOLO_NO_MODIFY_PATH: "1",
+        YOLO_NO_CRATES: "1",
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const output = await new Response(proc.stdout).text();
+    expect(await proc.exited).toBe(0);
+    expect(output).toContain(`yolo ${version}`);
+    const doctor = Bun.spawn([join(home, ".yolo/bin/yolo"), "doctor"], {
+      env: { ...process.env, HOME: home, YOLO_HOME: join(home, ".yolo") },
+      stdout: "pipe",
+    });
+    expect(await new Response(doctor.stdout).text()).toContain("verified and loadable");
+    expect(await doctor.exited).toBe(0);
+  });
+});

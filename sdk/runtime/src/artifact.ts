@@ -32,9 +32,10 @@ export function hostTarget(): string {
 
 export function runtimeHome(): string {
   const fromEnv = process.env["YOLO_RUNTIME_HOME"];
-  return fromEnv !== undefined && fromEnv !== ""
-    ? resolve(fromEnv)
-    : join(homedir(), ".yolo", "runtime");
+  if (fromEnv !== undefined && fromEnv !== "") return resolve(fromEnv);
+  const home = process.env["YOLO_HOME"];
+  if (home !== undefined && home !== "") return join(resolve(home), "runtime");
+  return join(homedir(), ".yolo", "runtime");
 }
 
 export interface ArtifactManifest {
@@ -43,6 +44,7 @@ export interface ArtifactManifest {
   readonly version: string;
   readonly target: string;
   readonly abi: string;
+  readonly toolchain?: string;
   readonly compatibility: { readonly abiMajor: number };
   readonly files: Readonly<Record<string, { readonly sha256: string; readonly bytes: number }>>;
   readonly capabilities: readonly string[];

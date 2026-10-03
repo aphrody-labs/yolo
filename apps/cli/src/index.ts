@@ -16,10 +16,12 @@ import { existsSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { runAwesomeCommand } from "./awesome";
 import { runCreateCommand } from "./create";
+import { runDoctor, runRuntimeCommand, runUninstall, runUpgrade, runVersion } from "./distribution";
+import { isCompiled, yoloHome } from "./home";
 import { runImportCommand } from "./import";
 import { runRenameCommand } from "./rename";
 
-const ROOT_DIR = resolve(import.meta.dir, "../../..");
+const ROOT_DIR = yoloHome();
 const PACKAGES_DIR = resolve(ROOT_DIR, "packages");
 
 export interface SubmoduleStatus {
@@ -432,6 +434,9 @@ ${header}
   \x1b[32mgenerate\x1b[0m            Autonomously scan upstream Bun and generate code & capability catalogs
   \x1b[32mparse <file>\x1b[0m        Fast AST & token analysis via Bun file streaming + wyhash
   \x1b[32mdocs [query]\x1b[0m        Search or inspect version-matched Bun documentation in packages/bun/docs
+  \x1b[32mversion | doctor\x1b[0m       Installed version, target; check the installation (runtime verified and loadable)
+  \x1b[32mruntime install|list|verify|rollback|info\x1b[0m  Manage installed runtime artifacts
+  \x1b[32mupgrade [--check]\x1b[0m     Install the latest release; \x1b[32muninstall [--yes]\x1b[0m removes ~/.yolo
   \x1b[32mcreate <dir> [--with web,desktop]\x1b[0m Scaffold an Aphrody stack project (Bun + runtime SDK + Tauri) from stack/templates
   \x1b[32mawesome [stats|list|search|github|check]\x1b[0m Browse aphrody-labs/awesome-bun (README cached, no clone)
   \x1b[32mimport [--apply|--check]\x1b[0m Vendor the fork crates into crates/aphrody-* (see vendor.toml)
@@ -447,7 +452,25 @@ ${header}
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  const command = args[0] || "status";
+  const command = args[0] || (isCompiled() ? "help" : "status");
+
+  // Source-tree commands need a checkout; the installed executable carries the distribution ones.
+  const CHECKOUT_ONLY = new Set([
+    "status",
+    "generate",
+    "web",
+    "desktop",
+    "tauri",
+    "docs",
+    "import",
+    "rename",
+  ]);
+  if (isCompiled() && CHECKOUT_ONLY.has(command)) {
+    console.error(
+      `\`yolo ${command}\` works on a yolo checkout: run it with \`bun run cli ${command}\` there.`,
+    );
+    process.exit(1);
+  }
 
   switch (command) {
     case "status": {
@@ -624,6 +647,28 @@ async function main(): Promise<void> {
       }
       break;
     }
+
+    case "version":
+    case "--version":
+    case "-v":
+      process.exitCode = runVersion();
+      break;
+
+    case "doctor":
+      process.exitCode = runDoctor();
+      break;
+
+    case "runtime":
+      process.exitCode = await runRuntimeCommand(args.slice(1));
+      break;
+
+    case "upgrade":
+      process.exitCode = await runUpgrade(args.slice(1));
+      break;
+
+    case "uninstall":
+      process.exitCode = runUninstall(args.slice(1));
+      break;
 
     case "create": {
       process.exitCode = await runCreateCommand(args.slice(1), ROOT_DIR);

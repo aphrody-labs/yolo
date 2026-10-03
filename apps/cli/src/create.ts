@@ -33,7 +33,7 @@ export async function loadStack(rootDir: string): Promise<StackManifest> {
 }
 
 const TEXT_FILE =
-  /\.(json|ts|tsx|js|toml|md|html|css|rs|yml|yaml|txt)$|(^|\/)(gitignore|\.gitignore)$/;
+  /\.(json|ts|tsx|js|toml|md|html|css|rs|yml|yaml|txt|sh|service)$|(^|\/)(gitignore|\.gitignore|Dockerfile)$/;
 
 function walk(dir: string, base = dir, acc: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

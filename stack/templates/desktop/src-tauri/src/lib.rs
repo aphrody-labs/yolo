@@ -1,8 +1,17 @@
-use yolo_core::{SystemStats, current_system_stats};
+use serde::Serialize;
+
+#[derive(Serialize)]
+struct SystemStats {
+  os: &'static str,
+  arch: &'static str,
+}
 
 #[tauri::command]
 fn system_stats() -> SystemStats {
-  current_system_stats()
+  SystemStats {
+    os: std::env::consts::OS,
+    arch: std::env::consts::ARCH,
+  }
 }
 
 #[tauri::command]

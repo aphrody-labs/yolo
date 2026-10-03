@@ -81,16 +81,19 @@ export function libraryFile(): string {
 
 /**
  * Resolution order: `$YOLO_RUNTIME_LIB`, the active installed artifact
- * (`$YOLO_RUNTIME_HOME/<target>/current`, see `artifact.ts`), then the local `target/runtime/`.
+ * (`$YOLO_RUNTIME_HOME` or `$YOLO_HOME/runtime`, default `~/.yolo/runtime`, `<target>/current`), then the local `target/runtime/`.
  */
 export function defaultLibraryPath(): string {
   const fromEnv = process.env["YOLO_RUNTIME_LIB"];
   if (fromEnv !== undefined && fromEnv !== "") return fromEnv;
-  const home = process.env["YOLO_RUNTIME_HOME"];
+  const runtimeHomeEnv = process.env["YOLO_RUNTIME_HOME"];
+  const yoloHome = process.env["YOLO_HOME"];
   const base =
-    home !== undefined && home !== ""
-      ? resolve(home)
-      : resolve(process.env["HOME"] ?? "", ".yolo/runtime");
+    runtimeHomeEnv !== undefined && runtimeHomeEnv !== ""
+      ? resolve(runtimeHomeEnv)
+      : yoloHome !== undefined && yoloHome !== ""
+        ? resolve(yoloHome, "runtime")
+        : resolve(process.env["HOME"] ?? process.env["USERPROFILE"] ?? "", ".yolo/runtime");
   const installed = resolve(base, installedTarget(), "current", libraryFile());
   if (existsSync(installed)) return installed;
   return resolve(import.meta.dir, "../../..", "target/runtime", libraryFile());

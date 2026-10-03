@@ -1,133 +1,72 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Yolo — unified native runtime producer plan
+# Yolo — plan: a native runtime that installs and deploys in one command
 
-Owner direction: 2026-10-03. Status: approved architecture direction; runtime
-implementation and performance claims remain unqualified.
+Owner direction, 2026-10-03 (revised the same day): remove the limits of the previous plan and design everything to
+be **deployable and installable with one command, like Bun**. The earlier plan treated publication, distribution and
+most phases as closed or unqualified; this one makes them the goal. A phase is finished when its acceptance
+command passes, nothing else is required to call it done.
 
-The [Aphrody master plan](../aphrody/PLAN.md) owns the cross-repository architecture.
-This plan owns producer deliverables and their gates. Keep one architectural
-source of truth rather than maintaining two independent full designs.
+The [Aphrody plan](../aphrody/PLAN.md) keeps the cross-repository architecture; this file owns what Yolo ships.
+[docs/DECISIONS.md](docs/DECISIONS.md) records the choices, [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) the mechanics.
 
-## Mission
+## What a user gets
 
-Build and distribute a precompiled native runtime based on the Bun fork, with
-Tauri desktop integration and Obscura headless capabilities. Aphrody consumes
-its light SDK and retains product logic. A product edit must eventually avoid
-recompiling Bun/JavaScriptCore, Tauri and the browser engine.
+```bash
+curl -fsSL https://github.com/aphrody-labs/yolo/releases/latest/download/install.sh | bash
+yolo create my-app && cd my-app && bun install && bun run dev      # server + runtime + web, supervised
+bun run build:bin && bun run pack:deploy                            # one archive, no Bun/Rust on the server
+```
 
-Deliver three coordinated surfaces: runtime artifacts per supported target,
-a lightweight SDK (TypeScript contracts, versioned C ABI, Rust adapter), and
-packaging/compatibility tools using existing owner infrastructure.
-A sources import, shared Cargo workspace or standalone binary does not alone
-prove this separation. JS packaging is not a claim of full ahead-of-time native
-compilation of all application JavaScript.
+- **One installed unit**: `~/.yolo` holds the `yolo` executable (Bun embedded), the verified native runtime artifact
+  with rollback, the SDK, the stack templates and the Rust sources for the desktop scaffold.
+- **One scaffold**: `yolo create` builds a Bun server (Rust-based Bun, `bun:sqlite`, SSE, native cancellable work),
+  optionally a Bun-bundled web page, a Tauri 3 desktop shell and a Hono/Elysia variant, all pinned by
+  `stack/stack.toml`.
+- **One deployable**: the server compiles to a single executable and packs with the runtime library, a launcher and a
+  systemd unit; a Dockerfile wraps the same archive.
+- **One update path**: `yolo upgrade`, `yolo runtime rollback`, `yolo doctor`, `yolo uninstall`.
 
-## Existing integration contracts to preserve
+## Layers
 
-The current Tauri import workflow is documented in [VENDORING](docs/VENDORING.md).
-Pinned submodules are source inputs; generated Tauri crates live in `crates/`.
-Keep Cargo package prefix `aphrody-`, upstream dependency keys and library/binary
-identities, `links`, plugin/permission IDs and platform identifiers compatible.
-Versions follow the actual imported crate; do not impose one alpha number on all.
+| Layer | Provider | Surface |
+| :--- | :--- | :--- |
+| Host | Bun fork (`packages/bun`), preload plugin | `runtime:*` modules, `bun build --compile` with the SDK bundler plugin |
+| Runtime | `crates/yolo-runtime` | Versioned C ABI 1.x: system, process supervision, HTTP probe, cancellable work |
+| SDK | `sdk/runtime` | `@aphrody/runtime-sdk`: loader with ABI negotiation, artifact verification, install/rollback |
+| Desktop | `crates/aphrody-*` (Tauri 3 alpha, wry, tao, plugins) | `yolo create --with desktop`; `runtime:desktop` |
+| Headless | Obscura (`packages/obscura`) | `runtime:browser` |
+| Distribution | `scripts/release*.ts`, `install.sh/.ps1`, release workflow | Assets for five targets, checksums, installers |
+| Consumers | Aphrody applications | Light SDK dependency, product logic stays in Aphrody |
 
-The `vendor` branch owns generated imports, `dev` owns integration changes and
-`main` represents the release line. Fork `main` mirrors upstream while fork
-`yolo` carries changes. Preserve reproducible import and three-way update behavior.
-Do not edit generated history by hand, force-push forks or change branches under
-another active task. Consult current tooling before running update commands.
+Engines (Bun, Obscura) keep their own build graphs and are combined at distribution level; every artifact that crosses
+the C ABI is built with an unwinding profile so panics become statuses. Names that are contracts (library names,
+dependency keys, `links`, permission and command ids) never change with the `aphrody-` package prefix.
 
-Bun and Obscura may retain their own build graphs/profiles. A unified distribution
-does not require merging every workspace. Do not lose unwind behavior needed by
-Obscura or assume a Cargo per-package panic override solves a unified executable.
+## Delivery
 
-## Native host and SDK
+| Phase | Deliverable | Acceptance |
+| :--- | :--- | :--- |
+| R0 | C ABI runtime, SDK, artifact packaging | `just runtime-test` |
+| R1 | Host: `runtime:system`, `runtime:process`, bundler plugin | `bun test tests/runtime_sdk.test.ts` |
+| R2 | Process supervision service and the agent-browser consumer patch | `docs/CONSUMERS.md` procedure, package tests green |
+| D0 | Standalone `yolo` executable, installer, release assets for the host | `YOLO_RELEASE_DIR=… sh install.sh && yolo doctor` |
+| D1 | Release workflow for five targets, merged assets, `yolo upgrade` | tag `vX.Y.Z` publishes the release; `yolo upgrade --check` |
+| D2 | Server deploy: compile, pack, run elsewhere | `bun run build:bin && bun run pack:deploy`, run the extracted archive |
+| R3 | Desktop adapter: windows, events, permissions, shutdown through `runtime:desktop` | pilot app opens a window and quits cleanly |
+| R4 | Headless variant with Obscura on its current engine | agent-browser consumer navigates, extracts, renders |
+| R5 | JavaScriptCore backend for Obscura | the browser suite passes on the new backend |
+| R6 | V8 removed from the promoted profile | consumer suites pass without V8 |
+| D3 | Desktop bundles (`.deb`, AppImage, `.msi`, `.dmg`) from the scaffold | `cargo tauri build` output installs and starts |
+| D4 | Crates and npm packages published under the `aphrody-*` / `@aphrody/*` names | `just publish-dry` clean, then published |
+| R8 | Measurements (startup, native-call latency, memory, build time) and signing | reproducible benchmark report per target |
 
-Bun owns application JS execution. Expose native capabilities through documented
-modules with errors, cancellation, events and explicit rights. Module names such
-as `runtime:desktop` are proposals, not currently supported APIs.
+Status is tracked by the acceptance commands, not by prose: R0, R1, R2 (patch), D0 and D2 pass on the development
+host (see [DISTRIBUTION](docs/DISTRIBUTION.md) for exactly what was run); D1 is written and runs in CI on a tag; the
+rest are the work queue, in this order: D1 on a first tag, R3, R4, D3, D4, R5/R6, R8.
 
-Use a versioned C ABI for external native consumers: opaque validated handles,
-explicit buffer ownership/free functions, structure sizes, capability negotiation,
-thread rules and callback lifetime. Keep engine-specific Rust/C++ types internal.
-A precompiled Rust rlib is not a stable independently versioned application ABI.
-Compile selected Tauri plugins into the runtime; do not promise arbitrary Rust
-plugins can be loaded without recompilation or an adapter.
+## Working rules
 
-Coordinate desktop main-thread requirements, JS context ownership and bounded
-native workers. Define backpressure, cancellation and orderly shutdown. Never
-unload native code while its callbacks or resources remain live.
-
-## Browser convergence
-
-First integrate Obscura with its existing JS backend. Prototype a JavaScriptCore
-backend from actual DOM/runtime requirements, including GC bindings, exceptions,
-microtasks, timers, modules, workers, interruption and teardown.
-Keep V8 until required consumer parity passes; record unsupported behavior.
-Headless pages must not inherit privileged Bun APIs.
-
-System WebViews retain their platform engines. Replacing them all with Obscura
-is a separate desktop-browser project, not a prerequisite for consumer build savings.
-
-## Shared services and failure boundaries
-
-Reuse existing owners for network, cookies/sessions, files, configuration, logs,
-secrets references and rendering where contracts match. Keep per-origin/session
-isolation; platform WebView transport may require a distinct backend.
-
-Convert recoverable errors across the native ABI. Preserve unwind where panic
-recovery requires it. JS contexts do not contain native memory corruption;
-optional isolated native workers serve explicit trust/fault boundaries.
-The default integration uses native capabilities, not shells around external CLIs.
-
-## Build, distribution and upstream
-
-Use existing Workspace/Infra build-factory workflows and supported owner commands.
-Produce a small supported set of server, headless and desktop variants rather
-than an uncontrolled feature matrix. Identify target, toolchain, source revisions,
-ABI, options, hashes and license notices for every artifact.
-
-Cache builds by actual inputs; preserve Cargo/sccache/Bun caches. Separate debug
-symbols and development tools. Apply LTO/PGO, deferred initialization and other
-optimizations after representative measurements. Keep runtime/application version
-compatibility checks and tested rollback in the packaging contract.
-
-Classify fork changes as integration, upstream fix, product capability or measured
-optimization. Keep imports mechanical and behavior changes explicit. Test upstream
-updates before promoting artifacts. Repositories remain private; package publication
-and production activation require their existing owner authorization.
-
-## Delivery sequence
-
-Every implementation gate below is open. Existing Tauri import progress does
-not automatically satisfy these new runtime gates.
-
-| Phase | Producer delivery | Gate with Aphrody |
-| --- | --- | --- |
-| R0 | Minimal versioned SDK/ABI and precompiled artifact | Light consumer calls a capability without engine builds |
-| R1 | Bun host native modules | Correct calls, errors, cancellation and cleanup |
-| R2 | First shared service | Consumer retires its corresponding heavy dependencies |
-| R3 | Desktop adapter | Pilot windows, events, permissions and shutdown |
-| R4 | Obscura with current backend | Required navigation, extraction and rendering |
-| R5 | Obscura JavaScriptCore prototype | Difficult operations run; gaps are recorded |
-| R6 | Required parity and V8 retirement | Required consumers pass on promoted backend |
-| R7 | Application migration support | Routine consumer builds depend on the light SDK |
-| R8 | Optimization and releases | Reproducible measures, supported targets, packaging and rollback |
-
-R3/R4 can advance independently after the foundation. R5/R6 do not block the
-first precompiled-runtime benefits. The first capability and the API names were decided on 2026-10-03,
-see [docs/DECISIONS.md](docs/DECISIONS.md); implementation proceeds one vertical slice at a time.
-
-## Evidence and completion
-
-Measure cold/warm/long-running startup, native-call latency, copies, queue depth,
-UI time, memory and retained resources. Compare equivalent functionality and
-profiles; do not invent percentage savings from architecture alone.
-
-Completion requires lighter consumer builds, explicit ownership and permissions,
-correct cancellation/teardown, compatible updates/rollback, precompiled supported
-targets, measured improvements and removal of obsolete qualified paths.
-
-This documentation batch changes no runtime implementation or Cargo profile.
-[MEMORY.md](MEMORY.md) records the direction; [AGENTS.md](AGENTS.md) governs work.
-The earlier [Aphrody Rust scan](docs/APHRODY-RUST-TAURI-OBSCURA-BUN.md) is lexical
-navigation only and does not prove effective Cargo profiles or resolved graphs.
+Heavy builds (Tauri, Obscura, V8, Bun) go through the Aphrody build factory; this repository builds the light runtime
+and the CLI locally. Imports of the forks stay reproducible (`vendor.toml`, `vendor.lock`, branch `vendor`). Releases are
+cut from `main` by tag; `dev` integrates. Commits are authored by `aphrody-dev` without assistant attribution. No
+speedup is stated without a reproducible measurement.

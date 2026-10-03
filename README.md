@@ -2,6 +2,16 @@
 
 Autonomous engineering workspace dedicated to maintaining Aphrody forks, upstream mirrors, TypeScript 7, and Oxc tooling under a 100% native Bun runtime.
 
+## Install
+
+```bash
+curl -fsSL https://github.com/aphrody-labs/yolo/releases/latest/download/install.sh | bash    # or: gh release download -R aphrody-labs/yolo -p install.sh -O - | bash
+yolo doctor && yolo create my-app && cd my-app && bun install && bun run dev
+```
+
+One installer, one `~/.yolo`, one scaffold, one deploy archive: see [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) and
+the [plan](PLAN.md).
+
 ## Monorepo Architecture (`crates/`, `packages/`, `apps/`)
 
 The repository operates as a unified **Cargo Workspace** and **Bun Workspace**:

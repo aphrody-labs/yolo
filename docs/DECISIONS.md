@@ -40,6 +40,16 @@ mechanically from the decision and is not claimed. None of this qualifies a phas
 | :--- | :--- | :--- |
 | D15 | **Vendoring scope is final.** 54 crates; the example apps, benchmark crates, migrate fixtures and `cef-rollback` are never vendored. Third-party crates named `tauri-*` (winit forks, winres, icns, winrt-notification) stay registry dependencies; they are forked only if a fix requires it. | Implemented |
 | D16 | **Branches.** `dev` is the integration branch; `main` receives `dev` once tests and the vendor check pass; `vendor` is generated only. Fork `main` mirrors upstream, fork `yolo` is ours. History carries no assistant attribution (rewritten on 2026-10-03, backups kept as `backup/*-pre-rewrite-2026-10-03`). | Implemented |
-| D17 | **Naming and publication.** Crates keep the `aphrody-` prefix and upstream versions. Nothing is published to crates.io or npm: repositories are private and publication needs owner authorization. `just publish-dry` is the only publication command run. | Decided |
+| D17 | **Naming and publication.** Crates keep the `aphrody-` prefix and upstream versions. GitHub releases are published from `main` by tag (owner authorization of 2026-10-03); crates.io and npm are published only on the owner's explicit run of `just publish-*-run`, because a registry publication cannot be undone. `just publish-dry` is the standing check. | Decided; releases implemented, registries pending |
 | D18 | **Licenses.** `deny.toml` allows permissive licenses plus `LGPL-2.0-or-later` (a transitive dependency, dynamically linked); no GPL entries are allowed. | Implemented |
 | D19 | **CI.** GitHub workflows cover the Bun checks, the Rust checks and the runtime artifact matrix. `import-check` stays local because the submodules use SSH URLs. | Implemented |
+
+## Distribution (2026-10-03, revises the earlier limits)
+
+| # | Decision | Status |
+| :--- | :--- | :--- |
+| D20 | **One installed unit.** `~/.yolo` (`YOLO_HOME`): `bin/yolo` (standalone, `bun build --compile`), verified runtime artifacts with `current`/`previous`, SDK, stack templates, Rust sources for the desktop scaffold. Install is one command (`install.sh` / `install.ps1`) that verifies SHA-256 and works for private repositories through `gh` or `GITHUB_TOKEN`. | Implemented, verified on linux-x64 |
+| D21 | **One deployable.** A scaffolded server compiles to one executable (`Bun.build` with `compile` and the SDK bundler plugin) and packs with the runtime library, `run.sh`, a systemd unit and a Dockerfile. | Implemented, verified on linux-x64 (Docker and systemd not run) |
+| D22 | **Release pipeline.** `VERSION` is the single version; a `vX.Y.Z` tag runs the five-target workflow and publishes `yolo-<version>-<target>.tar.gz`, `yolo-<version>-crates.tar.gz`, installers, `SHA256SUMS`, `release.json`. | Written; local single-target release verified |
+| D23 | **Phase completion is an acceptance command**, not a qualification ceremony (PLAN.md). | Decided |
+

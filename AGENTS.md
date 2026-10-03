@@ -7,7 +7,7 @@ Read [PLAN.md](PLAN.md), [MEMORY.md](MEMORY.md), [vendoring](docs/VENDORING.md)
 and [tooling](docs/TOOLING.md) for the selected task.
 Yolo produces the precompiled native runtime and SDK; Aphrody consumes them and
 keeps product logic. The architectural authority is [Aphrody PLAN](../aphrody/PLAN.md).
-Treat implementation gates as open until evidence qualifies them.
+A phase is done when its acceptance command in PLAN.md passes; state what was and was not run.
 
 This repository is distinct from the global YOLO automation plugin and the
 Aphrody `crates/infra/yolo` CLI. Naming does not authorize changes to either.
@@ -63,8 +63,9 @@ No claimed speedup or compatibility without reproducible evidence.
 ## Privacy and delivery
 
 Keep repositories private, source notices intact and secrets in existing private
-stores. Preserve datasets, models, databases and caches. Do not publish a package,
-architecture or deploy a release without the applicable owner authorization.
+stores. Preserve datasets, models, databases and caches. GitHub releases are cut from `main` by `vX.Y.Z` tag
+(owner authorization of 2026-10-03, see docs/DISTRIBUTION.md); package registries (crates.io, npm) are published only
+when the owner runs or asks for `just publish-*-run`, since a registry publication cannot be undone.
 Do not inspect or change `/home/aphro/aphrody-ui` without explicit UI scope.
 Use `aphrody-dev <contact@aphrody.com>` for author and committer; no assistant
 attribution, coauthor trailers or AI bots/apps added to repositories.
