@@ -337,6 +337,7 @@ fn every_exported_function_is_declared_in_the_c_header() {
     "yolo_process_read",
     "yolo_process_stop_start",
     "yolo_http_probe_start",
+    "ffi_sum_squares",
   ] {
     assert!(
       header.contains(&format!("{name}(")),

@@ -129,6 +129,9 @@ YoloStatus yolo_http_probe_start(YoloHandle runtime, const char *host, uint16_t 
 void yolo_buffer_free(YoloBuffer *buffer); /* zeroes the buffer; no-op if already empty */
 YoloStatus yolo_last_error(YoloBuffer *out); /* JSON {"message": "..."} of the calling thread */
 
+/* High-throughput zero-copy vector math FFI */
+double ffi_sum_squares(const double *ptr, size_t len);
+
 #ifdef __cplusplus
 }
 #endif
