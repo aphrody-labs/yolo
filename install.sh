@@ -97,13 +97,15 @@ mkdir -p "$HOME_DIR"
 mkdir -p "$TMP/main"
 tar -xzf "$TMP/$main_asset" -C "$TMP/main"
 # code and data are replaced; runtime artifact history (current/previous) is kept by `yolo runtime install`
-for part in bin sdk stack crates VERSION LICENSE; do
+for part in bin packages templates crates VERSION LICENSE; do
   [ -e "$TMP/main/$part" ] || continue
   rm -rf "$HOME_DIR/$part.new"
   cp -R "$TMP/main/$part" "$HOME_DIR/$part.new"
   rm -rf "$HOME_DIR/$part"
   mv "$HOME_DIR/$part.new" "$HOME_DIR/$part"
 done
+# earlier layout: sdk/ and stack/ became packages/runtime and templates/
+rm -rf "$HOME_DIR/sdk" "$HOME_DIR/stack"
 if [ -n "$crates_asset" ]; then
   mkdir -p "$TMP/crates"
   tar -xzf "$TMP/$crates_asset" -C "$TMP/crates"

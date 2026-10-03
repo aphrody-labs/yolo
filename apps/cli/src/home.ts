@@ -1,7 +1,7 @@
 /**
  * Where the CLI lives. From a checkout (`bun run cli ...`) the home is the repository root; the
  * standalone executable (`bun build --compile`, installed by `install.sh`) lives in
- * `<home>/bin/yolo` and finds its data (stack templates, SDK, runtime artifacts) in `<home>`.
+ * `<home>/bin/yolo` and finds its data (templates, SDK, runtime artifacts) in `<home>`.
  * `$YOLO_HOME` overrides both.
  */
 import { existsSync, readFileSync } from "node:fs";

@@ -1,7 +1,7 @@
 # Vendoring the Tauri stack
 
 The Rust crates of the forks (`vendor/tauri`, `plugins-workspace`, `wry`, `tao`,
-`create-tauri-app`) live in one Cargo workspace under `crates/aphrody-*`.
+`create-tauri-app`, `next`) live in one Cargo workspace under `crates/aphrody-*`.
 The submodules stay pinned, read-only sources; `yolo import` regenerates the crates from them.
 
 ## Branches
@@ -56,3 +56,18 @@ The CLI (`cargo tauri add`, `init`, `plugin new`) generates `aphrody-*` dependen
 upstream keys and looks up either package name in `Cargo.lock`.
 
 The submodules use SSH URLs, so `import-check` runs locally; the GitHub workflow covers the Bun and Rust checks only.
+
+## Existing clones (submodule names)
+
+Submodule names are `vendor/<name>` (they were `packages/<name>` before the D25 layout). A clone made earlier
+migrates once, per submodule `<name>`, without touching the working trees:
+
+```bash
+mkdir -p .git/modules/vendor && mv .git/modules/packages/<name> .git/modules/vendor/<name>
+printf 'gitdir: ../../.git/modules/vendor/<name>\n' > vendor/<name>/.git
+git config --rename-section submodule.packages/<name> submodule.vendor/<name>
+git submodule absorbgitdirs vendor/<name>     # only for a submodule that still has a real .git directory
+git submodule status                          # every line must start with a space
+```
+
+A fresh `git clone --recurse-submodules` needs none of this.

@@ -1,6 +1,6 @@
 # Aphrody stack manifest: every layer of the unified native runtime plan (aphrody/PLAN.md), what
 # provides it today, and which curated ecosystem choices (templates/AWESOME.md, filtered for the
-# Rust-based Bun) can replace the built-in one. `yolo create` and tests/stack.test.ts read it.
+# Rust-based Bun) can replace the built-in one. `yolo create` and test/stack.test.ts read it.
 
 [meta]
 name = "aphrody-stack"

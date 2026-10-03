@@ -26,12 +26,13 @@ describe("YOLO apps/cli Suite (Zero External Dependencies, 100% Native Bun)", ()
 
   it("should inspect local fork packages programmatically via Bun file checks", async () => {
     const statuses = await inspectPackages();
-    expect(statuses.length).toBe(7);
+    expect(statuses.length).toBe(8);
 
     const names = statuses.map((s) => s.name).sort();
     expect(names).toEqual([
       "bun",
       "create-tauri-app",
+      "next",
       "obscura",
       "plugins-workspace",
       "tao",

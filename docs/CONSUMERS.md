@@ -5,7 +5,7 @@
 
 Decision D10 in [DECISIONS](DECISIONS.md): the first real consumer of the runtime is
 `aphrody/packages/web/agent-browser/src/engine.ts`. The patch
-[agent-browser-engine-runtime.patch](agent-browser-engine-runtime.patch) replaces its hand-written
+[agent-browser-engine-runtime.patch](../patches/agent-browser-engine-runtime.patch) replaces its hand-written
 `Bun.spawn` / stdout-endpoint / `/json/version` polling / SIGTERM→SIGKILL code with the runtime's
 process service (`Runtime.spawn` with `stdio: "capture"`, `waitForStdoutLine`, `waitForHttp`,
 `stopAsync`). The public surface of `engine.ts` (`startEngine`, `Engine`, `withEngine`,

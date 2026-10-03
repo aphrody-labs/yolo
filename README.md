@@ -33,6 +33,7 @@ Active upstream forks are isolated, submodule-managed under `vendor/`, with dedi
 | [`vendor/create-tauri-app`](vendor/create-tauri-app) | `yolo` | `tauri-apps/create-tauri-app` | `aphrody-labs/create-tauri-app` | Scaffolding CLI (source of `aphrody-create-tauri-app`) |
 | [`vendor/wry`](vendor/wry) | `yolo` | `tauri-apps/wry` | `aphrody-labs/wry` | WebView rendering library (source of `aphrody-wry`) |
 | [`vendor/tao`](vendor/tao) | `yolo` | `tauri-apps/tao` | `aphrody-labs/tao` | Windowing library (source of `aphrody-tao`) |
+| [`vendor/next`](vendor/next) | `yolo` | `vercel/next.js` | `aphrody-labs/next.js` | Next.js / Turbopack (source of the `aphrody-next-*`, `aphrody-turbo*` crates) |
 
 ### Wayland & Custom Compositor Architecture (WSLg)
 - **Compositor Engine**: Native Rust Wayland compositor stack based on **Smithay** (pure Rust protocol toolkit) and **Niri** architecture for maximum zero-copy frame pacing.

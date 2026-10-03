@@ -12,7 +12,7 @@
  * - ZERO external runtime npm dependencies
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { runAwesomeCommand } from "./awesome";
 import { runCreateCommand } from "./create";
@@ -70,11 +70,28 @@ export interface AutonomousGenerationReport {
   readonly elapsedMs: number;
 }
 
+/** The git directory of a checkout: `.git` is a directory, or a `gitdir:` file for a submodule. */
+async function resolveGitDir(worktree: string): Promise<string> {
+  const dotGit = resolve(worktree, ".git");
+  if (!statSync(dotGit).isFile()) return dotGit;
+  const pointer = (await Bun.file(dotGit).text()).trim().replace(/^gitdir:\s*/, "");
+  return resolve(worktree, pointer);
+}
+
 /**
  * Inspect monorepo submodules and forks using Bun file I/O & wyhash checksums.
  */
 export async function inspectPackages(): Promise<readonly SubmoduleStatus[]> {
-  const pkgs = ["bun", "obscura", "tauri", "plugins-workspace", "create-tauri-app", "wry", "tao"];
+  const pkgs = [
+    "bun",
+    "obscura",
+    "tauri",
+    "plugins-workspace",
+    "create-tauri-app",
+    "wry",
+    "tao",
+    "next",
+  ];
   const results: SubmoduleStatus[] = [];
 
   for (const name of pkgs) {
@@ -87,18 +104,13 @@ export async function inspectPackages(): Promise<readonly SubmoduleStatus[]> {
 
     let headCommit: string | undefined;
     try {
-      const gitHeadFile = Bun.file(resolve(ROOT_DIR, ".git/modules/packages", name, "HEAD"));
-      if (await gitHeadFile.exists()) {
-        const headContent = (await gitHeadFile.text()).trim();
-        if (headContent.startsWith("ref:")) {
-          const refRelative = headContent.replace("ref: ", "").trim();
-          const refFile = Bun.file(resolve(ROOT_DIR, ".git/modules/packages", name, refRelative));
-          if (await refFile.exists()) {
-            headCommit = (await refFile.text()).trim();
-          }
-        } else {
-          headCommit = headContent;
-        }
+      const gitDir = await resolveGitDir(pkgPath);
+      const headContent = (await Bun.file(resolve(gitDir, "HEAD")).text()).trim();
+      if (headContent.startsWith("ref:")) {
+        const refFile = Bun.file(resolve(gitDir, headContent.replace("ref:", "").trim()));
+        if (await refFile.exists()) headCommit = (await refFile.text()).trim();
+      } else {
+        headCommit = headContent;
       }
     } catch {
       // Fallback if git metadata is structured differently
@@ -195,7 +207,8 @@ export async function readVendorStatus(): Promise<{
         name: source.name,
         lockedSha: source.sha,
         headSha,
-        inSync: headSha === source.sha,
+        // `headCommit` is abbreviated for display; the lock holds the full SHA
+        inSync: headSha !== undefined && source.sha.startsWith(headSha),
       };
     }),
   };
@@ -438,7 +451,7 @@ ${header}
   \x1b[32mversion | doctor\x1b[0m       Installed version, target; check the installation (runtime verified and loadable)
   \x1b[32mruntime install|list|verify|rollback|info\x1b[0m  Manage installed runtime artifacts
   \x1b[32mupgrade [--check]\x1b[0m     Install the latest release; \x1b[32muninstall [--yes]\x1b[0m removes ~/.yolo
-  \x1b[32mcreate <dir> [--with web,desktop]\x1b[0m Scaffold an Aphrody stack project (Bun + runtime SDK + Tauri) from templates/templates
+  \x1b[32mcreate <dir> [--with web,desktop]\x1b[0m Scaffold an Aphrody stack project (Bun + runtime SDK + Tauri) from templates/
   \x1b[32mawesome [stats|list|search|github|check]\x1b[0m Browse aphrody-labs/awesome-bun (README cached, no clone)
   \x1b[32mimport [--apply|--check]\x1b[0m Vendor the fork crates into crates/aphrody-* (see vendor.toml)
   \x1b[32mrename [opts] [dir..]\x1b[0m Mass boundary-aware rename (--preset aphrody | --from X --to Y, --apply, --paths)

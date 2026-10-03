@@ -3,7 +3,7 @@
  * Packages & Forks Hub Engine for Aphrody YOLO Monorepo
  *
  * Automates inspection, drift calculation, validation and synchronization
- * of all submodules in packages/ using native Aphrody Git (`aphrody git inspect`).
+ * of all submodules in vendor/ using native Aphrody Git (`aphrody git inspect`).
  */
 
 import { spawn } from "node:child_process";

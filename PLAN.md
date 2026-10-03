@@ -19,7 +19,7 @@ bun run build:bin && bun run pack:deploy                            # one archiv
 ```
 
 - **One installed unit**: `~/.yolo` holds the `yolo` executable (Bun embedded), the verified native runtime artifact
-  with rollback, the SDK, the stack templates and the Rust sources for the desktop scaffold.
+  with rollback, the SDK, the templates and the Rust sources for the desktop scaffold.
 - **One scaffold**: `yolo create` builds a Bun server (Rust-based Bun, `bun:sqlite`, SSE, native cancellable work),
   optionally a Bun-bundled web page, a Tauri 3 desktop shell and a Hono/Elysia variant, all pinned by
   `templates/stack.toml`.

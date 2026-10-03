@@ -1,7 +1,7 @@
 /**
  * Distribution commands of the standalone `yolo` executable: `version`, `doctor`, `runtime ...`,
  * `upgrade`, `uninstall`. They manage the installation under the yolo home
- * (`~/.yolo`: bin/, runtime/, packages/, templates/, crates/, VERSION), see docs/DISTRIBUTION.md.
+ * (`~/.yolo`: bin/, runtime/, packages/runtime/, templates/, crates/, VERSION), see docs/DISTRIBUTION.md.
  */
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
@@ -40,7 +40,7 @@ export function runDoctor(): number {
   }
 
   for (const [path, label, required] of [
-    ["templates/stack.toml", "stack templates (yolo create)", true],
+    ["templates/stack.toml", "templates (yolo create)", true],
     ["packages/runtime/package.json", "runtime SDK", true],
     ["crates/yolo-desktop/icons", "desktop scaffold sources (crates/)", false],
   ] as const) {

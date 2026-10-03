@@ -3,7 +3,7 @@
  * Builds the release assets of one target into `dist/release/<version>/`:
  *
  *   yolo-<version>-<target>.tar.gz   standalone `yolo` executable (bun build --compile), verified runtime
- *                                    artifact, SDK, stack templates, desktop icons
+ *                                    artifact, SDK, templates, desktop icons
  *   yolo-<version>-crates.tar.gz     Rust sources of the aphrody-* crates for the desktop scaffold
  *   install.sh, install.ps1          the one-command installers
  *   SHA256SUMS, release.json         integrity and provenance
@@ -72,13 +72,13 @@ await run([
   exe,
 ]);
 
-// 2. data next to it: runtime artifact, SDK, stack, desktop icons
+// 2. data next to it: runtime artifact, SDK, templates, desktop icons
 cpSync(artifactDir, join(stage, "artifact"), { recursive: true });
 cpSync(join(root, "packages/runtime"), join(stage, "packages/runtime"), {
   recursive: true,
   filter: (src) => !src.includes("node_modules"),
 });
-cpSync(join(root, "stack"), join(stage, "stack"), {
+cpSync(join(root, "templates"), join(stage, "templates"), {
   recursive: true,
   filter: (src) => !src.endsWith("awesome-audit.json"),
 });

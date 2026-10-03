@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Publishes the npm packages of the Aphrody forks (crates/*, packages/*) and apps.
+ * Publishes the npm packages of the Aphrody forks (crates/*, packages/*, the pinned vendor/* sources) and apps.
  * Dry-run by default; pass --publish to really publish (needs NPM_TOKEN or `npm login`).
  * Only packages named `@aphrody/*` that are not `private` are published; packages that still
  * carry an upstream name are skipped.
@@ -21,10 +21,10 @@ interface Manifest {
 const results: { name: string; version: string; status: string }[] = [];
 
 // `crates/` holds the vendored plugin packages and is scanned first: the same package also exists
-// in the pinned submodule sources under `packages/`, so names are published only once.
+// in the pinned submodule sources under `vendor/`, so names are published only once.
 const seen = new Set<string>();
 const manifests: string[] = [];
-for (const pattern of ["crates/**/package.json", "{apps,packages}/**/package.json"]) {
+for (const pattern of ["crates/**/package.json", "{apps,packages,vendor}/**/package.json"]) {
   for await (const rel of new Glob(pattern).scan({ cwd: root })) manifests.push(rel);
 }
 

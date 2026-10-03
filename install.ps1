@@ -38,11 +38,12 @@ try {
   $Extract = Join-Path $Tmp "main"; New-Item -ItemType Directory -Path $Extract | Out-Null
   tar -xzf $Archive -C $Extract
   New-Item -ItemType Directory -Force -Path $HomeDir | Out-Null
-  foreach ($Part in "bin", "sdk", "stack", "crates", "VERSION", "LICENSE") {
+  foreach ($Part in "bin", "packages", "templates", "crates", "VERSION", "LICENSE") {
     $Src = Join-Path $Extract $Part; if (-not (Test-Path $Src)) { continue }
     $Dst = Join-Path $HomeDir $Part; if (Test-Path $Dst) { Remove-Item -Recurse -Force $Dst }
     Copy-Item -Recurse $Src $Dst
   }
+  foreach ($Old in "sdk", "stack") { $OldPath = Join-Path $HomeDir $Old; if (Test-Path $OldPath) { Remove-Item -Recurse -Force $OldPath } }
   $env:YOLO_HOME = $HomeDir
   & (Join-Path $HomeDir "bin\yolo.exe") runtime install (Join-Path $Extract "artifact")
   $Bin = Join-Path $HomeDir "bin"
