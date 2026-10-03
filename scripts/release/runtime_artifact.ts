@@ -8,6 +8,7 @@
 import { mkdirSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { libraryFile, Runtime } from "../../packages/runtime/src/index";
+import { sha256 } from "../../packages/core/src/sys/hash";
 
 const root = resolve(import.meta.dir, "../..");
 // A producer packages its build, independently of whichever version the user installed.
@@ -17,9 +18,6 @@ if (!(await Bun.file(libraryPath).exists())) {
   console.error(`Missing ${libraryPath}: run \`just runtime-build\` first.`);
   process.exit(1);
 }
-
-const sha256 = (bytes: Uint8Array): string =>
-  new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
 
 async function git(...args: string[]): Promise<string> {
   const proc = Bun.spawn(["git", ...args], { cwd: root, stdout: "pipe", stderr: "pipe" });

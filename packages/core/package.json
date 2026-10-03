@@ -1,0 +1,33 @@
+{
+  "name": "@aphrody/yolo-core",
+  "version": "1.0.0",
+  "description": "Unified core library for YOLO, modeled directly after Bun's core library architecture",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aphrody-labs/yolo.git",
+    "directory": "packages/core"
+  },
+  "files": [
+    "src"
+  ],
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./sys": "./src/sys/index.ts",
+    "./vfs": "./src/vfs/index.ts",
+    "./vendor": "./src/vendor/index.ts",
+    "./runtime": "./src/runtime/index.ts",
+    "./verify": "./src/verify/index.ts",
+    "./server": "./src/server/index.ts",
+    "./mcp": "./src/mcp/index.ts",
+    "./fleet": "./src/fleet/index.ts",
+    "./scaffold": "./src/scaffold/index.ts",
+    "./curation": "./src/curation/index.ts",
+    "./coord": "./src/coord/index.ts",
+    "./distribution": "./src/distribution/index.ts"
+  },
+  "dependencies": {}
+}
