@@ -3,11 +3,11 @@
 > **Repository Nexus**: [aphrody-labs/bun](https://github.com/aphrody-labs/bun)
 > **Upstream Authority**: [oven-sh/bun](https://github.com/oven-sh/bun)
 > **Organization**: `aphrody-labs`
-> **Submodule Path**: [`packages/bun`](../packages/bun)
+> **Submodule Path**: [`vendor/bun`](../vendor/bun)
 > **Active Fork Branch**: `yolo`
 > **Pristine Upstream Branch**: `main`
-> **Sync & Drift Engine**: [`scripts/bun_upstream_sync.ts`](../scripts/bun_upstream_sync.ts)
-> **PR & Issue Tracker Engine**: [`scripts/bun_upstream_tracker.ts`](../scripts/bun_upstream_tracker.ts)
+> **Sync & Drift Engine**: [`scripts/vendor/bun_upstream_sync.ts`](../scripts/vendor/bun_upstream_sync.ts)
+> **PR & Issue Tracker Engine**: [`scripts/vendor/bun_upstream_tracker.ts`](../scripts/vendor/bun_upstream_tracker.ts)
 > **Tracker Live Dashboard**: [BUN_UPSTREAM_TRACKER.md](BUN_UPSTREAM_TRACKER.md)
 
 ---
@@ -31,7 +31,7 @@ gitGraph
    - Updated strictly via fast-forward or clean upstream merges.
    - Pushed continuously to `origin/main` (`aphrody-labs/bun:main`).
 2. **`yolo` (High-Performance Fork Integration Branch)**:
-   - Contains Tauri-aware type definitions: [`packages/bun-types/tauri.d.ts`](../packages/bun/packages/bun-types/tauri.d.ts).
+   - Contains Tauri-aware type definitions: [`packages/bun-types/tauri.d.ts`](../vendor/bun/packages/bun-types/tauri.d.ts).
    - Optional `patches/bun/*.patch` files (root of this repo) are reapplied by `bun:drift-fix --reapply-patches` after upstream refactors.
    - Tracked and pushed to `origin/yolo` (`aphrody-labs/bun:yolo`).
 
@@ -76,6 +76,6 @@ Based on automated upstream tracking:
 
 ## 5. Submodule Pointer Integrity
 
-The monorepo tracks `packages/bun` at the active `yolo` branch commit:
-- Current Commit: see `git submodule status packages/bun`
-- Verification: `git submodule status packages/bun`
+The monorepo tracks `vendor/bun` at the active `yolo` branch commit:
+- Current Commit: see `git submodule status vendor/bun`
+- Verification: `git submodule status vendor/bun`

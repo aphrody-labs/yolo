@@ -31,7 +31,7 @@
     "**/node_modules/**",
     "**/dist/**",
     "**/target/**",
-    "packages/**",
+    "vendor/**",
     "crates/**",
     "examples/**"
   ]

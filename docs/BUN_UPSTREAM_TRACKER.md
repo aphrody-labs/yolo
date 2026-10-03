@@ -3,7 +3,7 @@
 > **Source**: [oven-sh/bun](https://github.com/oven-sh/bun)  
 > **Target Fork**: [aphrody-labs/bun](https://github.com/aphrody-labs/bun) (Branch: `yolo`)  
 > **Updated**: 2026-10-03T05:28:10.621Z  
-> **Engine**: `scripts/bun_upstream_tracker.ts`
+> **Engine**: `scripts/vendor/bun_upstream_tracker.ts`
 
 ## 1. Executive Summary & Optimization Strategy
 
@@ -82,15 +82,15 @@ To cherry-pick a specific upstream optimization commit into the Aphrody fork:
 
 ```bash
 # 1. Fetch latest upstream
-git -C packages/bun fetch upstream
+git -C vendor/bun fetch upstream
 
 # 2. Switch to aphrody branch
-git -C packages/bun checkout aphrody
+git -C vendor/bun checkout aphrody
 
 # 3. Cherry pick the commit (example for PR #33711)
-git -C packages/bun cherry-pick <commit-sha>
+git -C vendor/bun cherry-pick <commit-sha>
 
 # 4. Verify test suite and push
-bun test packages/bun/packages/aphrody-bun-runtime/test/runtime.test.ts
-git -C packages/bun push origin aphrody
+bun test vendor/bun/packages/aphrody-bun-runtime/test/runtime.test.ts
+git -C vendor/bun push origin aphrody
 ```

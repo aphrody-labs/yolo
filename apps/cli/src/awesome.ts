@@ -407,9 +407,9 @@ const HELP = `\x1b[1myolo awesome\x1b[0m — browse ${DEFAULT_REPO}
   awesome github             GitHub repositories referenced by the list
   awesome check [section]    HTTP check of the links (network; --concurrency N, --timeout MS)
   awesome audit              Judge every entry for the Rust-based Bun (network, GitHub API);
-                             writes stack/awesome-audit.json
-  awesome curate [--out f]   audit + stack/awesome.curated.json + cleaned README (default
-                             stack/AWESOME.md); --since YYYY-MM-DD (default ${RUST_BUN_SINCE})
+                             writes templates/awesome-audit.json
+  awesome curate [--out f]   audit + templates/awesome.curated.json + cleaned README (default
+                             templates/AWESOME.md); --since YYYY-MM-DD (default ${RUST_BUN_SINCE})
 
 Options: --repo owner/name  --ref branch (default ${DEFAULT_REF})  --refresh  --offline
          --file README.md   --json`;
@@ -562,12 +562,12 @@ export async function runAwesomeCommand(args: readonly string[], rootDir: string
         entries: curated,
       };
       await Bun.write(
-        resolve(rootDir, "stack/awesome-audit.json"),
+        resolve(rootDir, "templates/awesome-audit.json"),
         `${JSON.stringify(record, null, 2)}\n`,
       );
       if (command === "curate") {
         await Bun.write(
-          resolve(rootDir, "stack/awesome.curated.json"),
+          resolve(rootDir, "templates/awesome.curated.json"),
           `${JSON.stringify(
             kept.map(({ facts: _facts, ...e }) => e),
             null,
@@ -575,7 +575,7 @@ export async function runAwesomeCommand(args: readonly string[], rootDir: string
           )}\n`,
         );
         await Bun.write(
-          out ?? resolve(rootDir, "stack/AWESOME.md"),
+          out ?? resolve(rootDir, "templates/AWESOME.md"),
           renderCleanReadme(text, curated, since),
         );
       }

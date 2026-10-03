@@ -1,7 +1,7 @@
 /**
  * Distribution commands of the standalone `yolo` executable: `version`, `doctor`, `runtime ...`,
  * `upgrade`, `uninstall`. They manage the installation under the yolo home
- * (`~/.yolo`: bin/, runtime/, sdk/, stack/, crates/, VERSION), see docs/DISTRIBUTION.md.
+ * (`~/.yolo`: bin/, runtime/, packages/, templates/, crates/, VERSION), see docs/DISTRIBUTION.md.
  */
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
@@ -11,8 +11,8 @@ import {
   loadArtifact,
   runtimeHome,
   verifyArtifact,
-} from "../../../sdk/runtime/src/artifact";
-import { install, list, rollback } from "../../../sdk/runtime/src/release";
+} from "../../../packages/runtime/src/artifact";
+import { install, list, rollback } from "../../../packages/runtime/src/release";
 import { aphrodyTools } from "./aphrody";
 import { yoloHome, yoloVersion } from "./home";
 
@@ -40,8 +40,8 @@ export function runDoctor(): number {
   }
 
   for (const [path, label, required] of [
-    ["stack/stack.toml", "stack templates (yolo create)", true],
-    ["sdk/runtime/package.json", "runtime SDK", true],
+    ["templates/stack.toml", "stack templates (yolo create)", true],
+    ["packages/runtime/package.json", "runtime SDK", true],
     ["crates/yolo-desktop/icons", "desktop scaffold sources (crates/)", false],
   ] as const) {
     if (existsSync(join(home, path))) ok(label);

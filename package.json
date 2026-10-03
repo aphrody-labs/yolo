@@ -11,25 +11,25 @@
   },
   "workspaces": [
     "apps/*",
-    "sdk/*"
+    "packages/*"
   ],
   "type": "module",
   "scripts": {
-    "status": "bun run scripts/packages_upstream_sync.ts",
-    "sync:all": "bun run scripts/packages_upstream_sync.ts --fetch",
-    "bun:sync": "bun run scripts/bun_upstream_sync.ts --apply",
-    "bun:drift-fix": "bun run scripts/bun_upstream_sync.ts --apply --auto-fix",
-    "bun:track": "bun run scripts/bun_upstream_tracker.ts",
+    "status": "bun run scripts/vendor/packages_upstream_sync.ts",
+    "sync:all": "bun run scripts/vendor/packages_upstream_sync.ts --fetch",
+    "bun:sync": "bun run scripts/vendor/bun_upstream_sync.ts --apply",
+    "bun:drift-fix": "bun run scripts/vendor/bun_upstream_sync.ts --apply --auto-fix",
+    "bun:track": "bun run scripts/vendor/bun_upstream_tracker.ts",
     "cli": "bun run apps/cli/src/index.ts",
     "test": "bun test test/",
     "test:cli": "bun test test/cli_app.test.ts",
-    "lint": "oxlint scripts/ test/ sdk/ apps/cli/src/ apps/web/src/",
-    "fmt": "oxfmt --write scripts/ test/ sdk/ apps/cli/src/ apps/web/src/",
-    "fmt:check": "oxfmt --check scripts/ test/ sdk/ apps/cli/src/ apps/web/src/",
+    "lint": "oxlint scripts/ test/ packages/ apps/cli/src/ apps/web/src/",
+    "fmt": "oxfmt --write scripts/ test/ packages/ apps/cli/src/ apps/web/src/",
+    "fmt:check": "oxfmt --check scripts/ test/ packages/ apps/cli/src/ apps/web/src/",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf .cache *.log var target dist apps/web/dist",
-    "publish:forks": "bun run scripts/publish_forks.ts",
-    "publish:forks:run": "bun run scripts/publish_forks.ts --publish"
+    "publish:forks": "bun run scripts/vendor/publish_forks.ts",
+    "publish:forks:run": "bun run scripts/vendor/publish_forks.ts --publish"
   },
   "dependencies": {
     "oxc-parser": "0.152.0",

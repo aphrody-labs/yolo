@@ -1,6 +1,6 @@
 /**
  * `yolo create <dir>`: scaffolds an Aphrody stack project from the versioned templates in
- * `stack/templates/` (layers and versions are described by `stack/stack.toml`).
+ * `templates/` (layers and versions are described by `templates/stack.toml`).
  *
  *   yolo create my-app [--with web,desktop] [--framework hono|elysia] [--yolo-path <checkout>]
  *
@@ -28,7 +28,7 @@ export interface StackManifest {
 
 export async function loadStack(rootDir: string): Promise<StackManifest> {
   return Bun.TOML.parse(
-    await Bun.file(resolve(rootDir, "stack/stack.toml")).text(),
+    await Bun.file(resolve(rootDir, "templates/stack.toml")).text(),
   ) as StackManifest;
 }
 

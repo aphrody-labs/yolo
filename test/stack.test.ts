@@ -6,12 +6,12 @@ import { createProject, loadStack, toIdent } from "../apps/cli/src/create";
 
 const rootDir = resolve(import.meta.dir, "..");
 // Needs the Bun fork submodule, which the CI checkout cannot fetch (private).
-const haveBunFork = existsSync(join(rootDir, "packages/bun/LATEST"));
+const haveBunFork = existsSync(join(rootDir, "vendor/bun/LATEST"));
 const sandbox = mkdtempSync(join(tmpdir(), "yolo-stack-"));
 afterAll(() => rmSync(sandbox, { recursive: true, force: true }));
 
 const bunTypes = (file: string): string =>
-  readFileSync(join(rootDir, "packages/bun/packages/bun-types", file), "utf8");
+  readFileSync(join(rootDir, "vendor/bun/packages/bun-types", file), "utf8");
 
 describe("stack manifest", () => {
   it("points every template and layer path to files that exist", async () => {
@@ -45,7 +45,7 @@ describe("stack manifest", () => {
     expect(stack.meta["typescript"]).toBe(pkg.devDependencies.typescript);
     expect(stack.meta["oxlint"]).toBe(pkg.devDependencies.oxlint);
     expect(stack.meta["oxfmt"]).toBe(pkg.devDependencies.oxfmt);
-    expect(readFileSync(join(rootDir, "packages/bun/LATEST"), "utf8").trim()).toBe(
+    expect(readFileSync(join(rootDir, "vendor/bun/LATEST"), "utf8").trim()).toBe(
       stack.meta["bun"] as string,
     );
   });
@@ -53,7 +53,7 @@ describe("stack manifest", () => {
   it("only offers framework variants that are in the curated Rust-Bun list", async () => {
     const stack = await loadStack(rootDir);
     const curated = JSON.parse(
-      readFileSync(join(rootDir, "stack/awesome.curated.json"), "utf8"),
+      readFileSync(join(rootDir, "templates/awesome.curated.json"), "utf8"),
     ) as {
       github?: string;
     }[];
@@ -86,7 +86,7 @@ describe("yolo create", () => {
     }
     const pkg = JSON.parse(readFileSync(join(sandbox, "demo-app/package.json"), "utf8"));
     expect(pkg.name).toBe("demo-app");
-    expect(pkg.dependencies["@aphrody/runtime-sdk"]).toBe(`file:${rootDir}/sdk/runtime`);
+    expect(pkg.dependencies["@aphrody/runtime-sdk"]).toBe(`file:${rootDir}/packages/runtime`);
   });
 
   it("applies features in order: web replaces home.ts, desktop adds Tauri and icons", async () => {
@@ -141,7 +141,7 @@ describe("distribution", () => {
     expect(installer).toContain("SHA256SUMS");
     expect(readFileSync(join(rootDir, "install.ps1"), "utf8")).toContain("Get-FileHash");
     // every supported target of the SDK has a CI job in the release workflow
-    const { SUPPORTED_TARGETS } = await import("../sdk/runtime/src/artifact");
+    const { SUPPORTED_TARGETS } = await import("../packages/runtime/src/artifact");
     const workflow = readFileSync(join(rootDir, ".github/workflows/release.yml"), "utf8");
     for (const target of Object.values(SUPPORTED_TARGETS)) expect(workflow).toContain(target);
   });
@@ -149,7 +149,7 @@ describe("distribution", () => {
   it("installs from a local release directory into an isolated home (when a release was built)", async () => {
     const version = readFileSync(join(rootDir, "VERSION"), "utf8").trim();
     const release = join(rootDir, "dist/release", version);
-    if (!existsSync(join(release, "SHA256SUMS"))) return; // built by `bun run scripts/release.ts`
+    if (!existsSync(join(release, "SHA256SUMS"))) return; // built by `bun run scripts/release/release.ts`
     const home = join(sandbox, "install-home");
     const proc = Bun.spawn(["sh", join(rootDir, "install.sh")], {
       env: {

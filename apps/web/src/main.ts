@@ -61,7 +61,7 @@ export function initApp(): void {
           </span>
         </h2>
         <p style="font-size: 0.85rem; color: #64748b; margin: 0 0 1rem 0;">
-          Self-extracted from packages/bun upstream commit. Generated at ${new Date(MONOREPO_BUN_CATALOG.generatedAt).toLocaleString()}
+          Self-extracted from vendor/bun upstream commit. Generated at ${new Date(MONOREPO_BUN_CATALOG.generatedAt).toLocaleString()}
         </p>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 1rem;">
@@ -79,7 +79,7 @@ export function initApp(): void {
                 ${c.keyApis.join(" · ")}
               </div>
               <div style="font-size: 0.7rem; color: #94a3b8;">
-                📄 ${c.docCount} docs matched in packages/bun/docs
+                📄 ${c.docCount} docs matched in vendor/bun/docs
               </div>
             </div>
           `,

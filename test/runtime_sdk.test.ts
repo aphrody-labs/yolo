@@ -6,7 +6,7 @@ import {
   Runtime,
   RuntimeError,
   Status,
-} from "../sdk/runtime/src/index";
+} from "../packages/runtime/src/index";
 
 // The precompiled artifact is produced by `just runtime-build`; Bun tests never start Cargo.
 const available = existsSync(defaultLibraryPath());

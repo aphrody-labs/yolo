@@ -21,8 +21,8 @@ local release directory), `YOLO_NO_CRATES`, `YOLO_NO_MODIFY_PATH`.
 ~/.yolo/
   bin/yolo            standalone executable (Bun embedded, bun build --compile)
   runtime/<target>/   verified runtime artifacts: <version>-<hash8>/, current, previous (rollback)
-  sdk/runtime/        @aphrody/runtime-sdk (file: dependency of scaffolded projects)
-  stack/              stack.toml, templates, curated awesome-bun
+  packages/runtime/   @aphrody/runtime-sdk (file: dependency of scaffolded projects)
+  templates/          stack.toml, templates, curated awesome-bun
   crates/             aphrody-* Rust sources for the desktop scaffold
   VERSION
 ```
@@ -53,13 +53,13 @@ bun run pack:deploy    # dist/<name>-<target>.tar.gz: executable + runtime libra
 
 ## Release pipeline
 
-`scripts/release.ts` (per target) builds `yolo-<version>-<target>.tar.gz` (executable, runtime artifact, SDK, stack,
+`scripts/release/release.ts` (per target) builds `yolo-<version>-<target>.tar.gz` (executable, runtime artifact, SDK, stack,
 icons), `yolo-<version>-crates.tar.gz`, the installers, `SHA256SUMS` and `release.json`;
-`scripts/release_merge.ts` merges the per-target directories. `.github/workflows/release.yml` runs both for the five
+`scripts/release/release_merge.ts` merges the per-target directories. `.github/workflows/release.yml` runs both for the five
 targets on a `vX.Y.Z` tag and publishes the GitHub release. The version is `VERSION`.
 
 ```bash
-just runtime-package && bun run scripts/release.ts       # local release for this host in dist/release/<version>/
+just runtime-package && bun run scripts/release/release.ts       # local release for this host in dist/release/<version>/
 YOLO_RELEASE_DIR=dist/release/0.1.0 sh install.sh        # install it from disk
 git tag v0.1.0 && git push origin v0.1.0                 # CI builds all targets and publishes
 ```

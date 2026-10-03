@@ -432,7 +432,7 @@ export async function runRenameCommand(args: readonly string[], rootDir: string)
   if (from !== undefined) throw new Error("--from without --to");
   if (rules.length === 0) rules.push(...(PRESETS.aphrody as readonly RenameRule[]));
   if (targets.length === 0)
-    targets.push("packages/tauri", "packages/plugins-workspace", "packages/create-tauri-app");
+    targets.push("vendor/tauri", "vendor/plugins-workspace", "vendor/create-tauri-app");
 
   const concurrency = Math.max(16, (navigator.hardwareConcurrency || 4) * 8);
   console.log(

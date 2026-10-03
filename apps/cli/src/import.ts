@@ -503,13 +503,11 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
 
   // Materialize the committed HEAD of each submodule.
   for (const source of cfg.sources) {
-    const repo = resolve(rootDir, "packages", source.name);
-    if (!existsSync(repo)) throw new Error(`Source repository not found: packages/${source.name}`);
+    const repo = resolve(rootDir, "vendor", source.name);
+    if (!existsSync(repo)) throw new Error(`Source repository not found: vendor/${source.name}`);
     const dirty = (await git(repo, ["status", "--porcelain", "--untracked-files=no"])).trim();
     if (dirty !== "")
-      throw new Error(
-        `packages/${source.name} has uncommitted changes; commit or reset them first`,
-      );
+      throw new Error(`vendor/${source.name} has uncommitted changes; commit or reset them first`);
     const sha = (await git(repo, ["rev-parse", "HEAD"])).trim();
     const dir = resolve(options.cacheDir, source.name);
     rmSync(dir, { recursive: true, force: true });
@@ -780,7 +778,7 @@ async function writeOutputs(
 export async function scanSources(rootDir: string, cfg: VendorConfig): Promise<number> {
   let missed = 0;
   for (const source of cfg.sources) {
-    const repo = resolve(rootDir, "packages", source.name);
+    const repo = resolve(rootDir, "vendor", source.name);
     const listing = await git(repo, ["ls-files", "-z", "--", "Cargo.toml", "**/Cargo.toml"]);
     const manifests = listing.split("\0").filter(Boolean).sort();
     console.log(`\x1b[1m${source.name}\x1b[0m (${manifests.length} manifests)`);

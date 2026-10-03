@@ -1,6 +1,6 @@
 # Vendoring the Tauri stack
 
-The Rust crates of the forks (`packages/tauri`, `plugins-workspace`, `wry`, `tao`,
+The Rust crates of the forks (`vendor/tauri`, `plugins-workspace`, `wry`, `tao`,
 `create-tauri-app`) live in one Cargo workspace under `crates/aphrody-*`.
 The submodules stay pinned, read-only sources; `yolo import` regenerates the crates from them.
 

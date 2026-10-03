@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Building and tuning all of Bun
 
-Source: inventory of `oven-sh` and of `packages/bun/scripts/build` (2026-10-03; nothing was built). Bun 1.4.2 vendors no
+Source: inventory of `oven-sh` and of `vendor/bun/scripts/build` (2026-10-03; nothing was built). Bun 1.4.2 vendors no
 third-party source: `scripts/build/deps/*.ts` pins each C/C++ dependency by commit and the build fetches it. Cargo
 dependencies come from crates.io. No Zig is needed after the Rust rewrite.
 
@@ -19,7 +19,7 @@ dependencies come from crates.io. No Zig is needed after the Rust rewrite.
 Not forked: tinycc, lol-html, libuv (patch-free pins), zlib-ng, brotli, zstd, libarchive, c-ares, libdeflate, ls-hpack,
 highway, libwebp and the other upstream pins.
 
-## Tuning knobs (all in `packages/bun/scripts/build`)
+## Tuning knobs (all in `vendor/bun/scripts/build`)
 
 `profiles.ts`/`config.ts`/`flags.ts` (profiles, `-march`), `--lto=on|off` (ThinLTO across bun, JSC, Rust),
 `--pgo-generate`/`--pgo-use`, `deps/webkit.ts` (WebKit cmake options, prebuilt URL and `WEBKIT_VERSION`),

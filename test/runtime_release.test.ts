@@ -2,8 +2,8 @@ import { afterAll, describe, expect, it } from "bun:test";
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { hostTarget, loadArtifact, verifyArtifact } from "../sdk/runtime/src/artifact";
-import { install, list, rollback } from "../scripts/runtime_release";
+import { hostTarget, loadArtifact, verifyArtifact } from "../packages/runtime/src/artifact";
+import { install, list, rollback } from "../scripts/release/runtime_release";
 
 const root = resolve(import.meta.dir, "..");
 const packaged = join(root, "dist/runtime", hostTarget());

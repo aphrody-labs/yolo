@@ -10,15 +10,15 @@ phases.
 | :------------------------- | :-------------------------------------------------------- |
 | Library (cdylib + rlib)    | `crates/yolo-runtime`                                     |
 | C header                   | `crates/yolo-runtime/include/yolo_runtime.h`              |
-| TypeScript SDK (`bun:ffi`) | `sdk/runtime`                                             |
-| Artifact packaging         | `scripts/runtime_artifact.ts` → `dist/runtime/<target>/`  |
+| TypeScript SDK (`bun:ffi`) | `packages/runtime`                                             |
+| Artifact packaging         | `scripts/release/runtime_artifact.ts` → `dist/runtime/<target>/`  |
 | Tests                      | `cargo test -p yolo-runtime`, `test/runtime_sdk.test.ts` |
 
 ```bash
 just runtime-build      # cargo build --profile runtime -p yolo-runtime
 just runtime-package    # library + header + manifest.json (target, toolchain, ABI, revisions, hashes)
 just runtime-test       # Rust unit tests + Bun SDK tests
-bun run sdk/runtime/examples/stats.ts
+bun run packages/runtime/examples/stats.ts
 ```
 
 ## Capabilities
@@ -34,7 +34,7 @@ bun run sdk/runtime/examples/stats.ts
 `system.stats` and `bench.compute` were picked because they already existed and need no engine.
 `process.supervise` and `http.probe` are the first real shared service (decision D10 in
 [DECISIONS](DECISIONS.md)); the TypeScript surface is `runtime:system` and `runtime:process`, loaded
-by the preload plugin of `sdk/runtime`.
+by the preload plugin of `packages/runtime`.
 
 ## Contract
 
@@ -71,7 +71,7 @@ by the preload plugin of `sdk/runtime`.
 
 ## What the light consumer needs
 
-`sdk/runtime/src/index.ts` and the prebuilt artifact. `cargo tree -p yolo-runtime` lists 13
+`packages/runtime/src/index.ts` and the prebuilt artifact. `cargo tree -p yolo-runtime` lists 13
 packages (serde, serde_json and their proc-macro chain, `yolo-core`, the crate itself); Tauri, wry,
 tao, WebKitGTK, Bun and Obscura are absent from the graph. On the development machine the artifact
 is about 410 KB and one incremental build took 3 s; no comparison with the desktop stack has been

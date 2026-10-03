@@ -10,7 +10,7 @@ status:
     @echo -e "\033[1;36m=== YOLO Monorepo Status ===\033[0m"
     @bun run apps/cli/src/index.ts status
     @echo -e "\n\033[1;36m=== Submodules ===\033[0m"
-    @bun run scripts/packages_upstream_sync.ts
+    @bun run scripts/vendor/packages_upstream_sync.ts
     @echo -e "\n\033[1;36m=== Cargo Workspace ===\033[0m"
     @cargo check --message-format=short
 
@@ -22,13 +22,13 @@ typecheck:
     bun x tsc --noEmit
 
 lint:
-    oxlint scripts/ test/ sdk/ apps/cli/src/ apps/web/src/
+    oxlint scripts/ test/ packages/ apps/cli/src/ apps/web/src/
 
 fmt:
-    oxfmt --write scripts/ test/ sdk/ apps/cli/src/ apps/web/src/
+    oxfmt --write scripts/ test/ packages/ apps/cli/src/ apps/web/src/
 
 fmt-check:
-    oxfmt --check scripts/ test/ sdk/ apps/cli/src/ apps/web/src/
+    oxfmt --check scripts/ test/ packages/ apps/cli/src/ apps/web/src/
 
 # Rust formatting. Each vendored crate carries the rustfmt.toml of its upstream repository.
 rust-fmt:
@@ -86,26 +86,26 @@ runtime-build:
 
 runtime-test: runtime-build
     cargo test -p yolo-runtime -p yolo-core
-    bun run scripts/runtime_artifact.ts
+    bun run scripts/release/runtime_artifact.ts
     bun test test/runtime_sdk.test.ts test/runtime_release.test.ts
 
 # dist/runtime/<target>/: library + C header + manifest (target, toolchain, ABI, revisions, hashes)
 runtime-package: runtime-build
-    bun run scripts/runtime_artifact.ts
+    bun run scripts/release/runtime_artifact.ts
 
 # Install the packaged artifact (verified, versioned, previous kept) and roll back
 runtime-install: runtime-package
-    bun run scripts/runtime_release.ts install
+    bun run scripts/release/runtime_release.ts install
 
 runtime-rollback:
-    bun run scripts/runtime_release.ts rollback
+    bun run scripts/release/runtime_release.ts rollback
 
 # Producer-owned archive of the TypeScript SDK for consumers outside this workspace
 runtime-sdk-pack:
-    bun run scripts/runtime_sdk_pack.ts
+    bun run scripts/release/runtime_sdk_pack.ts
 
 runtime-list:
-    bun run scripts/runtime_release.ts list
+    bun run scripts/release/runtime_release.ts list
 
 # Browse aphrody-labs/awesome-bun (README cached in .cache/awesome): just awesome search react
 awesome *args:
@@ -115,7 +115,7 @@ awesome *args:
 create *args:
     bun run apps/cli/src/index.ts create {{args}}
 
-# Re-audit and re-curate awesome-bun for the Rust-based Bun (network): stack/AWESOME.md + JSON
+# Re-audit and re-curate awesome-bun for the Rust-based Bun (network): templates/AWESOME.md + JSON
 awesome-curate:
     bun run apps/cli/src/index.ts awesome curate
 
@@ -154,13 +154,13 @@ docs-serve:
 upgrade-latest:
     @echo -e "\033[1;36m=== Fetching upstream commits of the forks ===\033[0m"
     @git submodule update --init --recursive
-    @cd packages/bun && git fetch upstream main --depth=100 && git checkout yolo && git merge --ff-only upstream/main || true
-    @cd packages/obscura && git fetch origin main --depth=50 && git checkout yolo && git merge --ff-only origin/main || true
-    @cd packages/tauri && git fetch upstream v3 --depth=50 || git fetch origin v3 --depth=50 || true
-    @cd packages/plugins-workspace && git fetch upstream v3 --depth=50 || git fetch origin v3 --depth=50 || true
-    @cd packages/create-tauri-app && git fetch upstream dev --depth=50 || git fetch origin dev --depth=50 || true
-    @cd packages/wry && git fetch upstream dev --depth=50 || git fetch origin dev --depth=50 || true
-    @cd packages/tao && git fetch upstream dev --depth=50 || git fetch origin dev --depth=50 || true
+    @cd vendor/bun && git fetch upstream main --depth=100 && git checkout yolo && git merge --ff-only upstream/main || true
+    @cd vendor/obscura && git fetch origin main --depth=50 && git checkout yolo && git merge --ff-only origin/main || true
+    @cd vendor/tauri && git fetch upstream v3 --depth=50 || git fetch origin v3 --depth=50 || true
+    @cd vendor/plugins-workspace && git fetch upstream v3 --depth=50 || git fetch origin v3 --depth=50 || true
+    @cd vendor/create-tauri-app && git fetch upstream dev --depth=50 || git fetch origin dev --depth=50 || true
+    @cd vendor/wry && git fetch upstream dev --depth=50 || git fetch origin dev --depth=50 || true
+    @cd vendor/tao && git fetch upstream dev --depth=50 || git fetch origin dev --depth=50 || true
     @echo -e "\n\033[1;36m=== Upgrading Bun to latest ===\033[0m"
     @bun upgrade || true
     @echo -e "\n\033[1;36m=== Upgrading global JS tooling ===\033[0m"
@@ -184,9 +184,9 @@ publish-crates-run:
     cargo publish --workspace --exclude aphrody-tauri-runtime-cef --exclude 'aphrody-turbo*' --exclude 'aphrody-next*' --exclude aphrody-auto-hash-map --exclude aphrody-swc-ast-explorer
 
 publish-npm-dry:
-    bun run scripts/publish_forks.ts
+    bun run scripts/vendor/publish_forks.ts
 
 publish-npm-run:
-    bun run scripts/publish_forks.ts --publish
+    bun run scripts/vendor/publish_forks.ts --publish
 
 publish-dry: publish-crates-dry publish-npm-dry

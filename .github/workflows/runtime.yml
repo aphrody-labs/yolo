@@ -8,8 +8,8 @@ on:
     paths:
       - "crates/yolo-core/**"
       - "crates/yolo-runtime/**"
-      - "sdk/runtime/**"
-      - "scripts/runtime_*.ts"
+      - "packages/runtime/**"
+      - "scripts/release/runtime_*.ts"
       - "test/runtime_*.test.ts"
       - "Cargo.toml"
       - ".github/workflows/runtime.yml"
@@ -17,7 +17,7 @@ on:
     paths:
       - "crates/yolo-core/**"
       - "crates/yolo-runtime/**"
-      - "sdk/runtime/**"
+      - "packages/runtime/**"
 
 jobs:
   artifact:
@@ -41,7 +41,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: cargo test -p yolo-core -p yolo-runtime
       - run: cargo build --profile runtime -p yolo-runtime
-      - run: bun run scripts/runtime_artifact.ts
+      - run: bun run scripts/release/runtime_artifact.ts
       - run: bun test test/runtime_sdk.test.ts test/runtime_release.test.ts
       - uses: actions/upload-artifact@v4
         with:

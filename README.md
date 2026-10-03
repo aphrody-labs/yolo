@@ -12,7 +12,7 @@ yolo doctor && yolo create my-app && cd my-app && bun install && bun run dev
 One installer, one `~/.yolo`, one scaffold, one deploy archive: see [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) and
 the [plan](PLAN.md).
 
-## Monorepo Architecture (`crates/`, `packages/`, `apps/`)
+## Monorepo Architecture (`crates/`, `vendor/`, `packages/`, `apps/`)
 
 The repository operates as a unified **Cargo Workspace** and **Bun Workspace**:
 
@@ -21,18 +21,18 @@ The repository operates as a unified **Cargo Workspace** and **Bun Workspace**:
 - [`crates/yolo-desktop`](crates/yolo-desktop) : Tauri 3 desktop application shell wrapping `crates/yolo-core` with direct native IPC.
 - `crates/aphrody-*` : the Rust crates of the Tauri stack (Tauri 3 alpha, its plugins, wry, tao, create-tauri-app), generated from the fork submodules by `yolo import`. Package names carry the `aphrody-` prefix; library names are unchanged, so `use tauri::…` still works. See [docs/CRATES.md](docs/CRATES.md) for the full list and [docs/VENDORING.md](docs/VENDORING.md) for the workflow.
 
-### 2. Fork Packages & Submodules (`packages/`)
-Active upstream forks are isolated, submodule-managed under `packages/`, with dedicated `yolo` branches (their `main` mirrors the upstream). The Tauri-stack submodules are the pinned sources of `crates/aphrody-*`; `bun` and `obscura` stay standalone:
+### 2. Fork Submodules (`vendor/`)
+Active upstream forks are isolated, submodule-managed under `vendor/`, with dedicated `yolo` branches (their `main` mirrors the upstream). The Tauri-stack submodules are the pinned sources of `crates/aphrody-*`; `bun` and `obscura` stay standalone:
 
 | Submodule | Active Branch | Upstream Source | Fork Target (`aphrody-labs`) | Primary Role |
 | :--- | :--- | :--- | :--- | :--- |
-| [`packages/bun`](packages/bun) | `yolo` | `oven-sh/bun` | `aphrody-labs/bun` | Upstream Bun repository (`bun-types`, native APIs, SIMD image/markdown engines, Tauri-aware types) |
-| [`packages/obscura`](packages/obscura) | `yolo` | `aphrody-labs/obscura` | `aphrody-labs/obscura` | Stealth CDP automation and browser engine in Rust |
-| [`packages/tauri`](packages/tauri) | `yolo` | `tauri-apps/tauri` | `aphrody-labs/tauri` | Tauri 3 core desktop engine (source of `aphrody-tauri*`, JS packages `@aphrody/api`, `@aphrody/cli`) |
-| [`packages/plugins-workspace`](packages/plugins-workspace) | `yolo` | `tauri-apps/plugins-workspace` | `aphrody-labs/plugins-workspace` | Tauri plugins (source of `aphrody-tauri-plugin-*`, JS packages `@aphrody/plugin-*`) |
-| [`packages/create-tauri-app`](packages/create-tauri-app) | `yolo` | `tauri-apps/create-tauri-app` | `aphrody-labs/create-tauri-app` | Scaffolding CLI (source of `aphrody-create-tauri-app`) |
-| [`packages/wry`](packages/wry) | `yolo` | `tauri-apps/wry` | `aphrody-labs/wry` | WebView rendering library (source of `aphrody-wry`) |
-| [`packages/tao`](packages/tao) | `yolo` | `tauri-apps/tao` | `aphrody-labs/tao` | Windowing library (source of `aphrody-tao`) |
+| [`vendor/bun`](vendor/bun) | `yolo` | `oven-sh/bun` | `aphrody-labs/bun` | Upstream Bun repository (`bun-types`, native APIs, SIMD image/markdown engines, Tauri-aware types) |
+| [`vendor/obscura`](vendor/obscura) | `yolo` | `aphrody-labs/obscura` | `aphrody-labs/obscura` | Stealth CDP automation and browser engine in Rust |
+| [`vendor/tauri`](vendor/tauri) | `yolo` | `tauri-apps/tauri` | `aphrody-labs/tauri` | Tauri 3 core desktop engine (source of `aphrody-tauri*`, JS packages `@aphrody/api`, `@aphrody/cli`) |
+| [`vendor/plugins-workspace`](vendor/plugins-workspace) | `yolo` | `tauri-apps/plugins-workspace` | `aphrody-labs/plugins-workspace` | Tauri plugins (source of `aphrody-tauri-plugin-*`, JS packages `@aphrody/plugin-*`) |
+| [`vendor/create-tauri-app`](vendor/create-tauri-app) | `yolo` | `tauri-apps/create-tauri-app` | `aphrody-labs/create-tauri-app` | Scaffolding CLI (source of `aphrody-create-tauri-app`) |
+| [`vendor/wry`](vendor/wry) | `yolo` | `tauri-apps/wry` | `aphrody-labs/wry` | WebView rendering library (source of `aphrody-wry`) |
+| [`vendor/tao`](vendor/tao) | `yolo` | `tauri-apps/tao` | `aphrody-labs/tao` | Windowing library (source of `aphrody-tao`) |
 
 ### Wayland & Custom Compositor Architecture (WSLg)
 - **Compositor Engine**: Native Rust Wayland compositor stack based on **Smithay** (pure Rust protocol toolkit) and **Niri** architecture for maximum zero-copy frame pacing.
@@ -45,7 +45,7 @@ Active upstream forks are isolated, submodule-managed under `packages/`, with de
 
 ## Autonomous Generation Engine
 
-YOLO features an autonomous generator that scans the cloned upstream Bun repository (`packages/bun`) across all API domains:
+YOLO features an autonomous generator that scans the cloned upstream Bun repository (`vendor/bun`) across all API domains:
 - **Web Standards & Browser Parity** (`fetch`, `Response`, `Streams`, `WebSocket`, `crypto.subtle`)
 - **Native HTTP Server & WebSockets** (`Bun.serve`, zero-copy routing, SSE streams)
 - **React & JSX Engine** (`Bun.markdown.react`, JSX/TSX transpiler)

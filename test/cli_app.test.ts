@@ -9,9 +9,9 @@ import {
 } from "../apps/cli/src/index";
 
 const rootDir = resolve(import.meta.dir, "..");
-// These tests read the Bun fork submodule (`git submodule update --init packages/bun`); the public CI
+// These tests read the Bun fork submodule (`git submodule update --init vendor/bun`); the public CI
 // checkout has no access to the private fork and skips them.
-const haveBunFork = existsSync(resolve(rootDir, "packages/bun/LATEST"));
+const haveBunFork = existsSync(resolve(rootDir, "vendor/bun/LATEST"));
 const cliPkgPath = resolve(rootDir, "apps/cli/package.json");
 const cliEntryPath = resolve(rootDir, "apps/cli/src/index.ts");
 const generatedCatalogPath = resolve(rootDir, "apps/web/src/generated/bun-catalog.ts");
@@ -102,8 +102,8 @@ describe("YOLO apps/cli Suite (Zero External Dependencies, 100% Native Bun)", ()
 
       expect(exitCodeStatus).toBe(0);
       expect(stdoutStatus).toContain("=== YOLO Monorepo Status");
-      expect(stdoutStatus).toContain("packages/bun");
-      expect(stdoutStatus).toContain("packages/obscura");
+      expect(stdoutStatus).toContain("vendor/bun");
+      expect(stdoutStatus).toContain("vendor/obscura");
 
       const procBench = Bun.spawn(["bun", cliEntryPath, "bench"], {
         cwd: rootDir,

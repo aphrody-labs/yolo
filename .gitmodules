@@ -1,32 +1,32 @@
 [submodule "packages/bun"]
-	path = packages/bun
+	path = vendor/bun
 	url = git@github-dev:aphrody-labs/bun.git
 	branch = yolo
 [submodule "packages/obscura"]
-	path = packages/obscura
+	path = vendor/obscura
 	url = git@github-dev:aphrody-labs/obscura.git
 	branch = yolo
 [submodule "packages/tauri"]
-	path = packages/tauri
+	path = vendor/tauri
 	url = git@github-dev:aphrody-labs/tauri.git
 	branch = yolo
 [submodule "packages/plugins-workspace"]
-	path = packages/plugins-workspace
+	path = vendor/plugins-workspace
 	url = git@github-dev:aphrody-labs/plugins-workspace.git
 	branch = yolo
 [submodule "packages/create-tauri-app"]
-	path = packages/create-tauri-app
+	path = vendor/create-tauri-app
 	url = git@github-dev:aphrody-labs/create-tauri-app.git
 	branch = yolo
 [submodule "packages/wry"]
-	path = packages/wry
+	path = vendor/wry
 	url = git@github-dev:aphrody-labs/wry.git
 	branch = yolo
 [submodule "packages/tao"]
-	path = packages/tao
+	path = vendor/tao
 	url = git@github-dev:aphrody-labs/tao.git
 	branch = yolo
 [submodule "packages/next"]
-	path = packages/next
+	path = vendor/next
 	url = git@github-dev:aphrody-labs/next.js.git
 	branch = yolo

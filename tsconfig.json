@@ -23,11 +23,11 @@
   "include": [
     "scripts/**/*",
     "test/**/*",
-    "sdk/**/*",
-    "sdk/runtime/runtime.d.ts",
+    "packages/**/*",
+    "packages/runtime/runtime.d.ts",
     "apps/cli/**/*",
     "apps/web/src/**/*",
     "apps/web/build.ts"
   ],
-  "exclude": ["packages/**/*", "crates/**/*", "examples/**/*", "node_modules/**/*"]
+  "exclude": ["vendor/**/*", "crates/**/*", "examples/**/*", "node_modules/**/*"]
 }

@@ -71,7 +71,7 @@ export function remoteCommand(factory: Factory, sha: string): string {
   return [
     `mkdir -p '${p.artifacts}'`,
     `echo queued > '${p.artifacts}/STATUS'`,
-    `(nohup flock '${p.lock}' bash '${p.workspace}/scripts/ship_remote.sh' '${sha}' '${p.workspace}' '${p.artifacts}' > '${p.artifacts}/ship.log' 2>&1 < /dev/null &)`,
+    `(nohup flock '${p.lock}' bash '${p.workspace}/scripts/release/ship_remote.sh' '${sha}' '${p.workspace}' '${p.artifacts}' > '${p.artifacts}/ship.log' 2>&1 < /dev/null &)`,
     "echo started",
   ].join(" && ");
 }
@@ -116,7 +116,7 @@ async function runShip(args: readonly string[], yoloRoot: string): Promise<numbe
 
   console.log(`\x1b[1myolo ship\x1b[0m ${sha.slice(0, 12)} -> ${host}:${p.workspace}`);
   console.log(`  1. aphrody-infra ssh sync   ${yoloRoot} -> ${p.workspace}`);
-  console.log(`  2. remote (heavy lock)      scripts/ship_remote.sh -> ${p.artifacts}`);
+  console.log(`  2. remote (heavy lock)      scripts/release/ship_remote.sh -> ${p.artifacts}`);
   if (!apply) {
     console.log("\nPlan only. Re-run with --apply to sync and start the build.");
     return 0;

@@ -19,7 +19,7 @@ describe("aphrody bridge", () => {
     const cmd = remoteCommand(factory, "abc123");
     expect(cmd).toContain("flock '/srv/aphrody-build/locks/heavy.lock'");
     expect(cmd).toContain("nohup");
-    expect(cmd).toContain("scripts/ship_remote.sh");
+    expect(cmd).toContain("scripts/release/ship_remote.sh");
     expect(cmd.endsWith("echo started")).toBe(true);
   });
 });

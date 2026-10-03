@@ -22,7 +22,7 @@ bun run build:bin && bun run pack:deploy                            # one archiv
   with rollback, the SDK, the stack templates and the Rust sources for the desktop scaffold.
 - **One scaffold**: `yolo create` builds a Bun server (Rust-based Bun, `bun:sqlite`, SSE, native cancellable work),
   optionally a Bun-bundled web page, a Tauri 3 desktop shell and a Hono/Elysia variant, all pinned by
-  `stack/stack.toml`.
+  `templates/stack.toml`.
 - **One deployable**: the server compiles to a single executable and packs with the runtime library, a launcher and a
   systemd unit; a Dockerfile wraps the same archive.
 - **One update path**: `yolo upgrade`, `yolo runtime rollback`, `yolo doctor`, `yolo uninstall`.
@@ -31,12 +31,12 @@ bun run build:bin && bun run pack:deploy                            # one archiv
 
 | Layer        | Provider                                                   | Surface                                                                                      |
 | :----------- | :--------------------------------------------------------- | :------------------------------------------------------------------------------------------- |
-| Host         | Bun fork (`packages/bun`), preload plugin                  | `runtime:*` modules, `bun build --compile` with the SDK bundler plugin                       |
+| Host         | Bun fork (`vendor/bun`), preload plugin                  | `runtime:*` modules, `bun build --compile` with the SDK bundler plugin                       |
 | Runtime      | `crates/yolo-runtime`                                      | Versioned C ABI 1.x: system, process supervision, HTTP probe, cancellable work               |
-| SDK          | `sdk/runtime`                                              | `@aphrody/runtime-sdk`: loader with ABI negotiation, artifact verification, install/rollback |
+| SDK          | `packages/runtime`                                              | `@aphrody/runtime-sdk`: loader with ABI negotiation, artifact verification, install/rollback |
 | Desktop      | `crates/aphrody-*` (Tauri 3 alpha, wry, tao, plugins)      | `yolo create --with desktop`; `runtime:desktop`                                              |
-| Headless     | Obscura (`packages/obscura`)                               | `runtime:browser`                                                                            |
-| Distribution | `scripts/release*.ts`, `install.sh/.ps1`, release workflow | Assets for five targets, checksums, installers                                               |
+| Headless     | Obscura (`vendor/obscura`)                               | `runtime:browser`                                                                            |
+| Distribution | `scripts/release/release*.ts`, `install.sh/.ps1`, release workflow | Assets for five targets, checksums, installers                                               |
 | Consumers    | Aphrody applications                                       | Light SDK dependency, product logic stays in Aphrody                                         |
 
 Engines (Bun, Obscura) keep their own build graphs and are combined at distribution level; every artifact that crosses
