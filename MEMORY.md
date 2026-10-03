@@ -1,38 +1,30 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Yolo — current runtime memory
+# Yolo — mémoire factuelle
 
-Owner direction, 2026-10-03: build a native precompiled runtime from the Bun fork
-with Tauri and Obscura, and sharply reduce Aphrody's routine compilation cost.
+Relevé : 2026-10-03. [PLAN.md](PLAN.md) possède les jalons ;
+[plan Aphrody](../aphrody/PLAN.md) possède architecture et workflow autonome.
 
-- [PLAN.md](PLAN.md) owns producer milestones; [Aphrody PLAN](../aphrody/PLAN.md)
-  owns the cross-repository architecture.
-- Runtime/SDK live here; application behavior remains in Aphrody. First prove one
-  native capability consumed without compiling the heavy engines.
-- C ABI/light Rust SDK is the stable boundary. Precompiled rlibs do not guarantee
-  cross-version Rust ABI compatibility.
-- Stage JavaScriptCore convergence for Obscura; keep V8 until required parity.
-  Native WebViews keep platform engines. Preserve unwind where recovery needs it.
-- Preserve the Tauri vendor/import workflow and runtime identities while package
-  names use aphrody-*. Separate build graphs can produce one unified distribution.
-- 2026-10-03: `yolo ship` became this repository's CI and release host (GitHub Actions has no
-  billing to run on); see [PLAN.md](PLAN.md) for the current per-phase status and
-  [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) for the last verified commit. Factory qualification remains distinct from installation and consumer activation.
-- The earlier Rust scan covers Aphrody only and is a lexical navigation aid;
-  its profile statements and dependency inventory require scoped verification.
-- Keep repositories private, commits owner-authored and existing consumers intact
-  until replacement/rollback qualification. The automation plugin named YOLO is
-  a separate component, not this runtime repository.
-- First R0 slice (C ABI `yolo-runtime`, SDK `packages/runtime`, `just runtime-package`) lives in
-  [docs/RUNTIME-ABI.md](docs/RUNTIME-ABI.md); the artifact uses the unwinding `runtime` profile.
-- 2026-10-03: Stack report recorded in [docs/STACK-REPORT-2026-10.md](docs/STACK-REPORT-2026-10.md) (Decision D27):
-  Dioxus 0.7 for Rust full-stack apps in Tauri; EU bare-metal (OVH fleet + Hetzner auction) + Cloudflare
-  for hosting (PaaS avoided due to 2026 RAM price surge); React 19 + Material 3 web components
-  (`@aphrody/material-web`) under Bun for UI.
+| Livraison | Preuve | Limite |
+| --- | --- | --- |
+| ABI 1.4 | `01300fb2f935` : capture binaire bornée sans troncature silencieuse, workers joints, arrêt du groupe Unix après sortie leader, guards SDK | Descendants quittant le groupe hors ownership ; Windows child direct seulement |
+| Capacité partagée | `0ade1c71ccb5` : 32 slots SDK pour processus/probes | Pas qualification globale desktop/headless |
+| Gates natifs | 31 tests runtime/core, Clippy strict ; Linux x64 exécuté | Windows x64, macOS x64/ARM64, Linux ARM64 : metadata checks seulement |
+| SDK packaging | `27403350547d` : sources SDK commitées et LICENSE, hash/provenance, conflits/symlinks refusés ; ancien patch consommateur retiré | Aucun build moteur ni activation produit |
+| Gates packaging | 4 tests/16 assertions, TypeScript, lint strict et format | Suite 168 pass antérieure aux derniers guards ; composant rerun ensuite |
 
-- 2026-10-03: ABI 1.4 adds lossless binary capture with explicit lifetime budgets,
-  joins capture workers and stops the owned Unix group after leader exit. SDK
-  handles reject calls after runtime close. Packaging selects the producer build,
-  and build provenance watches the branch ref. See
-  [batch evidence](docs/runtime-lossless-2026-10-03.json).
-  Linux x64 behavior is tested; other native targets pass metadata checks only.
-  Windows process-tree ownership and complete desktop/headless integration remain open.
+Runtime Linux x64 installé localement via le propriétaire release :
+ABI 1.4, révision native `0ade1c71ccb5`,
+SHA-256 `ae14394bcfb291b9da4a4aa79acdcac2193f30966ae5672f02adf9f6b3ec695e`.
+SDK : archive `c81812ea`, source `27403350547d36ef208068df929bc4e2eeb22218` ;
+pin consommateur dans [Aphrody config](../aphrody/config/sibling-checkouts.json).
+
+Reçus : [ABI/lifetime](docs/runtime-lossless-2026-10-03.json),
+[capacité](docs/runtime-shared-capacity-2026-10-03.json),
+[SDK packaging](docs/runtime-sdk-acquisition-2026-10-03.json).
+Les preuves antérieures D0/D2 et leurs révisions sont dans
+[DISTRIBUTION](docs/DISTRIBUTION.md), pas une qualification de la release courante.
+Consommateur : [mémoire Aphrody](../aphrody/MEMORY.md).
+
+Desktop/browser restent réservés. JSC/parité V8, distribution cinq cibles,
+Job Objects, activation complète et gains mesurés restent ouverts.
+Mémoire fichier uniquement ; aucune mémoire fournisseur synchronisée.
