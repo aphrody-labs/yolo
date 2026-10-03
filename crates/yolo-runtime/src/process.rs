@@ -37,7 +37,8 @@ pub struct YoloSpawnInfo {
   pub program: *const c_char,
   /// NULL-terminated array of NUL-terminated UTF-8 arguments (not including the program), or NULL.
   pub args: *const *const c_char,
-  /// NULL-terminated array of `KEY=VALUE` entries added to the inherited environment, or NULL.
+  /// NULL-terminated array of `KEY=VALUE` entries added to the inherited environment (`KEY` alone
+  /// removes the variable), or NULL.
   pub env: *const *const c_char,
   /// Working directory, or NULL.
   pub cwd: *const c_char,
@@ -228,10 +229,12 @@ pub unsafe extern "C" fn yolo_process_spawn(
     for entry in &env {
       match entry.split_once('=') {
         Some((key, value)) if !key.is_empty() => command.env(key, value),
+        // `KEY` alone removes the variable from the inherited environment.
+        None if !entry.is_empty() => command.env_remove(entry),
         _ => {
           return set_error(
             YoloStatus::InvalidArgument,
-            "environment entries are KEY=VALUE",
+            "environment entries are KEY=VALUE, or KEY to remove the variable",
           );
         }
       };

@@ -179,8 +179,8 @@ function callJson<T>(symbols: Symbols, call: (out: Pointer) => number): T {
 export interface SpawnOptions {
   readonly program: string;
   readonly args?: readonly string[];
-  /** Added to the inherited environment. */
-  readonly env?: Readonly<Record<string, string>>;
+  /** Added to the inherited environment; an `undefined` value removes the variable. */
+  readonly env?: Readonly<Record<string, string | undefined>>;
   readonly cwd?: string;
   /**
    * `"null"` connects stdin/stdout/stderr to the null device, `"capture"` keeps the last 64 KiB of
@@ -516,7 +516,9 @@ export class Runtime implements Disposable {
     const program = cString(options.program);
     const args = cStringArray(options.args ?? [], keep);
     const env = cStringArray(
-      Object.entries(options.env ?? {}).map(([key, value]) => `${key}=${value}`),
+      Object.entries(options.env ?? {}).map(([key, value]) =>
+        value === undefined ? key : `${key}=${value}`,
+      ),
       keep,
     );
     const cwd = options.cwd === undefined ? undefined : cString(options.cwd);

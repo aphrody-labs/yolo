@@ -523,13 +523,31 @@ mod process {
   }
 
   #[test]
+  fn a_bare_key_removes_a_variable_from_the_inherited_environment() {
+    let rt = create(0);
+    unsafe { std::env::set_var("YOLO_TEST_INHERITED", "yes") };
+    let (_, kept) = spawn(rt, "sh", &["-c", "test -n \"$YOLO_TEST_INHERITED\""], &[]);
+    assert_eq!(wait_exited(kept).exit_code, 0);
+    let (_, removed) = spawn(
+      rt,
+      "sh",
+      &["-c", "test -z \"$YOLO_TEST_INHERITED\""],
+      &["YOLO_TEST_INHERITED"],
+    );
+    assert_eq!(wait_exited(removed).exit_code, 0);
+    yolo_process_release(kept);
+    yolo_process_release(removed);
+    yolo_runtime_destroy(rt);
+  }
+
+  #[test]
   fn spawn_errors_are_structured() {
     let rt = create(0);
     let (status, handle) = spawn(rt, "/nonexistent/binary", &[], &[]);
     assert_eq!(status, YoloStatus::Internal);
     assert_eq!(handle, 0);
     assert!(last_error().contains("cannot spawn"));
-    let (status, _) = spawn(rt, "sh", &[], &["NOT_AN_ASSIGNMENT"]);
+    let (status, _) = spawn(rt, "sh", &[], &["=NO_KEY"]);
     assert_eq!(status, YoloStatus::InvalidArgument);
     let mut out = 0;
     assert_eq!(

@@ -140,6 +140,19 @@ suite("process supervision (runtime:process)", () => {
     expect(child.pid).toBe(status.pid);
   });
 
+  unix("adds and removes environment variables", () => {
+    process.env["YOLO_SDK_INHERITED"] = "yes";
+    using runtime = Runtime.load();
+    using child = runtime.spawn({
+      program: "sh",
+      args: ["-c", 'test -z "$YOLO_SDK_INHERITED" && test "$YOLO_SDK_ADDED" = 1'],
+      env: { YOLO_SDK_ADDED: "1", YOLO_SDK_INHERITED: undefined },
+      stdio: "null",
+    });
+    for (let i = 0; i < 200 && child.status().running; i++) Bun.sleepSync(10);
+    expect(child.status()).toMatchObject({ running: false, exitCode: 0 });
+  });
+
   unix("stops a process group gracefully and reports the signal", () => {
     using runtime = Runtime.load();
     using child = runtime.spawn({ program: "sh", args: ["-c", "sleep 60 & wait"], stdio: "null" });
