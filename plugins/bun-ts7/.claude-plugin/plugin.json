@@ -1,0 +1,10 @@
+{
+  "name": "bun-ts7",
+  "version": "0.2.0",
+  "description": "Bun-only doctrine, version-matched Bun docs routing, TypeScript 7 guidance and Bun fork upstream sync, with a read-only docs researcher, a Node-to-Bun migration agent and an informative SessionStart context hook.",
+  "author": {
+    "name": "aphrody-dev",
+    "email": "contact@aphrody.com"
+  },
+  "keywords": ["bun", "typescript-7", "tsc", "doctrine", "docs", "bun-fork", "bun-test", "upstream-sync", "n2b"]
+}

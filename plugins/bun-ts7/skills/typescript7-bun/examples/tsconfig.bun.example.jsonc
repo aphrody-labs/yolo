@@ -1,0 +1,33 @@
+{
+  // Recommended baseline for a Bun project on TypeScript 6 or 7.
+  // Source: Bun docs "typescript" and "typescript-6" pages; `bun init` generates the same file.
+  "compilerOptions": {
+    // Environment setup and latest features
+    "lib": ["ESNext"],
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "allowJs": true,
+    // Required since TypeScript 6: `types` no longer defaults to every @types package.
+    "types": ["bun"],
+
+    // Bundler mode
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+
+    // Best practices
+    "strict": true,
+    "skipLibCheck": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+
+    // Stricter flags, disabled by default
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noPropertyAccessFromIndexSignature": false
+  }
+}
