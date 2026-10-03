@@ -14,7 +14,7 @@ extern "C" {
 #endif
 
 #define YOLO_ABI_MAJOR 1u
-#define YOLO_ABI_MINOR 2u
+#define YOLO_ABI_MINOR 3u
 #define YOLO_MAX_OPERATIONS_LIMIT 64u
 
 /* Opaque handle owned by the library; 0 is never valid. */
@@ -100,6 +100,9 @@ YoloStatus yolo_process_status(YoloHandle process, YoloProcessStatus *out); /* n
 YoloStatus yolo_process_read(YoloHandle process, uint32_t stream, uint32_t mode, YoloBuffer *out);
 /* SIGTERM to the group, SIGKILL after grace_ms; waits. The handle stays valid (read the status). */
 YoloStatus yolo_process_stop(YoloHandle process, uint32_t grace_ms);
+/* ABI 1.3: asynchronous stop on a worker (not counted against max_operations). The operation yields
+ * JSON {"exit_code": n, "signal": n}; release the operation as usual. */
+YoloStatus yolo_process_stop_start(YoloHandle process, uint32_t grace_ms, YoloHandle *out_operation);
 /* Stops if running (2 s grace) and invalidates the handle. Required for every process. */
 YoloStatus yolo_process_release(YoloHandle process);
 

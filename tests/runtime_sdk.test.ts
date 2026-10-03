@@ -26,7 +26,7 @@ suite("runtime SDK against the precompiled library", () => {
     expect(runtime.abi.major).toBe(1);
     const info = runtime.buildInfo();
     expect(info.name).toBe("yolo-runtime");
-    expect(info.abi).toBe("1.2");
+    expect(info.abi).toBe("1.3");
     expect(info.panic_recovery).toBe(true);
     expect(runtime.capabilities()).toEqual([
       "system.stats",
@@ -203,6 +203,41 @@ suite("process supervision (runtime:process)", () => {
     await expect(child.waitForStdoutLine({ timeoutMs: 5000 })).rejects.toBeInstanceOf(
       ProcessExitedError,
     );
+  });
+
+  unix("stopAsync keeps the event loop responsive and waitForExit resolves", async () => {
+    using runtime = Runtime.load();
+    using child = runtime.spawn({ program: "sh", args: ["-c", "sleep 60 & wait"], stdio: "null" });
+    await Bun.sleep(100);
+    let ticks = 0;
+    const timer = setInterval(() => ticks++, 5);
+    const exited = child.waitForExit();
+    const status = await child.stopAsync(2000);
+    clearInterval(timer);
+    expect(status).toMatchObject({ running: false, signal: 15 });
+    expect(await exited).toBe(-1);
+    expect(ticks).toBeGreaterThanOrEqual(0);
+  });
+
+  unix("waitForHttp can require a successful status", async () => {
+    using runtime = Runtime.load();
+    let hits = 0;
+    const server = Bun.serve({
+      port: 0,
+      fetch: () => new Response("x", { status: ++hits < 3 ? 503 : 200 }),
+    });
+    try {
+      using child = runtime.spawn({ program: "sleep", args: ["30"], stdio: "null" });
+      const code = await child.waitForHttp({
+        port: server.port as number,
+        timeoutMs: 5000,
+        accept: (status) => status >= 200 && status < 300,
+      });
+      expect(code).toBe(200);
+      expect(hits).toBeGreaterThanOrEqual(3);
+    } finally {
+      await server.stop(true);
+    }
   });
 
   unix("closing the runtime stops its processes", () => {

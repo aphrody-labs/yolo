@@ -12,7 +12,7 @@ import { resolve } from "node:path";
 
 /** ABI major this SDK was written for. A library with another major is refused before any call. */
 export const EXPECTED_ABI_MAJOR = 1;
-export const EXPECTED_ABI_MINOR = 2;
+export const EXPECTED_ABI_MINOR = 3;
 
 export const Status = {
   Ok: 0,
@@ -125,6 +125,10 @@ const SYMBOLS = {
     returns: FFIType.i32,
   },
   yolo_process_stop: { args: [FFIType.u64, FFIType.u32], returns: FFIType.i32 },
+  yolo_process_stop_start: {
+    args: [FFIType.u64, FFIType.u32, FFIType.ptr],
+    returns: FFIType.i32,
+  },
   yolo_process_release: { args: [FFIType.u64], returns: FFIType.i32 },
   yolo_http_probe_start: {
     args: [FFIType.u64, FFIType.ptr, FFIType.u16, FFIType.ptr, FFIType.u32, FFIType.ptr],
@@ -200,6 +204,8 @@ export interface HttpReadyOptions {
   readonly timeoutMs?: number;
   readonly intervalMs?: number;
   readonly signal?: AbortSignal;
+  /** Accepts a response status as "ready"; default: any answer. */
+  readonly accept?: (statusCode: number) => boolean;
 }
 
 /** The supervised process exited before the awaited condition held. */
@@ -297,6 +303,35 @@ export class ManagedProcess implements Disposable {
     }
   }
 
+  /**
+   * Like `stop()` but the SIGTERM / grace / SIGKILL sequence runs on a native worker, so the event
+   * loop is never blocked. Resolves with the final status.
+   */
+  async stopAsync(graceMs = 2000): Promise<ProcessStatus> {
+    const out = new BigUint64Array(1);
+    check(this.#symbols, this.#symbols.yolo_process_stop_start(this.#handle, graceMs, ptr(out)));
+    const operation = new Operation(this.#symbols, out[0] as bigint);
+    try {
+      while (operation.waitRaw(0) === undefined) {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+    } finally {
+      operation.release();
+    }
+    return this.status();
+  }
+
+  /** Resolves with the exit code once the process has exited (polls; never blocks). */
+  async waitForExit(options: { pollMs?: number; signal?: AbortSignal } = {}): Promise<number> {
+    const { pollMs = 25, signal } = options;
+    for (;;) {
+      signal?.throwIfAborted();
+      const status = this.status();
+      if (!status.running) return status.exitCode;
+      await new Promise((resolve) => setTimeout(resolve, pollMs));
+    }
+  }
+
   /** SIGTERM to the process group, SIGKILL after `graceMs`; waits and keeps the handle valid. */
   stop(graceMs = 2000): ProcessStatus {
     check(this.#symbols, this.#symbols.yolo_process_stop(this.#handle, graceMs));
@@ -316,6 +351,7 @@ export class ManagedProcess implements Disposable {
       timeoutMs = 10_000,
       intervalMs = 50,
       signal,
+      accept,
     } = options;
     const deadline = Date.now() + timeoutMs;
     for (;;) {
@@ -328,7 +364,7 @@ export class ManagedProcess implements Disposable {
         path,
         Math.min(500, Math.max(1, deadline - Date.now())),
       );
-      if (code !== undefined) return code;
+      if (code !== undefined && (accept === undefined || accept(code))) return code;
       if (Date.now() >= deadline) {
         throw new Error(`http://${host}:${port}${path} not ready after ${timeoutMs} ms`);
       }

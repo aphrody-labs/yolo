@@ -334,6 +334,7 @@ fn every_exported_function_is_declared_in_the_c_header() {
     "yolo_process_stop",
     "yolo_process_release",
     "yolo_process_read",
+    "yolo_process_stop_start",
     "yolo_http_probe_start",
   ] {
     assert!(
@@ -554,6 +555,34 @@ mod process {
     assert_eq!(done.signal, libc::SIGTERM);
     // the group leader is gone and no member of the group answers any more
     assert_eq!(unsafe { libc::kill(-pid, 0) }, -1);
+    yolo_process_release(process);
+    yolo_runtime_destroy(rt);
+  }
+
+  #[test]
+  fn asynchronous_stop_runs_on_a_worker_and_ignores_the_operation_limit() {
+    let rt = create(1);
+    let (_, process) = spawn(rt, "sh", &["-c", "sleep 60 & wait"], &[]);
+    // the limit (1) is exhausted by the process itself, a stop must still start
+    let mut op = 0;
+    assert_eq!(
+      unsafe { yolo_process_stop_start(process, 2000, &mut op) },
+      YoloStatus::Ok
+    );
+    let mut out = empty();
+    assert_eq!(
+      unsafe { yolo_operation_wait(op, 10_000, &mut out) },
+      YoloStatus::Ok
+    );
+    let result = take_json(out);
+    assert_eq!(result["signal"], libc::SIGTERM);
+    assert_eq!(status_of(process).state, 1);
+    assert_eq!(yolo_operation_release(op), YoloStatus::Ok);
+    let mut none = 0;
+    assert_eq!(
+      unsafe { yolo_process_stop_start(0, 0, &mut none) },
+      YoloStatus::InvalidHandle
+    );
     yolo_process_release(process);
     yolo_runtime_destroy(rt);
   }

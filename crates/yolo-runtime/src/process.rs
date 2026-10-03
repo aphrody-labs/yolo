@@ -396,6 +396,47 @@ pub extern "C" fn yolo_process_stop(process: YoloHandle, grace_ms: u32) -> YoloS
   })
 }
 
+/// Asynchronous `yolo_process_stop`: the SIGTERM/grace/SIGKILL sequence runs on a worker thread and
+/// the operation (not counted against `max_operations`) yields `{"exit_code": n, "signal": n}`.
+///
+/// # Safety
+/// `out_operation` must point to a writable `YoloHandle`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn yolo_process_stop_start(
+  process: YoloHandle,
+  grace_ms: u32,
+  out_operation: *mut YoloHandle,
+) -> YoloStatus {
+  guard(|| {
+    if out_operation.is_null() {
+      return set_error(YoloStatus::InvalidArgument, "null output handle");
+    }
+    let (owner, state) = match lock(registry()).get(process) {
+      Some(Entry::Process { owner, state }) => (*owner, Arc::clone(state)),
+      _ => return set_error(YoloStatus::InvalidHandle, "invalid process handle"),
+    };
+    let started = start_operation(owner, "stop", false, move |_| {
+      state.stop(grace_ms);
+      let exit = state.poll();
+      OpResult::Done(
+        serde_json::json!({
+          "exit_code": exit.map_or(0, |e| e.code.unwrap_or(-1)),
+          "signal": exit.and_then(|e| e.signal).unwrap_or(0),
+        })
+        .to_string(),
+      )
+    });
+    match started {
+      Ok(handle) => {
+        // SAFETY: `out_operation` is writable per the contract.
+        unsafe { out_operation.write(handle) };
+        YoloStatus::Ok
+      }
+      Err(status) => status,
+    }
+  })
+}
+
 /// Stops the process if it is still running (2 s grace) and invalidates the handle.
 #[unsafe(no_mangle)]
 pub extern "C" fn yolo_process_release(process: YoloHandle) -> YoloStatus {
@@ -505,7 +546,7 @@ pub unsafe extern "C" fn yolo_http_probe_start(
       Err(status) => return status,
     };
     let timeout = Duration::from_millis(u64::from(timeout_ms.max(1)));
-    let started = start_operation(runtime, "probe", move |cancel| {
+    let started = start_operation(runtime, "probe", true, move |cancel| {
       if cancel.load(Ordering::Relaxed) {
         return OpResult::Cancelled;
       }

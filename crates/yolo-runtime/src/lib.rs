@@ -26,7 +26,7 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 pub const ABI_MAJOR: u32 = 1;
-pub const ABI_MINOR: u32 = 2;
+pub const ABI_MINOR: u32 = 3;
 /// Upper bound for `max_operations`.
 pub const MAX_OPERATIONS_LIMIT: u32 = 64;
 const DEFAULT_MAX_OPERATIONS: u32 = 4;
@@ -484,10 +484,12 @@ pub unsafe extern "C" fn yolo_system_stats(
 }
 
 /// Starts `work` on a bounded worker thread owned by `runtime` and returns its operation handle.
-/// `work` receives the cancellation flag; a panic becomes a failed operation.
+/// `work` receives the cancellation flag; a panic becomes a failed operation. Unbounded operations
+/// (cleanup such as stopping a process) ignore `max_operations` so they can never fail with `BUSY`.
 pub(crate) fn start_operation(
   runtime: YoloHandle,
   name: &'static str,
+  bounded: bool,
   work: impl FnOnce(&AtomicBool) -> OpResult + Send + 'static,
 ) -> Result<YoloHandle, YoloStatus> {
   let state = Arc::new(OpState {
@@ -497,7 +499,7 @@ pub(crate) fn start_operation(
   });
   let mut reg = lock(registry());
   let limit = runtime_limit(&reg, runtime)?;
-  if reg.operations_of(runtime).len() as u32 >= limit {
+  if bounded && reg.operations_of(runtime).len() as u32 >= limit {
     return Err(set_error(
       YoloStatus::Busy,
       format!("{limit} operations already running"),
@@ -538,20 +540,16 @@ pub unsafe extern "C" fn yolo_bench_start(
     if out_operation.is_null() {
       return set_error(YoloStatus::InvalidArgument, "null output handle");
     }
-    let started =
-      start_operation(
-        runtime,
-        "bench",
-        move |cancel| match yolo_core::compute_benchmark_cancellable(iterations, || {
-          cancel.load(Ordering::Relaxed)
-        }) {
-          Some(result) => match serde_json::to_string(&result) {
-            Ok(json) => OpResult::Done(json),
-            Err(error) => OpResult::Failed(error.to_string()),
-          },
-          None => OpResult::Cancelled,
+    let started = start_operation(runtime, "bench", true, move |cancel| {
+      match yolo_core::compute_benchmark_cancellable(iterations, || cancel.load(Ordering::Relaxed))
+      {
+        Some(result) => match serde_json::to_string(&result) {
+          Ok(json) => OpResult::Done(json),
+          Err(error) => OpResult::Failed(error.to_string()),
         },
-      );
+        None => OpResult::Cancelled,
+      }
+    });
     match started {
       Ok(handle) => {
         // SAFETY: `out_operation` is writable per the contract.

@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Runtime C ABI (slice R0, ABI 1.2)
+# Runtime C ABI (slice R0, ABI 1.3)
 
 First vertical slice of [PLAN.md](../PLAN.md) phase R0: one capability family behind a versioned
 C ABI, a precompiled artifact and a light TypeScript consumer. Nothing here qualifies later
@@ -65,7 +65,7 @@ by the preload plugin of `sdk/runtime`.
   when their runtime is destroyed. Handles are thread-safe: any thread may call any function.
 - **Versioning policy.** ABI 1.x is additive only (D1): 1.0 is the core, 1.1 added the process and
   probe functions, 1.2 the bounded stdout/stderr capture (`YOLO_SPAWN_CAPTURE`, `yolo_process_read`: the
-  last 64 KiB of each stream, drained or peeked). An older library is refused by the SDK with an ABI error before any symbol other
+  last 64 KiB of each stream, drained or peeked). `yolo_process_stop_start` (1.3) is the non-blocking stop. An older library is refused by the SDK with an ABI error before any symbol other
   than `yolo_abi_version` is bound.
 
 ## What the light consumer needs
