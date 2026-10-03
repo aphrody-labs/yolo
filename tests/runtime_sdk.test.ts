@@ -26,7 +26,7 @@ suite("runtime SDK against the precompiled library", () => {
     expect(runtime.abi.major).toBe(1);
     const info = runtime.buildInfo();
     expect(info.name).toBe("yolo-runtime");
-    expect(info.abi).toBe("1.1");
+    expect(info.abi).toBe("1.2");
     expect(info.panic_recovery).toBe(true);
     expect(runtime.capabilities()).toEqual([
       "system.stats",
@@ -179,6 +179,30 @@ suite("process supervision (runtime:process)", () => {
     await expect(
       child.waitForHttp({ port: 9, timeoutMs: 5000, signal: controller.signal }),
     ).rejects.toThrow("stop");
+  });
+
+  unix("captures stdout and stderr and waits for the first stdout line", async () => {
+    using runtime = Runtime.load();
+    using child = runtime.spawn({
+      program: "sh",
+      args: ["-c", "echo ws://127.0.0.1:1/devtools/browser; echo boom >&2; sleep 30"],
+      stdio: "capture",
+    });
+    expect(await child.waitForStdoutLine({ timeoutMs: 5000 })).toBe(
+      "ws://127.0.0.1:1/devtools/browser",
+    );
+    expect(child.takeStdout()).toBe("");
+    for (let i = 0; i < 100 && !child.stderrTail().includes("boom"); i++) Bun.sleepSync(10);
+    expect(child.stderrTail()).toContain("boom");
+    expect(child.stderrTail()).toContain("boom"); // peek does not clear
+  });
+
+  unix("waitForStdoutLine rejects when the process exits without a line", async () => {
+    using runtime = Runtime.load();
+    using child = runtime.spawn({ program: "sh", args: ["-c", "exit 4"], stdio: "capture" });
+    await expect(child.waitForStdoutLine({ timeoutMs: 5000 })).rejects.toBeInstanceOf(
+      ProcessExitedError,
+    );
   });
 
   unix("closing the runtime stops its processes", () => {

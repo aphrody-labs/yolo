@@ -12,7 +12,7 @@ import { resolve } from "node:path";
 
 /** ABI major this SDK was written for. A library with another major is refused before any call. */
 export const EXPECTED_ABI_MAJOR = 1;
-export const EXPECTED_ABI_MINOR = 1;
+export const EXPECTED_ABI_MINOR = 2;
 
 export const Status = {
   Ok: 0,
@@ -120,6 +120,10 @@ const SYMBOLS = {
   yolo_operation_release: { args: [FFIType.u64], returns: FFIType.i32 },
   yolo_process_spawn: { args: [FFIType.u64, FFIType.ptr, FFIType.ptr], returns: FFIType.i32 },
   yolo_process_status: { args: [FFIType.u64, FFIType.ptr], returns: FFIType.i32 },
+  yolo_process_read: {
+    args: [FFIType.u64, FFIType.u32, FFIType.u32, FFIType.ptr],
+    returns: FFIType.i32,
+  },
   yolo_process_stop: { args: [FFIType.u64, FFIType.u32], returns: FFIType.i32 },
   yolo_process_release: { args: [FFIType.u64], returns: FFIType.i32 },
   yolo_http_probe_start: {
@@ -138,6 +142,10 @@ function readBuffer(symbols: Symbols, buffer: Uint8Array): string {
   const dataPtr = read.ptr(ptr(buffer), 0);
   const len = Number(view.getBigUint64(8, true));
   if (!dataPtr) return "";
+  if (len === 0) {
+    symbols.yolo_buffer_free(ptr(buffer));
+    return "";
+  }
   // Copy before releasing: the memory belongs to the library.
   const text = new TextDecoder().decode(new Uint8Array(toArrayBuffer(dataPtr, 0, len)).slice());
   symbols.yolo_buffer_free(ptr(buffer));
@@ -170,8 +178,11 @@ export interface SpawnOptions {
   /** Added to the inherited environment. */
   readonly env?: Readonly<Record<string, string>>;
   readonly cwd?: string;
-  /** `"null"` connects stdin/stdout/stderr to the null device; default inherits them. */
-  readonly stdio?: "inherit" | "null";
+  /**
+   * `"null"` connects stdin/stdout/stderr to the null device, `"capture"` keeps the last 64 KiB of
+   * stdout and stderr for `takeStdout()` / `stderrTail()`; default inherits them.
+   */
+  readonly stdio?: "inherit" | "null" | "capture";
 }
 
 export interface ProcessStatus {
@@ -242,6 +253,48 @@ export class ManagedProcess implements Disposable {
       signal: view[3] as number,
       pid: out[4] as number,
     };
+  }
+
+  #read(stream: 1 | 2, mode: 0 | 1): string {
+    const buffer = new Uint8Array(BUFFER_BYTES);
+    check(this.#symbols, this.#symbols.yolo_process_read(this.#handle, stream, mode, ptr(buffer)));
+    return readBuffer(this.#symbols, buffer);
+  }
+
+  /** Returns and clears the captured stdout (needs `stdio: "capture"`). */
+  takeStdout(): string {
+    return this.#read(1, 0);
+  }
+
+  /** The last captured stderr bytes (at most 64 KiB), without clearing them. */
+  stderrTail(maxBytes = 8192): string {
+    return this.#read(2, 1).slice(-maxBytes);
+  }
+
+  /**
+   * Resolves with the first stdout line (needs `stdio: "capture"`). Rejects with
+   * `ProcessExitedError` if the process exits with no line, on timeout or on abort.
+   */
+  async waitForStdoutLine(
+    options: { timeoutMs?: number; signal?: AbortSignal; pollMs?: number } = {},
+  ): Promise<string> {
+    const { timeoutMs = 10_000, signal, pollMs = 5 } = options;
+    const deadline = Date.now() + timeoutMs;
+    let seen = "";
+    for (;;) {
+      signal?.throwIfAborted();
+      seen += this.takeStdout();
+      const newline = seen.indexOf("\n");
+      if (newline >= 0) return seen.slice(0, newline).trim();
+      const status = this.status();
+      if (!status.running) {
+        seen += this.takeStdout();
+        if (seen.includes("\n")) return seen.slice(0, seen.indexOf("\n")).trim();
+        throw new ProcessExitedError(status);
+      }
+      if (Date.now() >= deadline) throw new Error(`no stdout line after ${timeoutMs} ms`);
+      await new Promise((resolve) => setTimeout(resolve, pollMs));
+    }
   }
 
   /** SIGTERM to the process group, SIGKILL after `graceMs`; waits and keeps the handle valid. */
@@ -434,7 +487,7 @@ export class Runtime implements Disposable {
 
     const info = new DataView(new ArrayBuffer(40));
     info.setUint32(0, 40, true);
-    info.setUint32(4, options.stdio === "null" ? 1 : 0, true);
+    info.setUint32(4, options.stdio === "null" ? 1 : options.stdio === "capture" ? 2 : 0, true);
     info.setBigUint64(8, BigInt(ptr(program)), true);
     info.setBigUint64(16, BigInt(ptr(args)), true);
     info.setBigUint64(24, BigInt(ptr(env)), true);

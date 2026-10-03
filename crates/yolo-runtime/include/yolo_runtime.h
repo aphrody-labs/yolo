@@ -14,7 +14,7 @@ extern "C" {
 #endif
 
 #define YOLO_ABI_MAJOR 1u
-#define YOLO_ABI_MINOR 1u
+#define YOLO_ABI_MINOR 2u
 #define YOLO_MAX_OPERATIONS_LIMIT 64u
 
 /* Opaque handle owned by the library; 0 is never valid. */
@@ -70,6 +70,11 @@ YoloStatus yolo_operation_release(YoloHandle operation);
 
 /* capability "process.supervise" (ABI 1.1): the child runs in its own process group */
 #define YOLO_SPAWN_NULL_STDIO 1u /* YoloSpawnInfo.flags: stdin/stdout/stderr -> null device */
+#define YOLO_SPAWN_CAPTURE 2u    /* flags (ABI 1.2): stdin null, stdout/stderr captured (last 64 KiB each) */
+#define YOLO_STREAM_STDOUT 1u
+#define YOLO_STREAM_STDERR 2u
+#define YOLO_READ_DRAIN 0u
+#define YOLO_READ_PEEK 1u
 
 typedef struct YoloSpawnInfo {
   uint32_t struct_size; /* sizeof(YoloSpawnInfo) of the caller */
@@ -91,6 +96,8 @@ typedef struct YoloProcessStatus {
 /* Counts against max_operations (BUSY beyond). */
 YoloStatus yolo_process_spawn(YoloHandle runtime, const YoloSpawnInfo *info, YoloHandle *out);
 YoloStatus yolo_process_status(YoloHandle process, YoloProcessStatus *out); /* non-blocking */
+/* ABI 1.2: captured output of a YOLO_SPAWN_CAPTURE process, in a library-owned buffer (maybe empty). */
+YoloStatus yolo_process_read(YoloHandle process, uint32_t stream, uint32_t mode, YoloBuffer *out);
 /* SIGTERM to the group, SIGKILL after grace_ms; waits. The handle stays valid (read the status). */
 YoloStatus yolo_process_stop(YoloHandle process, uint32_t grace_ms);
 /* Stops if running (2 s grace) and invalidates the handle. Required for every process. */

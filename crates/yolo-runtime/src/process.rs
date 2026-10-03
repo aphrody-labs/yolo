@@ -16,6 +16,17 @@ pub(crate) const DESTROY_GRACE_MS: u32 = 500;
 const RELEASE_GRACE_MS: u32 = 2000;
 /// `YoloSpawnInfo.flags`: connect the child's stdin/stdout/stderr to the null device.
 pub const YOLO_SPAWN_NULL_STDIO: u32 = 1;
+/// `YoloSpawnInfo.flags`: stdin is the null device, stdout and stderr are captured (the last
+/// `CAPTURE_LIMIT` bytes of each are kept) and read with `yolo_process_read`.
+pub const YOLO_SPAWN_CAPTURE: u32 = 2;
+/// `yolo_process_read` streams.
+pub const YOLO_STREAM_STDOUT: u32 = 1;
+pub const YOLO_STREAM_STDERR: u32 = 2;
+/// `yolo_process_read` modes: `DRAIN` returns and clears, `PEEK` returns without clearing.
+pub const YOLO_READ_DRAIN: u32 = 0;
+pub const YOLO_READ_PEEK: u32 = 1;
+/// Bytes kept per captured stream; older bytes are dropped.
+const CAPTURE_LIMIT: usize = 64 * 1024;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
@@ -51,10 +62,39 @@ struct ExitInfo {
   signal: Option<i32>,
 }
 
+#[derive(Default)]
+struct Capture {
+  bytes: Mutex<Vec<u8>>,
+}
+
+impl Capture {
+  /// Reads `source` until EOF into the bounded buffer.
+  fn pump(self: Arc<Self>, mut source: impl Read + Send + 'static, name: &'static str) {
+    let _ = std::thread::Builder::new()
+      .name(format!("yolo-{name}"))
+      .spawn(move || {
+        let mut chunk = [0u8; 4096];
+        while let Ok(n) = source.read(&mut chunk) {
+          if n == 0 {
+            break;
+          }
+          let mut bytes = lock(&self.bytes);
+          bytes.extend_from_slice(&chunk[..n]);
+          if bytes.len() > CAPTURE_LIMIT {
+            let excess = bytes.len() - CAPTURE_LIMIT;
+            bytes.drain(..excess);
+          }
+        }
+      });
+  }
+}
+
 pub(crate) struct ProcState {
   pid: u32,
   child: Mutex<Child>,
   exit: Mutex<Option<ExitInfo>>,
+  stdout: Arc<Capture>,
+  stderr: Arc<Capture>,
 }
 
 impl ProcState {
@@ -199,11 +239,24 @@ pub unsafe extern "C" fn yolo_process_spawn(
     if let Some(cwd) = &cwd {
       command.current_dir(cwd);
     }
-    if info.flags & YOLO_SPAWN_NULL_STDIO != 0 {
+    let null_stdio = info.flags & YOLO_SPAWN_NULL_STDIO != 0;
+    let capture = info.flags & YOLO_SPAWN_CAPTURE != 0;
+    if null_stdio && capture {
+      return set_error(
+        YoloStatus::InvalidArgument,
+        "NULL_STDIO and CAPTURE are exclusive",
+      );
+    }
+    if null_stdio {
       command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+    } else if capture {
+      command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     }
     #[cfg(unix)]
     std::os::unix::process::CommandExt::process_group(&mut command, 0);
@@ -219,7 +272,7 @@ pub unsafe extern "C" fn yolo_process_spawn(
         format!("{limit} operations already running"),
       );
     }
-    let child = match command.spawn() {
+    let mut child = match command.spawn() {
       Ok(child) => child,
       Err(error) => {
         return set_error(
@@ -228,10 +281,20 @@ pub unsafe extern "C" fn yolo_process_spawn(
         );
       }
     };
+    let stdout = Arc::new(Capture::default());
+    let stderr = Arc::new(Capture::default());
+    if let Some(pipe) = child.stdout.take() {
+      Arc::clone(&stdout).pump(pipe, "stdout");
+    }
+    if let Some(pipe) = child.stderr.take() {
+      Arc::clone(&stderr).pump(pipe, "stderr");
+    }
     let state = Arc::new(ProcState {
       pid: child.id(),
       child: Mutex::new(child),
       exit: Mutex::new(None),
+      stdout,
+      stderr,
     });
     let handle = reg.insert(Entry::Process {
       owner: runtime,
@@ -282,6 +345,41 @@ pub unsafe extern "C" fn yolo_process_status(
     // SAFETY: `out` is writable per the contract.
     unsafe { out.write(status) };
     YoloStatus::Ok
+  })
+}
+
+/// Reads the captured output of a process spawned with `YOLO_SPAWN_CAPTURE`: `stream` is
+/// `YOLO_STREAM_STDOUT` or `YOLO_STREAM_STDERR`, `mode` is `YOLO_READ_DRAIN` or `YOLO_READ_PEEK`.
+/// The bytes are returned in a library-owned buffer (possibly empty).
+///
+/// # Safety
+/// `out` must point to a writable `YoloBuffer`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn yolo_process_read(
+  process: YoloHandle,
+  stream: u32,
+  mode: u32,
+  out: *mut YoloBuffer,
+) -> YoloStatus {
+  guard(|| {
+    let state = match process_state(process) {
+      Ok(state) => state,
+      Err(status) => return status,
+    };
+    let capture = match stream {
+      YOLO_STREAM_STDOUT => &state.stdout,
+      YOLO_STREAM_STDERR => &state.stderr,
+      _ => return set_error(YoloStatus::InvalidArgument, "unknown stream"),
+    };
+    let bytes = {
+      let mut guard = lock(&capture.bytes);
+      match mode {
+        YOLO_READ_DRAIN => std::mem::take(&mut *guard),
+        YOLO_READ_PEEK => guard.clone(),
+        _ => return set_error(YoloStatus::InvalidArgument, "unknown read mode"),
+      }
+    };
+    write_buffer(out, bytes)
   })
 }
 

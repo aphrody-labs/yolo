@@ -333,6 +333,7 @@ fn every_exported_function_is_declared_in_the_c_header() {
     "yolo_process_status",
     "yolo_process_stop",
     "yolo_process_release",
+    "yolo_process_read",
     "yolo_http_probe_start",
   ] {
     assert!(
@@ -417,6 +418,106 @@ mod process {
     assert!(done.pid > 0);
     assert_eq!(yolo_process_release(process), YoloStatus::Ok);
     assert_eq!(yolo_process_release(process), YoloStatus::InvalidHandle);
+    yolo_runtime_destroy(rt);
+  }
+
+  fn spawn_flags(
+    rt: YoloHandle,
+    flags: u32,
+    program: &str,
+    args: &[&str],
+  ) -> (YoloStatus, YoloHandle) {
+    let program = CString::new(program).unwrap();
+    let (_args_owned, args_ptrs) = cstrings(args);
+    let info = YoloSpawnInfo {
+      struct_size: size_of::<YoloSpawnInfo>() as u32,
+      flags,
+      program: program.as_ptr(),
+      args: args_ptrs.as_ptr(),
+      env: ptr::null(),
+      cwd: ptr::null(),
+    };
+    let mut handle = 0;
+    let status = unsafe { yolo_process_spawn(rt, &info, &mut handle) };
+    (status, handle)
+  }
+
+  fn read_stream(process: YoloHandle, stream: u32, mode: u32) -> String {
+    let mut out = empty();
+    assert_eq!(
+      unsafe { yolo_process_read(process, stream, mode, &mut out) },
+      YoloStatus::Ok
+    );
+    let bytes = if out.data.is_null() {
+      Vec::new()
+    } else {
+      unsafe { std::slice::from_raw_parts(out.data, out.len) }.to_vec()
+    };
+    unsafe { yolo_buffer_free(&mut out) };
+    String::from_utf8(bytes).unwrap()
+  }
+
+  #[test]
+  fn captured_output_is_drained_or_peeked_and_bounded() {
+    let rt = create(0);
+    let (status, process) = spawn_flags(
+      rt,
+      YOLO_SPAWN_CAPTURE,
+      "sh",
+      &["-c", "echo first-line; echo to-stderr >&2; sleep 0.3"],
+    );
+    assert_eq!(status, YoloStatus::Ok);
+    wait_exited(process);
+    std::thread::sleep(Duration::from_millis(50));
+    assert_eq!(
+      read_stream(process, YOLO_STREAM_STDERR, YOLO_READ_PEEK),
+      "to-stderr\n"
+    );
+    assert_eq!(
+      read_stream(process, YOLO_STREAM_STDERR, YOLO_READ_PEEK),
+      "to-stderr\n"
+    );
+    assert_eq!(
+      read_stream(process, YOLO_STREAM_STDOUT, YOLO_READ_DRAIN),
+      "first-line\n"
+    );
+    assert_eq!(
+      read_stream(process, YOLO_STREAM_STDOUT, YOLO_READ_DRAIN),
+      ""
+    );
+    let mut out = empty();
+    assert_eq!(
+      unsafe { yolo_process_read(process, 9, 0, &mut out) },
+      YoloStatus::InvalidArgument
+    );
+    assert_eq!(
+      unsafe { yolo_process_read(process, 1, 9, &mut out) },
+      YoloStatus::InvalidArgument
+    );
+    yolo_process_release(process);
+
+    // 200 KiB of output: only the last 64 KiB are kept and the child never blocks on a full pipe.
+    let (_, noisy) = spawn_flags(
+      rt,
+      YOLO_SPAWN_CAPTURE,
+      "sh",
+      &["-c", "head -c 204800 /dev/zero | tr '\\0' x"],
+    );
+    wait_exited(noisy);
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(
+      read_stream(noisy, YOLO_STREAM_STDOUT, YOLO_READ_PEEK).len(),
+      64 * 1024
+    );
+    yolo_process_release(noisy);
+    yolo_runtime_destroy(rt);
+  }
+
+  #[test]
+  fn capture_and_null_stdio_are_exclusive() {
+    let rt = create(0);
+    let (status, _) = spawn_flags(rt, YOLO_SPAWN_CAPTURE | YOLO_SPAWN_NULL_STDIO, "true", &[]);
+    assert_eq!(status, YoloStatus::InvalidArgument);
     yolo_runtime_destroy(rt);
   }
 
