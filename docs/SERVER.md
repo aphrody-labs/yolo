@@ -98,6 +98,14 @@ floor on the result: free >= ceil(total x ratio), in integer arithmetic. The fun
 and the shenron case, and a real run on hard-linked files gave 9.5 MiB freed and 47.7 MiB kept for a copy that
 shared 50 MB with a live one, matching `du`.
 
+The floor is enforced in two places and has no override flag: `yolo host audit` raises a critical
+`free-floor:<mount>` finding for every real filesystem below 50 % free, whose action is the ready-to-run
+`yolo host space` command for the three largest non-nested directories on that filesystem; `yolo ship --apply`
+probes the free space of the build host's workspace filesystem first (walking up to the nearest existing parent) and
+exits 3 below the floor, or when the probe cannot be read. Checked on the real vps after the cleanup (89 % free:
+no finding) and in `test/host.test.ts` / `test/host-space.test.ts`; the refusal of `ship` itself was not run
+against a real full disk.
+
 Two operating facts from the same cleanup, not enforced by code: reformatting a disk that only holds a copy takes
 seconds where `rm -rf` takes hours (the 193 GiB backup disk: about 56 s for wipe and mkfs), and splitting a
 directory tree three levels deep over 24 `rm` workers removed 55 GiB of build output in 8 s on 12 CPUs. Long remote

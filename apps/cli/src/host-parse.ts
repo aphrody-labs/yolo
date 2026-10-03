@@ -6,6 +6,8 @@
  * is the plain output of one standard tool (lsblk, df, swapon, systemctl, ps, ss, ...).
  */
 
+import { MIN_FREE_RATIO, spaceGate } from "./host-space";
+
 export type HostName = "vps" | "dbfr" | "local";
 
 // ---------------------------------------------------------------------------------------- formatting
@@ -916,6 +918,32 @@ export function analyze(a: Audit): Finding[] {
     const key = `${fs.filesystem}:${fs.sizeBytes}:${fs.usedBytes}`;
     if (seen.has(key)) continue;
     seen.add(key);
+    const floor = spaceGate(fs.sizeBytes, fs.availBytes, MIN_FREE_RATIO);
+    if (!floor.ok) {
+      const base = fs.mount === "/" ? "/" : `${fs.mount}/`;
+      const picked: string[] = [];
+      for (const b of [...a.biggest].sort((x, y) => y.bytes - x.bytes)) {
+        if (!b.path.startsWith(base) && b.path !== fs.mount) continue;
+        if (
+          picked.some(
+            (q) => q === b.path || b.path.startsWith(`${q}/`) || q.startsWith(`${b.path}/`),
+          )
+        )
+          continue;
+        picked.push(b.path);
+        if (picked.length === 3) break;
+      }
+      add({
+        id: `free-floor:${fs.mount}`,
+        severity: "critical",
+        title: `${fs.mount} keeps ${(floor.freeRatio * 100).toFixed(0)}% free, below the ${(MIN_FREE_RATIO * 100).toFixed(0)}% floor`,
+        detail: `${fmtBytes(floor.shortfallBytes)} must still be freed; yolo ship refuses to build below the floor`,
+        action:
+          picked.length > 0
+            ? `yolo host space ${picked.join(" ")} --host ${a.host} --fs ${fs.mount}  (what deleting them really frees, hard links included)`
+            : `yolo host space <paths> --host ${a.host} --fs ${fs.mount}`,
+      });
+    }
     if (fs.usePercent >= 90)
       add({
         id: `disk-full:${fs.mount}`,

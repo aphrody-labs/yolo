@@ -164,3 +164,40 @@ describe("yolo host space", () => {
     expect(code).toBe(0);
   });
 });
+
+describe("ship disk gate", () => {
+  const { diskDecision, diskProbeCommand, MIN_FREE_RATIO } =
+    require("../apps/cli/src/host-space") as typeof import("../apps/cli/src/host-space");
+  const GIB = 1024 ** 3;
+  const df = (total: number, avail: number) => `1B-blocks Avail\n${total} ${avail}\n`;
+
+  it("fixes the floor at one half", () => {
+    expect(MIN_FREE_RATIO).toBe(0.5);
+  });
+
+  it("accepts at the floor and refuses below it, with the shortfall in GiB", () => {
+    expect(diskDecision(df(290 * GIB, 145 * GIB)).ok).toBe(true);
+    const d = diskDecision(df(290 * GIB, Math.round(98.6 * GIB)));
+    expect(d.ok).toBe(false);
+    expect(d.message).toContain("34.0 % free");
+    expect(d.message).toContain("50 % floor");
+    expect(d.message).toContain("47 GiB");
+  });
+
+  it("refuses when the probe is unreadable instead of assuming free space", () => {
+    expect(diskDecision(null).ok).toBe(false);
+    expect(diskDecision("garbage").ok).toBe(false);
+  });
+
+  it("probes the nearest existing parent of a path that does not exist (run for real)", async () => {
+    const cmd = diskProbeCommand("/tmp/yolo-space-nope/a/b/c");
+    const out = await Bun.$`sh -c ${cmd}`.text();
+    const parsed = require("../apps/cli/src/host-space").parseDfSizeAvail(out);
+    expect(parsed.totalBytes).toBeGreaterThan(0);
+    expect(diskDecision(out, 0).ok).toBe(true);
+  });
+
+  it("quotes hostile paths", () => {
+    expect(diskProbeCommand("/x'; rm -rf / #")).toContain(`'/x'\\''; rm -rf / #'`);
+  });
+});

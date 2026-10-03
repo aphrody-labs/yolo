@@ -706,6 +706,28 @@ describe("probe parsers", () => {
   });
 });
 
+describe("free-space floor finding", () => {
+  it("is critical below 50 % free and names the space command with the largest non-nested paths", () => {
+    const f = analyze(audit()).find((x) => x.id === "free-floor:/mnt/backup");
+    expect(f?.severity).toBe("critical");
+    expect(f?.action).toContain("yolo host space");
+    expect(f?.action).toContain("--host vps --fs /mnt/backup");
+  });
+
+  it("disappears once every filesystem keeps more than half free", () => {
+    const a = audit();
+    const roomy = {
+      ...a,
+      filesystems: a.filesystems.map((x) => ({
+        ...x,
+        availBytes: Math.floor(x.sizeBytes * 0.6),
+        usePercent: 40,
+      })),
+    };
+    expect(analyze(roomy).some((x) => x.id.startsWith("free-floor:"))).toBe(false);
+  });
+});
+
 describe("safety invariants", () => {
   const ctx = {
     user: "ubuntu",

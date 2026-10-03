@@ -10,6 +10,7 @@
  * `aphrody-workspace` (workspace gates). Heavy builds run on the host declared in the Aphrody
  * `config/build-factory.json`, behind its heavy lock; secrets stay on that host.
  */
+import { diskDecision, diskProbeCommand } from "./host-space";
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -350,6 +351,15 @@ async function runShip(args: readonly string[], yoloRoot: string): Promise<numbe
     console.log("\nPlan only. Re-run with --apply to fetch the pushed commit and start the build.");
     return 0;
   }
+  const probe = await sshCapture(host, diskProbeCommand(factory.workspaceRoot), 60);
+  const disk = diskDecision(probe.code === 0 ? probe.stdout : null);
+  if (!disk.ok) {
+    console.error(
+      `yolo ship refused: ${host}: ${disk.message}. Free space first (yolo host space <paths> --host ${host}), then retry.`,
+    );
+    return 3;
+  }
+  console.log(`  disk: ${host} ${disk.message}`);
   if (git(yoloRoot, "status", "--porcelain") !== "")
     console.log(
       "  note: uncommitted changes are not shipped; the remote checks out the pushed commit",

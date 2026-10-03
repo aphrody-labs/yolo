@@ -97,3 +97,40 @@ export function parseDfSizeAvail(text: string): { totalBytes: number; freeBytes:
   }
   throw new Error("df output has no size/avail line");
 }
+
+/** The owner's floor: below this free ratio on the build host, no new work on yolo (no override flag by design). */
+export const MIN_FREE_RATIO = 0.5;
+
+/** `df` of the filesystem that holds `path`, walking up to the nearest existing parent (the path may not exist yet). */
+export function diskProbeCommand(path: string): string {
+  const q = `'${path.replaceAll("'", `'\\''`)}'`;
+  return `d=${q}; while [ ! -e "$d" ] && [ "$d" != / ]; do d=$(dirname "$d"); done; df -B1 --output=size,avail -- "$d"`;
+}
+
+export interface DiskDecision {
+  readonly ok: boolean;
+  readonly message: string;
+}
+
+/** Decide from the stdout of {@link diskProbeCommand}; an unreadable probe refuses, it never assumes free space. */
+export function diskDecision(
+  probeStdout: string | null,
+  minFreeRatio: number = MIN_FREE_RATIO,
+): DiskDecision {
+  if (probeStdout === null)
+    return { ok: false, message: "cannot read the free space of the build host" };
+  let df: { totalBytes: number; freeBytes: number };
+  try {
+    df = parseDfSizeAvail(probeStdout);
+  } catch {
+    return { ok: false, message: "cannot read the free space of the build host" };
+  }
+  const g = spaceGate(df.totalBytes, df.freeBytes, minFreeRatio);
+  const pct = (g.freeRatio * 100).toFixed(1);
+  return g.ok
+    ? { ok: true, message: `${pct} % free` }
+    : {
+        ok: false,
+        message: `${pct} % free is below the ${(minFreeRatio * 100).toFixed(0)} % floor (short by ${Math.ceil(g.shortfallBytes / 1024 ** 3)} GiB)`,
+      };
+}
