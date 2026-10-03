@@ -1,0 +1,12 @@
+{
+  "name": "yolo",
+  "version": "1.0.0",
+  "description": "Unified YOLO autonomous developer runtime & Bun-TS7 native industrial engine",
+  "author": "aphrody-dev <contact@aphrody.com>",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/aphrody-labs/yolo.git",
+  "engines": {
+    "bun": ">=1.4.2",
+    "typescript": ">=7.0.2"
+  }
+}
