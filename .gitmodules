@@ -1,0 +1,20 @@
+[submodule "packages/bun"]
+	path = packages/bun
+	url = git@github-dev:aphrody-labs/bun.git
+	branch = google
+[submodule "packages/obscura"]
+	path = packages/obscura
+	url = git@github-dev:aphrody-labs/obscura.git
+	branch = main
+[submodule "packages/oxc"]
+	path = packages/oxc
+	url = https://github.com/oxc-project/oxc.git
+	branch = main
+[submodule "packages/typescript"]
+	path = packages/typescript
+	url = https://github.com/microsoft/TypeScript.git
+	branch = main
+[submodule "packages/vscode"]
+	path = packages/vscode
+	url = https://github.com/microsoft/vscode.git
+	branch = main
