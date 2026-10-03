@@ -14,6 +14,7 @@ One workspace, one set of commands (`just --list`).
 | Desktop app | `just desktop-build` |
 | Forked Tauri CLI (`cargo tauri`) | `just install-cli` |
 | Native runtime (C ABI, SDK, artifact) | `just runtime-build`, `just runtime-test`, `just runtime-package` |
+| awesome-bun browser (`aphrody-labs/awesome-bun`, no clone) | `just awesome stats|list|search|github|check` |
 | Vendoring | `just import-scan`, `just import`, `just vendor-update`, `just import-check` |
 | Docs | `just docs-build` |
 | Publishing (dry run) | `just publish-dry` |

@@ -178,3 +178,63 @@ describe("YOLO rename engine", () => {
     expect(output).toBe(`import "@aphrody/api"; "x@tauri-apps/api"; github.com/tauri-apps/tauri`);
   });
 });
+
+describe("YOLO awesome", () => {
+  const readme = `# Awesome Bun
+
+## Contents
+
+- [Tools](#tools)
+
+## Tools
+
+- [Bun Types](https://github.com/oven-sh/bun/tree/main/packages/bun-types) - Type definitions.
+- [Docs](https://bun.com/docs)
+
+## Courses & Books
+
+- [Security](https://www.bunsecurity.dev) – A course
+
+\`\`\`md
+- [Not an entry](https://example.com)
+\`\`\`
+
+## License
+
+- [MIT](https://example.com/license)
+`;
+
+  it("parses sections and entries, skipping contents, license and fenced code", async () => {
+    const { parseAwesome } = await import("../apps/cli/src/awesome");
+    const sections = parseAwesome(readme);
+    expect(sections.map((s) => s.slug)).toEqual(["tools", "courses-books"]);
+    expect(sections[0]?.entries).toHaveLength(2);
+    expect(sections[0]?.entries[0]).toMatchObject({
+      name: "Bun Types",
+      description: "Type definitions.",
+      github: "oven-sh/bun",
+    });
+    expect(sections[0]?.entries[1]?.github).toBeUndefined();
+    expect(sections[1]?.entries[0]?.description).toBe("A course");
+  });
+
+  it("finds sections by prefix and searches every word", async () => {
+    const { parseAwesome, findSection, searchEntries } = await import("../apps/cli/src/awesome");
+    const sections = parseAwesome(readme);
+    expect(findSection(sections, "course")?.title).toBe("Courses & Books");
+    expect(searchEntries(sections, "bun types").map((e) => e.name)).toEqual(["Bun Types"]);
+    expect(searchEntries(sections, "bun nothing")).toEqual([]);
+  });
+
+  it("runs the command on a local README without network", async () => {
+    const path = resolve(rootDir, ".cache/awesome-test-readme.md");
+    await Bun.write(path, readme);
+    const proc = Bun.spawn(
+      ["bun", cliEntryPath, "awesome", "search", "docs", "--file", path, "--json"],
+      { stdout: "pipe" },
+    );
+    const out = JSON.parse(await new Response(proc.stdout).text());
+    expect(await proc.exited).toBe(0);
+    expect(out.map((e: { name: string }) => e.name)).toEqual(["Docs"]);
+  });
+});

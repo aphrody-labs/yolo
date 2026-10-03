@@ -14,6 +14,7 @@
 
 import { existsSync } from "node:fs";
 import { relative, resolve } from "node:path";
+import { runAwesomeCommand } from "./awesome";
 import { runImportCommand } from "./import";
 import { runRenameCommand } from "./rename";
 
@@ -430,6 +431,7 @@ ${header}
   \x1b[32mgenerate\x1b[0m            Autonomously scan upstream Bun and generate code & capability catalogs
   \x1b[32mparse <file>\x1b[0m        Fast AST & token analysis via Bun file streaming + wyhash
   \x1b[32mdocs [query]\x1b[0m        Search or inspect version-matched Bun documentation in packages/bun/docs
+  \x1b[32mawesome [stats|list|search|github|check]\x1b[0m Browse aphrody-labs/awesome-bun (README cached, no clone)
   \x1b[32mimport [--apply|--check]\x1b[0m Vendor the fork crates into crates/aphrody-* (see vendor.toml)
   \x1b[32mrename [opts] [dir..]\x1b[0m Mass boundary-aware rename (--preset aphrody | --from X --to Y, --apply, --paths)
   \x1b[32mbench\x1b[0m               Run native Bun nanoseconds and hashing micro-benchmark
@@ -618,6 +620,11 @@ async function main(): Promise<void> {
           console.log(`    - ${r}`);
         }
       }
+      break;
+    }
+
+    case "awesome": {
+      process.exitCode = await runAwesomeCommand(args.slice(1), ROOT_DIR);
       break;
     }
 

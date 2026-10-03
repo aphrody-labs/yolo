@@ -107,6 +107,10 @@ runtime-sdk-pack:
 runtime-list:
     bun run scripts/runtime_release.ts list
 
+# Browse aphrody-labs/awesome-bun (README cached in .cache/awesome): just awesome search react
+awesome *args:
+    bun run apps/cli/src/index.ts awesome {{args}}
+
 # Vendoring of the forks into crates/aphrody-* (see docs/VENDORING.md)
 import-scan:
     bun run apps/cli/src/index.ts import --scan
