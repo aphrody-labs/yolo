@@ -18,7 +18,9 @@ let shared: Runtime | undefined;
 
 export function sharedRuntime(): Runtime {
   if (shared === undefined) {
-    shared = Runtime.load();
+    // Process handles and readiness probes share this bounded pool. Four slots cannot
+    // supervise three engines while their readiness work is concurrent.
+    shared = Runtime.load({ maxOperations: 32 });
     process.once("exit", () => closeSharedRuntime());
   }
   return shared;

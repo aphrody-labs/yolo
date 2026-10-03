@@ -349,6 +349,19 @@ suite("process supervision (runtime:process)", () => {
     expect(await processes.probeHttp("127.0.0.1", 9)).toBeUndefined();
   });
 
+  unix("the SDK-owned shared supervisor has room for processes and readiness probes", async () => {
+    const { processes } = await import("../packages/runtime/src/modules");
+    using first = processes.spawn({ program: "sleep", args: ["60"], stdio: "null" });
+    using second = processes.spawn({ program: "sleep", args: ["60"], stdio: "null" });
+    using third = processes.spawn({ program: "sleep", args: ["60"], stdio: "null" });
+    using fourth = processes.spawn({ program: "sleep", args: ["60"], stdio: "null" });
+    using fifth = processes.spawn({ program: "sleep", args: ["60"], stdio: "null" });
+    expect(await processes.probeHttp("127.0.0.1", 9, "/", 20)).toBeUndefined();
+    expect([first, second, third, fourth, fifth].every((child) => child.status().running)).toBe(
+      true,
+    );
+  });
+
   it("reports spawn failures as structured errors", () => {
     using runtime = Runtime.load();
     try {
