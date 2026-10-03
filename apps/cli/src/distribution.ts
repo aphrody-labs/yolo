@@ -13,6 +13,7 @@ import {
   verifyArtifact,
 } from "../../../sdk/runtime/src/artifact";
 import { install, list, rollback } from "../../../sdk/runtime/src/release";
+import { aphrodyTools } from "./aphrody";
 import { yoloHome, yoloVersion } from "./home";
 
 export const DEFAULT_REPO = "aphrody-labs/yolo";
@@ -32,6 +33,11 @@ export function runDoctor(): number {
   let failures = 0;
   console.log(`\x1b[1myolo doctor\x1b[0m  home ${home}`);
   ok(`version ${yoloVersion()}, target ${hostTarget()}, Bun ${Bun.version}`);
+
+  for (const tool of aphrodyTools()) {
+    if (tool.found) ok(`${tool.name} on PATH (yolo infra|ops|workflow|ship)`);
+    else warn(`${tool.name} not on PATH (Aphrody control plane commands unavailable)`);
+  }
 
   for (const [path, label, required] of [
     ["stack/stack.toml", "stack templates (yolo create)", true],

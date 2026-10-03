@@ -17,6 +17,7 @@ import { relative, resolve } from "node:path";
 import { runAwesomeCommand } from "./awesome";
 import { runCreateCommand } from "./create";
 import { runDoctor, runRuntimeCommand, runUninstall, runUpgrade, runVersion } from "./distribution";
+import { runAphrodyCommand } from "./aphrody";
 import { isCompiled, yoloHome } from "./home";
 import { runImportCommand } from "./import";
 import { runRenameCommand } from "./rename";
@@ -441,6 +442,8 @@ ${header}
   \x1b[32mawesome [stats|list|search|github|check]\x1b[0m Browse aphrody-labs/awesome-bun (README cached, no clone)
   \x1b[32mimport [--apply|--check]\x1b[0m Vendor the fork crates into crates/aphrody-* (see vendor.toml)
   \x1b[32mrename [opts] [dir..]\x1b[0m Mass boundary-aware rename (--preset aphrody | --from X --to Y, --apply, --paths)
+  \x1b[32minfra|ops|workspace|workflow|git|ssh ...\x1b[0m Aphrody control plane (aphrody-infra / aphrody-ops), same workflow
+  \x1b[32mship [--apply] [status|log]\x1b[0m Build all of yolo on the build factory host; \x1b[32mhooks install\x1b[0m does it on every push to main/dev
   \x1b[32mbench\x1b[0m               Run native Bun nanoseconds and hashing micro-benchmark
   \x1b[32mhelp\x1b[0m                Display this help message
 
@@ -464,6 +467,8 @@ async function main(): Promise<void> {
     "docs",
     "import",
     "rename",
+    "ship",
+    "hooks",
   ]);
   if (isCompiled() && CHECKOUT_ONLY.has(command)) {
     console.error(
@@ -687,6 +692,18 @@ async function main(): Promise<void> {
 
     case "rename": {
       process.exitCode = await runRenameCommand(args.slice(1), ROOT_DIR);
+      break;
+    }
+
+    case "infra":
+    case "ops":
+    case "workspace":
+    case "workflow":
+    case "git":
+    case "ssh":
+    case "ship":
+    case "hooks": {
+      process.exitCode = await runAphrodyCommand(command, args.slice(1), ROOT_DIR);
       break;
     }
 
