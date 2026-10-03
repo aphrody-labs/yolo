@@ -207,18 +207,6 @@ pub fn print_missing_deps(
             skip: pkg_manager.is_node() || !template.needs_wasm32_target(),
         },
         Dep {
-            name: "Node.js",
-            instruction: format!("Visit {BLUE}{BOLD}https://nodejs.org/{RESET}"),
-            exists: &|| is_cli_installed("node", "-v"),
-            skip: !pkg_manager.is_node(),
-        },
-        Dep {
-            name: "Deno",
-            instruction: format!("Visit {BLUE}{BOLD}https://deno.land/{RESET}"),
-            exists: &|| is_cli_installed("deno", "-v"),
-            skip: pkg_manager != PackageManager::Deno,
-        },
-        Dep {
             name: "Bun",
             instruction: format!("Visit {BLUE}{BOLD}https://bun.sh/{RESET}"),
             exists: &|| is_cli_installed("bun", "-v"),
@@ -299,12 +287,6 @@ pub fn print_missing_deps(
             instruction: format!("Run `{BLUE}{BOLD}xcode-select --install{RESET}`"),
             exists: &is_xcode_command_line_tools_installed,
             skip: false,
-        },
-        Dep {
-            name: ".NET",
-            instruction: format!("Visit {BLUE}{BOLD}https://dotnet.microsoft.com/download{RESET}"),
-            exists: &|| is_cli_installed("dotnet", "--info"),
-            skip: !template.needs_dotnet() || pkg_manager.is_node(),
         },
     ];
 

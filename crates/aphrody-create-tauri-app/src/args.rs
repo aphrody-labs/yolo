@@ -57,7 +57,7 @@ impl Default for Args {
         Self {
             project_name: Some("tauri-app".to_string()),
             identifier: Some("com.tauri.dev".to_string()),
-            manager: Some(PackageManager::Npm),
+            manager: Some(PackageManager::Bun),
             template: Some(Template::Vanilla),
             skip: false,
             force: false,
