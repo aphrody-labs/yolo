@@ -16,7 +16,7 @@ say() { echo "=== bootstrap: $* ($(date -u +%FT%TZ))"; }
 say "apt packages"
 sudo -n -E apt-get update -qq
 sudo -n -E apt-get install -y -qq build-essential pkg-config libssl-dev libtool make just cmake ninja-build ccache nasm perl \
-  python3 golang ruby-full libatomic1 xz-utils unzip curl git gh lsb-release software-properties-common gnupg mold \
+  python3 golang nodejs ruby-full libatomic1 xz-utils unzip curl git gh lsb-release software-properties-common gnupg mold \
   libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev patchelf
 
 if ! command -v "clang-$LLVM" >/dev/null && [ ! -x "/usr/lib/llvm-$LLVM/bin/clang" ]; then
