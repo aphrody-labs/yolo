@@ -26,8 +26,14 @@
       "name": "@aphrody/yolo-web",
       "version": "0.1.0",
     },
+    "sdk/runtime": {
+      "name": "@aphrody/runtime-sdk",
+      "version": "0.1.0",
+    },
   },
   "packages": {
+    "@aphrody/runtime-sdk": ["@aphrody/runtime-sdk@workspace:sdk/runtime"],
+
     "@aphrody/yolo-cli": ["@aphrody/yolo-cli@workspace:apps/cli"],
 
     "@aphrody/yolo-web": ["@aphrody/yolo-web@workspace:apps/web"],

@@ -13,6 +13,7 @@ One workspace, one set of commands (`just --list`).
 | Web frontend | `just web-build`, `just web-dev` |
 | Desktop app | `just desktop-build` |
 | Forked Tauri CLI (`cargo tauri`) | `just install-cli` |
+| Native runtime (C ABI, SDK, artifact) | `just runtime-build`, `just runtime-test`, `just runtime-package` |
 | Vendoring | `just import-scan`, `just import`, `just vendor-update`, `just import-check` |
 | Docs | `just docs-build` |
 | Publishing (dry run) | `just publish-dry` |

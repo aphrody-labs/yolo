@@ -1,0 +1,19 @@
+{
+  "name": "@aphrody/runtime-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Light TypeScript SDK of the YOLO native runtime: loads the precompiled library through its versioned C ABI",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aphrody-labs/yolo.git",
+    "directory": "sdk/runtime"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {},
+  "engines": {
+    "bun": ">=1.4.2"
+  }
+}

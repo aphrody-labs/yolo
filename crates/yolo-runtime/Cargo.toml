@@ -1,0 +1,21 @@
+[package]
+name = "yolo-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+description = "Versioned C ABI of the precompiled YOLO native runtime (first slice: system stats and cancellable benchmark)"
+
+[lib]
+name = "yolo_runtime"
+crate-type = ["cdylib", "rlib"]
+
+# Deliberately light: no Tauri, wry, tao, Bun or Obscura in this graph.
+[dependencies]
+yolo-core = { path = "../yolo-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

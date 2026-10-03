@@ -15906,6 +15906,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "yolo-runtime"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "yolo-core",
+]
+
+[[package]]
 name = "zbus"
 version = "5.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

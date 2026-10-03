@@ -21,3 +21,5 @@ with Tauri and Obscura, and sharply reduce Aphrody's routine compilation cost.
 - Keep repositories private, commits owner-authored and existing consumers intact
   until replacement/rollback qualification. The automation plugin named YOLO is
   a separate component, not this runtime repository.
+- First R0 slice (C ABI `yolo-runtime`, SDK `sdk/runtime`, `just runtime-package`) lives in
+  [docs/RUNTIME-ABI.md](docs/RUNTIME-ABI.md); the artifact uses the unwinding `runtime` profile.

@@ -22,13 +22,13 @@ typecheck:
     bun x tsc --noEmit
 
 lint:
-    oxlint scripts/ tests/ apps/cli/src/ apps/web/src/
+    oxlint scripts/ tests/ sdk/ apps/cli/src/ apps/web/src/
 
 fmt:
-    oxfmt --write scripts/ tests/ apps/cli/src/ apps/web/src/
+    oxfmt --write scripts/ tests/ sdk/ apps/cli/src/ apps/web/src/
 
 fmt-check:
-    oxfmt --check scripts/ tests/ apps/cli/src/ apps/web/src/
+    oxfmt --check scripts/ tests/ sdk/ apps/cli/src/ apps/web/src/
 
 # Rust formatting. Each vendored crate carries the rustfmt.toml of its upstream repository.
 rust-fmt:
@@ -79,6 +79,18 @@ install-cli:
 # Autonomous Code Generation Engine (from Bun upstream)
 generate:
     bun run apps/cli/src/index.ts generate
+
+# Native runtime (docs/RUNTIME-ABI.md): the artifact uses the `runtime` profile (unwinding panics)
+runtime-build:
+    cargo build --profile runtime -p yolo-runtime
+
+runtime-test: runtime-build
+    cargo test -p yolo-runtime -p yolo-core
+    bun test tests/runtime_sdk.test.ts
+
+# dist/runtime/<target>/: library + C header + manifest (target, toolchain, ABI, revisions, hashes)
+runtime-package: runtime-build
+    bun run scripts/runtime_artifact.ts
 
 # Vendoring of the forks into crates/aphrody-* (see docs/VENDORING.md)
 import-scan:

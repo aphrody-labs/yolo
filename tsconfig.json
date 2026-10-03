@@ -23,6 +23,7 @@
   "include": [
     "scripts/**/*",
     "tests/**/*",
+    "sdk/**/*",
     "apps/cli/**/*",
     "apps/web/src/**/*",
     "apps/web/build.ts"

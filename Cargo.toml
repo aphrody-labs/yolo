@@ -50,6 +50,7 @@ default-members = [
   "crates/aphrody-wry",
   "crates/yolo-core",
   "crates/yolo-desktop",
+  "crates/yolo-runtime",
 ]
 
 [workspace.package]
@@ -82,6 +83,12 @@ lto = "fat"
 opt-level = "z"
 panic = "abort"
 strip = true
+
+# Artifact boundary of the native runtime: panics must unwind so the C ABI can convert them to
+# YoloStatus::Panic. The plain release profile aborts and is not used for this artifact.
+[profile.runtime]
+inherits = "release"
+panic = "unwind"
 
 [profile.dev.package.miniz_oxide]
 opt-level = 3

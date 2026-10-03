@@ -13,3 +13,10 @@ Read [repository instructions](../AGENTS.md) and [current memory](../MEMORY.md),
 then the existing [vendoring](VENDORING.md) and [tooling](TOOLING.md) procedures.
 The earlier [Rust usage inventory](APHRODY-RUST-TAURI-OBSCURA-BUN.md) is a lexical
 navigation aid, not a resolved Cargo graph or effective-profile audit.
+
+## Slice status
+
+The first R0 slice (versioned C ABI, precompiled library, light TypeScript consumer) is described
+in [RUNTIME-ABI](RUNTIME-ABI.md), with its limits. It is a proof of the boundary on one existing
+capability: the R0 gate with Aphrody (a light Aphrody consumer calling a capability) and every
+later gate remain open.
