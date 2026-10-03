@@ -7,17 +7,18 @@ node_modules/
 *.lockb
 
 # Build & compilation outputs
-dist/
-build/
+/dist/
+apps/web/dist/
+/build/
 target/
-out/
-bin/
+/out/
+/bin/
 
 # Temporary directories, caches, runs & mirrors
-var/
-.cache/
+/var/
+/.cache/
 .tmp/
-tmp/
+/tmp/
 *.tmp
 
 # Logs & execution traces
@@ -35,8 +36,8 @@ Thumbs.db
 *.swp
 *.swo
 *~
-.idea/
-.vscode/
+/.idea/
+/.vscode/
 
 # Submodules / Externals managed via upstream scripts
 

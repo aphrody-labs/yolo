@@ -40,7 +40,7 @@ test-all: test test-crates
 cli *args:
     bun run apps/cli/src/index.ts {{args}}
 
-web-build
+web-build:
     cd apps/web && bun run build
 
 web-dev:
