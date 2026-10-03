@@ -92,3 +92,24 @@ to = '''    write_if_changed(
       out.join("../aphrody-tauri-cli/config.schema.json"),
       config_schema,
     )?;'''
+
+# Scaffolded apps depend on the Aphrody packages (the dependency keys stay `tauri`, `tauri-build`…).
+[[rewrite]]
+files = "crates/aphrody-create-tauri-app/templates/_base_/src-tauri/Cargo.toml.lte"
+from = 'tauri-build = { version = "3.0.0-alpha", features = [] }'
+to = 'tauri-build = { package = "aphrody-tauri-build", version = "3.0.0-alpha", features = [] }'
+
+[[rewrite]]
+files = "crates/aphrody-create-tauri-app/templates/_base_/src-tauri/Cargo.toml.lte"
+from = 'tauri = { version = "3.0.0-alpha", features = [] }'
+to = 'tauri = { package = "aphrody-tauri", version = "3.0.0-alpha", features = [] }'
+
+[[rewrite]]
+files = "crates/aphrody-create-tauri-app/templates/_base_/src-tauri/Cargo.toml.lte"
+from = 'tauri-plugin-opener = "3.0.0-alpha"'
+to = 'tauri-plugin-opener = { package = "aphrody-tauri-plugin-opener", version = "3.0.0-alpha" }'
+
+[[rewrite]]
+files = "crates/aphrody-create-tauri-app/src/deps.rs"
+from = "cargo install tauri-cli --version ^3.0.0-alpha --locked"
+to = "cargo install aphrody-tauri-cli --version ^3.0.0-alpha --locked"
