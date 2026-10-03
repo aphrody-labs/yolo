@@ -406,12 +406,12 @@ impl WellKnownFunctionKind<'_> {
             ),
             Self::TurbopackEmit => (
                 "__turbopack_emit__".to_string(),
-                "The __turbopack_emit__ function for emitting data to the bundler"
+                "The __turbopack_emit__ function for emitting data to the bundler",
             ),
             Self::TurbopackCollect => (
                 "__turbopack_collect__".to_string(),
-                "The __turbopack_collect__ function for collecting emitted data from the bundler"
-            )
+                "The __turbopack_collect__ function for collecting emitted data from the bundler",
+            ),
         }
     }
 }
