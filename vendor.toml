@@ -29,14 +29,19 @@ crates = [
   "crates/tauri-macos-sign",
   "crates/tauri-macros",
   "crates/tauri-plugin",
+  "crates/tauri-examples",
+  "crates/tauri-schema-worker",
   "crates/tauri-runtime",
   "crates/tauri-runtime-cef",
   "crates/tauri-runtime-wry",
   "crates/tauri-schema-generator",
   "crates/tauri-utils",
   "crates/tests/acl",
+  "crates/tests/restart",
   "packages/cli",
 ]
+# Not vendored on purpose (see `yolo import --scan`): the migrate fixtures, cef-rollback, the
+# benchmark crates and the example apps under examples/ (frontends, mobile projects).
 
 [[source]]
 name = "plugins-workspace"
@@ -57,3 +62,19 @@ exclude = ["audits/**", ".gitmodules"]
 name = "create-tauri-app"
 crates = [".", "node"]
 exclude = ["worker/**", ".scripts/**", "*.sh", "*.ps1", "package.json", "CONTRIBUTING.md"]
+
+# Sources of the `tauri-examples` crate (its [[example]] entries live outside the crate).
+[[copy]]
+from = "tauri:examples"
+to = "examples/tauri"
+exclude = ["api/**", "cef/**", "file-associations/**", "resources/**"]
+
+[[rewrite]]
+files = "crates/aphrody-tauri-examples/**"
+from = "../../examples/"
+to = "../../examples/tauri/"
+
+[[rewrite]]
+files = "examples/tauri/**/*.rs"
+from = "../../examples/"
+to = "../../examples/tauri/"

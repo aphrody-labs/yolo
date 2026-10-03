@@ -159,6 +159,18 @@ path = "src/main.rs"
     expect(m.lib["crate-type"]).toEqual(["rlib"]);
   });
 
+  it("rewrites detailed dependency tables", () => {
+    const text = `[package]\nname = "tauri-cli"\n\n[dependencies.tauri]\npath = "../tauri"\nfeatures = ["x"]\n\n[dependencies.serde]\nversion = "1"\n`;
+    const { text: out } = transformManifest(text, context(cli));
+    const m = parse(out);
+    expect(m.dependencies.tauri).toEqual({
+      path: "../aphrody-tauri",
+      package: "aphrody-tauri",
+      features: ["x"],
+    });
+    expect(m.dependencies.serde).toEqual({ version: "1" });
+  });
+
   it("drops a top-level `workspace = {}` key", () => {
     const { text: out } = transformManifest(
       `workspace = {}\n\n[package]\nname = "tauri-cli"\n`,

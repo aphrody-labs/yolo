@@ -19,11 +19,15 @@ export interface SourceConfig {
   readonly crates: readonly string[];
   readonly excludeCrates?: readonly string[] | undefined;
   readonly exclude?: readonly string[] | undefined;
+  /** Optional new base name for crates whose upstream name is too generic (`api` → `tauri-api`). */
+  readonly rename?: Readonly<Record<string, string>> | undefined;
 }
 
 export interface CopyConfig {
   readonly from: string;
   readonly to: string;
+  /** Globs relative to `from` that are not copied. */
+  readonly exclude?: readonly string[] | undefined;
 }
 
 export interface RewriteConfig {
@@ -285,67 +289,75 @@ export function transformManifest(text: string, ctx: TransformContext): Transfor
   const crateSrcAbs = crate.srcDir;
   const resolvePath = (path: string, base: string): string =>
     posix.normalize(posix.join(base, path));
+
+  const rewriteDependency = (key: string, input: Table): { spec: Table; changed: boolean } => {
+    let spec = { ...input };
+    let pathBase = crateSrcAbs;
+    const realName = (spec.package as string | undefined) ?? key;
+    let changed = false;
+
+    if (spec.workspace === true) {
+      const wsEntry = ctx.wsDeps[key];
+      if (wsEntry === undefined)
+        throw new Error(`${crate.name}: workspace dependency "${key}" is not defined`);
+      spec = mergeWorkspaceDependency(spec, asSpec(wsEntry));
+      pathBase = ctx.wsRootDir;
+      changed = true;
+    }
+
+    let target: CrateInfo | undefined;
+    if (typeof spec.path === "string") {
+      target = ctx.byDir.get(`${crate.source}:${resolvePath(spec.path, pathBase)}`);
+      if (target === undefined && ctx.byName.has(realName)) target = ctx.byName.get(realName);
+      if (target === undefined)
+        warnings.push(
+          `${crate.name}: path dependency "${key}" (${spec.path}) is not an imported crate`,
+        );
+    } else if (ctx.byName.has(realName)) {
+      target = ctx.byName.get(realName);
+    }
+
+    if (target !== undefined) {
+      spec.path = relativeDir(crate.newDir, target.newDir);
+      spec.package = target.newName;
+      if (typeof spec.version === "string")
+        spec.version = alignVersion(spec.version, target.version);
+      changed = true;
+    }
+
+    const ordered: Table = {};
+    for (const k of ["version", "path", "package"]) if (spec[k] !== undefined) ordered[k] = spec[k];
+    for (const [k, v] of Object.entries(spec)) if (ordered[k] === undefined) ordered[k] = v;
+    return { spec: ordered, changed };
+  };
+
   sections = scanSections(lines);
   for (const section of [...sections].reverse()) {
     if (DEP_DETAIL_SECTION.test(section.name)) {
-      const body = lines.slice(section.start, section.end).join("\n");
-      const m = /\.(?:dev-|build-)?dependencies\.("[^"]+"|[A-Za-z0-9_-]+)$/.exec(section.name);
-      const depKey = (m?.[1] ?? "").replace(/"/g, "");
-      if (/workspace\s*=\s*true/.test(body) || ctx.byName.has(depKey)) {
-        throw new Error(`${crate.name}: unsupported detailed dependency table [${section.name}]`);
-      }
+      const m =
+        /\.(?:dev-|build-)?dependencies\.("[^"]+"|[A-Za-z0-9_-]+)$|^(?:dev-|build-)?dependencies\.("[^"]+"|[A-Za-z0-9_-]+)$/.exec(
+          section.name,
+        );
+      const depKey = (m?.[1] ?? m?.[2] ?? "").replace(/"/g, "");
+      const body = lines.slice(section.start + 1, section.end).join("\n");
+      const { spec, changed } = rewriteDependency(depKey, Bun.TOML.parse(body) as Table);
+      if (!changed) continue;
+      const rendered = Object.entries(spec).map(
+        ([k, v]) => `${BARE_KEY.test(k) ? k : JSON.stringify(k)} = ${serializeToml(v)}`,
+      );
+      replaceRange(section.start + 1, section.end, [...rendered, ""]);
       continue;
     }
     if (!DEP_SECTION.test(section.name)) continue;
     for (const entry of entryRanges(lines, section).reverse()) {
-      const raw = lines.slice(entry.start, entry.end).join("\n");
-      const { key, value } = parseEntry(raw);
-      let spec = asSpec(value);
-      let pathBase = crateSrcAbs;
-      const realName = (spec.package as string | undefined) ?? key;
-      let changed = false;
-
-      if (spec.workspace === true) {
-        const wsEntry = ctx.wsDeps[key];
-        if (wsEntry === undefined)
-          throw new Error(`${crate.name}: workspace dependency "${key}" is not defined`);
-        spec = mergeWorkspaceDependency(spec, asSpec(wsEntry));
-        pathBase = ctx.wsRootDir;
-        changed = true;
-      }
-
-      let target: CrateInfo | undefined;
-      if (typeof spec.path === "string") {
-        target = ctx.byDir.get(`${crate.source}:${resolvePath(spec.path, pathBase)}`);
-        if (target === undefined && ctx.byName.has(realName)) target = ctx.byName.get(realName);
-        if (target === undefined)
-          warnings.push(
-            `${crate.name}: path dependency "${key}" (${spec.path}) is not an imported crate`,
-          );
-      } else if (ctx.byName.has(realName)) {
-        target = ctx.byName.get(realName);
-      }
-
-      if (target !== undefined) {
-        spec.path = relativeDir(crate.newDir, target.newDir);
-        spec.package = target.newName;
-        if (typeof spec.version === "string")
-          spec.version = alignVersion(spec.version, target.version);
-        changed = true;
-      } else if (typeof spec.path === "string" && changed) {
-        // keep the (unresolvable) path as is; the warning above reports it
-      }
-
+      const { key, value } = parseEntry(lines.slice(entry.start, entry.end).join("\n"));
+      const { spec, changed } = rewriteDependency(key, asSpec(value));
       if (!changed) continue;
-      const ordered: Table = {};
-      for (const k of ["version", "path", "package"])
-        if (spec[k] !== undefined) ordered[k] = spec[k];
-      for (const [k, v] of Object.entries(spec)) if (ordered[k] === undefined) ordered[k] = v;
-      const keys = Object.keys(ordered);
+      const keys = Object.keys(spec);
       const out =
         keys.length === 1 && keys[0] === "version"
-          ? serializeToml(ordered.version)
-          : serializeToml(ordered);
+          ? serializeToml(spec.version)
+          : serializeToml(spec);
       replaceRange(entry.start, entry.end, [
         `${BARE_KEY.test(key) ? key : JSON.stringify(key)} = ${out}`,
       ]);
@@ -452,8 +464,13 @@ export async function loadVendorConfig(path: string): Promise<VendorConfig> {
       crates: list<string>(s.crates),
       excludeCrates: list<string>(s.exclude_crates),
       exclude: list<string>(s.exclude),
+      rename: (s.rename ?? {}) as Record<string, string>,
     })),
-    copy: list<Table>(raw.copy).map((c) => ({ from: String(c.from), to: String(c.to) })),
+    copy: list<Table>(raw.copy).map((c) => ({
+      from: String(c.from),
+      to: String(c.to),
+      exclude: list<string>(c.exclude),
+    })),
     rewrite: list<Table>(raw.rewrite).map((r) => ({
       files: String(r.files),
       from: String(r.from),
@@ -518,9 +535,9 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
         source: source.name,
         srcDir: dir,
         name,
-        newName: `${cfg.prefix}${name}`,
+        newName: `${cfg.prefix}${source.rename?.[name] ?? name}`,
         version,
-        newDir: posix.join(cfg.out, `${cfg.prefix}${name}`),
+        newDir: posix.join(cfg.out, `${cfg.prefix}${source.rename?.[name] ?? name}`),
       };
       crates.push(info);
       manifests.set(`${source.name}:${dir}`, manifest);
@@ -720,22 +737,55 @@ async function writeOutputs(
   }
 }
 
-/** `yolo import [--apply] [--check] [--out <dir>] [--config <file>]` */
+/** Lists every Cargo manifest of the sources and whether it is imported (`yolo import --scan`). */
+export async function scanSources(rootDir: string, cfg: VendorConfig): Promise<number> {
+  let missed = 0;
+  for (const source of cfg.sources) {
+    const repo = resolve(rootDir, "packages", source.name);
+    const listing = await git(repo, ["ls-files", "-z", "--", "Cargo.toml", "**/Cargo.toml"]);
+    const manifests = listing.split("\0").filter(Boolean).sort();
+    console.log(`\x1b[1m${source.name}\x1b[0m (${manifests.length} manifests)`);
+    for (const file of manifests) {
+      const dir = posix.dirname(file);
+      const imported =
+        source.crates.some((p) => (p === "." ? dir === "." : new Bun.Glob(p).match(dir))) &&
+        !globMatch(source.excludeCrates ?? [], dir);
+      let name = "";
+      try {
+        const manifest = Bun.TOML.parse(await Bun.file(join(repo, file)).text()) as Table;
+        name = String((manifest.package as Table | undefined)?.name ?? "(workspace root)");
+      } catch {
+        name = "(unparsable)";
+      }
+      if (!imported) missed++;
+      console.log(
+        `  ${imported ? "\x1b[32m✔ imported\x1b[0m" : "\x1b[33m· skipped \x1b[0m"} ${file}  ${name}`,
+      );
+    }
+  }
+  console.log(`${missed} manifest(s) not imported.`);
+  return 0;
+}
+
+/** `yolo import [--apply] [--check] [--scan] [--out <dir>] [--config <file>]` */
 export async function runImportCommand(args: readonly string[], rootDir: string): Promise<number> {
   let apply = false;
   let check = false;
+  let scan = false;
   let out = rootDir;
   let configPath = resolve(rootDir, "vendor.toml");
   for (let i = 0; i < args.length; i++) {
     const arg = args[i] as string;
     if (arg === "--apply") apply = true;
     else if (arg === "--check") check = true;
+    else if (arg === "--scan") scan = true;
     else if (arg === "--out") out = resolve(rootDir, args[++i] ?? "");
     else if (arg === "--config") configPath = resolve(rootDir, args[++i] ?? "");
     else throw new Error(`Unknown option ${arg}`);
   }
 
   const config = await loadVendorConfig(configPath);
+  if (scan) return scanSources(rootDir, config);
   const lockPath = resolve(out, "vendor.lock");
   const previous = existsSync(lockPath)
     ? (((await Bun.file(lockPath).json()) as { crates?: { dir: string }[] }).crates?.map(
