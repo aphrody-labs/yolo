@@ -622,7 +622,16 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
     const style =
       source.rustfmt === "default"
         ? "# Vendored crate: upstream uses the default rustfmt style (the root rustfmt.toml does not apply).\n"
-        : await Bun.file(join(checkout, source.rustfmt)).text();
+        : (await Bun.file(join(checkout, source.rustfmt)).text())
+            .split("\n")
+            // nightly-only options only produce warnings on the stable toolchain
+            .filter(
+              (line) =>
+                !/^\s*#?\s*(imports_granularity|wrap_comments|normalize_comments|license_template_path)\b/.test(
+                  line,
+                ),
+            )
+            .join("\n");
     for (const c of crates.filter((o) => o.source === source.name)) {
       put(posix.join(c.newDir, "rustfmt.toml"), style);
     }
