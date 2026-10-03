@@ -458,7 +458,7 @@ ${header}
   \x1b[32mrename [opts] [dir..]\x1b[0m Mass boundary-aware rename (--preset aphrody | --from X --to Y, --apply, --paths)
   \x1b[32minfra|ops|workspace|workflow|git|ssh ...\x1b[0m Aphrody control plane (aphrody-infra / aphrody-ops), same workflow
   \x1b[32mhost audit|reclaim|archive|services|tune|net|mount|journal --host vps|dbfr|local [--apply]\x1b[0m Manage a Linux server (plan by default, journaled, safety-checked)
-  \x1b[32mship [--apply] [status|log]\x1b[0m Build all of yolo on the build factory host; \x1b[32mhooks install\x1b[0m does it on every push to main/dev
+  \x1b[32mship [--apply] [status|log|attach|stop]\x1b[0m Build all of yolo on the build factory host; \x1b[32mhooks install\x1b[0m does it on every push to main/dev
   \x1b[32mbench\x1b[0m               Run native Bun nanoseconds and hashing micro-benchmark
   \x1b[32mhelp\x1b[0m                Display this help message
 

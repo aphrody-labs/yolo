@@ -74,15 +74,32 @@ export function remotePaths(factory: Factory, sha: string) {
   return { workspace, artifacts, lock: factory.lockPath };
 }
 
-/** The remote command: detached, serialized behind the heavy lock, status and log kept next to the artifacts. */
+/** tmux session (and systemd unit) name of one build: stable per commit so it can be attached, queried and stopped. */
+export function sessionName(sha: string): string {
+  return `yolo-ship-${sha.slice(0, 12)}`;
+}
+
+/**
+ * The remote command: a detached tmux session on the build host (survives any ssh disconnect) that runs
+ * `ship_unit.sh`, which serializes behind the heavy lock and runs the build as a transient systemd unit with the
+ * cgroup ceilings lifted. Status and log stay next to the artifacts.
+ */
 export function remoteCommand(factory: Factory, sha: string): string {
   const p = remotePaths(factory, sha);
+  const name = sessionName(sha);
   return [
     `mkdir -p '${p.artifacts}'`,
     `echo queued > '${p.artifacts}/STATUS'`,
-    `(nohup flock '${p.lock}' bash '${p.workspace}/scripts/release/ship_remote.sh' '${sha}' '${p.workspace}' '${p.artifacts}' > '${p.artifacts}/ship.log' 2>&1 < /dev/null &)`,
+    `(tmux kill-session -t '${name}' 2>/dev/null || true)`,
+    `tmux new-session -d -s '${name}' -c '${p.workspace}' "bash '${p.workspace}/scripts/release/ship_unit.sh' '${sha}' '${p.workspace}' '${p.artifacts}' '${p.lock}'"`,
     "echo started",
   ].join(" && ");
+}
+
+/** Stop one build: the tmux session and its systemd unit (the whole cgroup, so no stray cargo/rustc survives). */
+export function stopCommand(sha: string): string {
+  const name = sessionName(sha);
+  return `(tmux kill-session -t '${name}' 2>/dev/null || true); (sudo -n systemctl stop '${name}.service' 2>/dev/null || true); echo stopped ${name}`;
 }
 
 /** HTTPS form of the origin remote (the build host authenticates with `gh`, not with this machine's ssh aliases). */
@@ -111,6 +128,7 @@ export function remoteSyncCommand(factory: Factory, sha: string, url: string): s
     `git checkout -f --detach '${sha}'`,
     "git submodule sync --recursive",
     "git submodule update --init --recursive --jobs 8 --filter=blob:none",
+    "command -v tmux >/dev/null || sudo -n apt-get install -y -qq tmux",
     "echo synced",
   ].join("\n");
 }
@@ -220,6 +238,10 @@ async function runShip(args: readonly string[], yoloRoot: string): Promise<numbe
   const p = remotePaths(factory, sha);
   const sub = args[0];
 
+  if (sub === "stop") return ssh(host, stopCommand(sha));
+  if (sub === "attach") {
+    return run(["ssh", "-t", host, "tmux", "attach", "-t", sessionName(sha)], yoloRoot);
+  }
   if (sub === "status" || sub === "log") {
     const file = sub === "status" ? "STATUS" : "ship.log";
     return ssh(host, `tail -n 60 '${p.artifacts}/${file}' 2>&1 || echo no-build-for-${sha}`);
@@ -243,7 +265,9 @@ async function runShip(args: readonly string[], yoloRoot: string): Promise<numbe
   console.log(
     `  1. git (gh auth) on ${host}  fetch ${sha.slice(0, 12)} + submodules -> ${p.workspace}`,
   );
-  console.log(`  2. remote (heavy lock)      scripts/release/ship_remote.sh -> ${p.artifacts}`);
+  console.log(
+    `  2. tmux ${sessionName(sha)}  heavy lock -> systemd unit, no CPU/RAM/swap ceiling -> ${p.artifacts}`,
+  );
   if (!apply) {
     console.log("\nPlan only. Re-run with --apply to fetch the pushed commit and start the build.");
     return 0;
@@ -256,7 +280,7 @@ async function runShip(args: readonly string[], yoloRoot: string): Promise<numbe
   if (code !== 0) return code;
   code = ssh(host, remoteCommand(factory, sha));
   if (code === 0)
-    console.log(`  follow: yolo ship status --sha ${sha.slice(0, 12)}  |  yolo ship log`);
+    console.log(`  follow: yolo ship status|log|attach|stop --sha ${sha.slice(0, 12)}`);
   return code;
 }
 
