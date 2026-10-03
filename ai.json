@@ -1,0 +1,44 @@
+{
+  "version": "1.0.0",
+  "spec": "a2a/v1.0",
+  "id": "yolo@aphrody-code/yolo",
+  "schema_version": "1.0.0",
+  "kind": "runtime",
+  "name": "yolo",
+  "description": "YOLO polyglot runtime (Bun + uv + PyO3 trinity), SDK and autonomous CLI.",
+  "a2a_protocol_version": "1.0",
+  "documentation_url": "https://github.com/aphrody-labs/yolo",
+  "provider": {
+    "organization": "aphrody-code",
+    "url": "https://github.com/aphrody-labs/yolo"
+  },
+  "capabilities": {
+    "streaming": true,
+    "virtualFileSystem": true,
+    "privilegeElevation": true,
+    "crossPlatform": true
+  },
+  "default_input_modes": [
+    "text/plain",
+    "application/json"
+  ],
+  "default_output_modes": [
+    "text/plain",
+    "application/json"
+  ],
+  "coord": {
+    "mailbox_dir": ".coord",
+    "inbox_pattern": "inbox-from-<peer-short-id>.jsonl",
+    "http_bind": "127.0.0.1:8788",
+    "envelope": {
+      "v": 1,
+      "kinds": [
+        "ping",
+        "ask",
+        "fact",
+        "ack",
+        "error"
+      ]
+    }
+  }
+}

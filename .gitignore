@@ -42,6 +42,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 .system_generated/
+.coord/
 
 # OS / Editor clutter
 .DS_Store
