@@ -74,10 +74,37 @@ export interface LoadOptions {
 
 const BUFFER_BYTES = 24; // YoloBuffer { data: *mut u8, len: usize, cap: usize } on 64-bit targets
 
+/** File name Cargo gives the cdylib: `libyolo_runtime.so|dylib`, `yolo_runtime.dll` on Windows. */
+export function libraryFile(): string {
+  return process.platform === "win32" ? "yolo_runtime.dll" : `libyolo_runtime.${suffix}`;
+}
+
+/**
+ * Resolution order: `$YOLO_RUNTIME_LIB`, the active installed artifact
+ * (`$YOLO_RUNTIME_HOME/<target>/current`, see `artifact.ts`), then the local `target/runtime/`.
+ */
 export function defaultLibraryPath(): string {
   const fromEnv = process.env["YOLO_RUNTIME_LIB"];
   if (fromEnv !== undefined && fromEnv !== "") return fromEnv;
-  return resolve(import.meta.dir, "../../..", "target/runtime", `libyolo_runtime.${suffix}`);
+  const home = process.env["YOLO_RUNTIME_HOME"];
+  const base =
+    home !== undefined && home !== ""
+      ? resolve(home)
+      : resolve(process.env["HOME"] ?? "", ".yolo/runtime");
+  const installed = resolve(base, installedTarget(), "current", libraryFile());
+  if (existsSync(installed)) return installed;
+  return resolve(import.meta.dir, "../../..", "target/runtime", libraryFile());
+}
+
+function installedTarget(): string {
+  const targets: Record<string, string> = {
+    "linux-x64": "x86_64-unknown-linux-gnu",
+    "linux-arm64": "aarch64-unknown-linux-gnu",
+    "darwin-x64": "x86_64-apple-darwin",
+    "darwin-arm64": "aarch64-apple-darwin",
+    "win32-x64": "x86_64-pc-windows-msvc",
+  };
+  return targets[`${process.platform}-${process.arch}`] ?? "unsupported";
 }
 
 const SYMBOLS = {
@@ -244,6 +271,33 @@ export class Runtime implements Disposable {
     const out = new BigUint64Array(1);
     check(symbols, symbols.yolo_bench_start(this.#handle, iterations, ptr(out)));
     return new Operation(symbols, out[0] as bigint);
+  }
+
+  /**
+   * Runs a benchmark without blocking the event loop: polls the native operation, cancels it when
+   * `signal` aborts (rejecting with the signal's reason) and always releases it.
+   */
+  async benchmark(
+    iterations: number,
+    options: { signal?: AbortSignal; pollMs?: number } = {},
+  ): Promise<BenchmarkResult> {
+    const { signal, pollMs = 5 } = options;
+    signal?.throwIfAborted();
+    const operation = this.startBenchmark(iterations);
+    try {
+      for (;;) {
+        if (signal?.aborted) {
+          operation.cancel();
+          operation.release();
+          throw signal.reason;
+        }
+        const result = operation.wait(0);
+        if (result !== undefined) return result;
+        await new Promise((resolve) => setTimeout(resolve, pollMs));
+      }
+    } finally {
+      operation.release();
+    }
   }
 
   close(): void {

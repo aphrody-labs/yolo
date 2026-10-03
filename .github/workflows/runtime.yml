@@ -1,0 +1,49 @@
+name: Runtime artifact
+
+# Builds the precompiled runtime library (profile `runtime`, unwinding panics) for every supported
+# target, runs the Rust and SDK tests against it and uploads dist/runtime/<target>/.
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - "crates/yolo-core/**"
+      - "crates/yolo-runtime/**"
+      - "sdk/runtime/**"
+      - "scripts/runtime_*.ts"
+      - "tests/runtime_*.test.ts"
+      - "Cargo.toml"
+      - ".github/workflows/runtime.yml"
+  pull_request:
+    paths:
+      - "crates/yolo-core/**"
+      - "crates/yolo-runtime/**"
+      - "sdk/runtime/**"
+
+jobs:
+  artifact:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
+          - { os: macos-13, target: x86_64-apple-darwin }
+          - { os: macos-14, target: aarch64-apple-darwin }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: cargo test -p yolo-core -p yolo-runtime
+      - run: cargo build --profile runtime -p yolo-runtime
+      - run: bun run scripts/runtime_artifact.ts
+      - run: bun test tests/runtime_sdk.test.ts tests/runtime_release.test.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yolo-runtime-${{ matrix.target }}
+          path: dist/runtime/${{ matrix.target }}

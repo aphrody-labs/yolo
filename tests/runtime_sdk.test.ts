@@ -80,3 +80,33 @@ suite("runtime SDK against the precompiled library", () => {
     runtime.close(); // idempotent
   });
 });
+
+suite("runtime:* modules", () => {
+  it("imports runtime:system through the preload plugin", async () => {
+    const { system } = await import("runtime:system");
+    expect(system.capabilities()).toContain("system.stats");
+    expect(system.stats().arch.length).toBeGreaterThan(0);
+    expect((await system.bench(1000)).message).toContain("1000");
+  });
+
+  it("cancels a native benchmark when the AbortSignal fires", async () => {
+    const { system } = await import("runtime:system");
+    const controller = new AbortController();
+    const running = system.bench(4_294_967_295, { signal: controller.signal });
+    setTimeout(() => controller.abort(new Error("stop")), 20);
+    await expect(running).rejects.toThrow("stop");
+    // the slot is free again
+    expect((await system.bench(10)).message).toContain("10");
+  });
+
+  it("rejects an already aborted signal without starting native work", async () => {
+    const { system } = await import("runtime:system");
+    const signal = AbortSignal.abort(new Error("late"));
+    await expect(system.bench(10, { signal })).rejects.toThrow("late");
+  });
+
+  it("keeps runtime:desktop and runtime:browser reserved with an explicit error", async () => {
+    await expect(import("runtime:desktop")).rejects.toThrow(/not available yet/);
+    await expect(import("runtime:browser")).rejects.toThrow(/not available yet/);
+  });
+});

@@ -24,6 +24,7 @@
     "scripts/**/*",
     "tests/**/*",
     "sdk/**/*",
+    "sdk/runtime/runtime.d.ts",
     "apps/cli/**/*",
     "apps/web/src/**/*",
     "apps/web/build.ts"

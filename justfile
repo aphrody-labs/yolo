@@ -86,11 +86,22 @@ runtime-build:
 
 runtime-test: runtime-build
     cargo test -p yolo-runtime -p yolo-core
-    bun test tests/runtime_sdk.test.ts
+    bun run scripts/runtime_artifact.ts
+    bun test tests/runtime_sdk.test.ts tests/runtime_release.test.ts
 
 # dist/runtime/<target>/: library + C header + manifest (target, toolchain, ABI, revisions, hashes)
 runtime-package: runtime-build
     bun run scripts/runtime_artifact.ts
+
+# Install the packaged artifact (verified, versioned, previous kept) and roll back
+runtime-install: runtime-package
+    bun run scripts/runtime_release.ts install
+
+runtime-rollback:
+    bun run scripts/runtime_release.ts rollback
+
+runtime-list:
+    bun run scripts/runtime_release.ts list
 
 # Vendoring of the forks into crates/aphrody-* (see docs/VENDORING.md)
 import-scan:
