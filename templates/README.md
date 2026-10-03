@@ -6,7 +6,7 @@ Rust-based Bun of `vendor/bun`.
 | File | Role |
 | :--- | :--- |
 | [`stack.toml`](stack.toml) | Layers (host, runtime, SDK, server, web, desktop, headless, tooling), their plan phase and status, pinned versions, templates and framework variants |
-| [`base/`](base), [`web/`](web), [`desktop/`](desktop), [`hono/`](hono), [`elysia/`](elysia) | Versioned project templates used by `yolo create` |
+| [`base/`](base), [`web/`](web), [`react/`](react), [`desktop/`](desktop), [`hono/`](hono), [`elysia/`](elysia) | Versioned project templates used by `yolo create` (`web` or `react` for the frontend, `hono` or `elysia` for the HTTP variant) |
 | [`AWESOME.md`](AWESOME.md) | `aphrody-labs/awesome-bun` curated for the Rust-based Bun (14 of 87 entries) |
 | [`awesome.curated.json`](awesome.curated.json) / [`awesome-audit.json`](awesome-audit.json) | Kept entries / the verdict and reason for every entry |
 

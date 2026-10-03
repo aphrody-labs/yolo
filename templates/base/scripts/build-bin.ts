@@ -6,6 +6,9 @@ const result = await Bun.build({
   plugins: [runtimeBundlerPlugin],
   target: "bun",
   minify: true,
+  // Dependencies branch on NODE_ENV (React embeds a much larger development build with warnings unless it
+  // is "production"). Bake it into the server and the embedded HTML bundles whatever the build environment.
+  define: { "process.env.NODE_ENV": JSON.stringify("production") },
   compile: {
     outfile: "dist/__NAME__",
     // Standalone executables auto-load a bunfig.toml from the current directory at runtime by default. This

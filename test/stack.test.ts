@@ -109,11 +109,52 @@ describe("yolo create", () => {
     expect(existsSync(join(sandbox, "hono-app/src/alt/hono.ts"))).toBe(true);
   });
 
-  it("refuses unknown features, two frameworks and non-empty targets", async () => {
+  it("scaffolds the react frontend: pinned dependencies, a jsx tsconfig and the page", async () => {
+    const files = await createProject(options("react-app", ["react"]));
+    for (const file of ["src/web/App.tsx", "src/web/m3.ts", "src/web/styles.css", "REACT.md"]) {
+      expect(files).toContain(file);
+    }
+    expect(readFileSync(join(sandbox, "react-app/src/home.ts"), "utf8")).toContain("index.html");
+    expect(readFileSync(join(sandbox, "react-app/src/web/index.html"), "utf8")).toContain(
+      "<title>react-app</title>",
+    );
+    const pkg = JSON.parse(readFileSync(join(sandbox, "react-app/package.json"), "utf8"));
+    const pinned = /^\d+\.\d+\.\d+$/;
+    for (const name of ["@aphrody/material-web", "@lit/react", "lit", "react", "react-dom"]) {
+      expect(pkg.dependencies[name]).toMatch(pinned);
+    }
+    for (const name of ["@types/react", "@types/react-dom"]) {
+      expect(pkg.devDependencies[name]).toMatch(pinned);
+    }
+    // the dev dependencies of the base template survive the merge, and the tsconfig compiles TSX
+    expect(pkg.devDependencies.typescript).toBeDefined();
+    expect(pkg.dependencies["@aphrody/runtime-sdk"]).toBe(`file:${rootDir}/packages/runtime`);
+    const tsconfig = JSON.parse(readFileSync(join(sandbox, "react-app/tsconfig.json"), "utf8"));
+    expect(tsconfig.compilerOptions.jsx).toBe("react-jsx");
+  });
+
+  it("keeps the react tsconfig equal to the base one plus the jsx option", () => {
+    const read = (path: string) => JSON.parse(readFileSync(join(rootDir, path), "utf8"));
+    const base = read("templates/base/tsconfig.json");
+    expect(read("templates/react/tsconfig.json")).toEqual({
+      ...base,
+      compilerOptions: { ...base.compilerOptions, jsx: "react-jsx" },
+    });
+  });
+
+  it("builds the deployable for production, so React's development build is never embedded", () => {
+    // Without this define the HTML bundle embedded by `bun build --compile` carries react-dom's
+    // development build (557 KB instead of 345 KB for the react template, plus console warnings).
+    const script = readFileSync(join(rootDir, "templates/base/scripts/build-bin.ts"), "utf8");
+    expect(script).toContain(`define: { "process.env.NODE_ENV": JSON.stringify("production") }`);
+  });
+
+  it("refuses unknown features, conflicting variants and non-empty targets", async () => {
     await expect(createProject(options("bad-1", ["nope"]))).rejects.toThrow(/Unknown feature/);
     await expect(createProject(options("bad-2", ["hono", "elysia"]))).rejects.toThrow(
       /one framework/,
     );
+    await expect(createProject(options("bad-3", ["web", "react"]))).rejects.toThrow(/one frontend/);
     await createProject(options("taken", []));
     await expect(createProject(options("taken", []))).rejects.toThrow(/not empty/);
   });

@@ -46,6 +46,7 @@ provider = "Bun HTML bundles (Bun.serve routes)"
 status = "template"
 template = "web"
 bun_apis = ["HTMLBundle"]
+alternatives = ["react"]
 
 [layer.desktop]
 plan = "R3"
@@ -74,6 +75,14 @@ required = true
 [template.web]
 path = "templates/web"
 description = "Bun HTML-bundle frontend served by the same server"
+exclusive = "frontend"
+
+[template.react]
+path = "templates/react"
+description = "React 19 + Material 3 web components on Bun's HTML bundler (replaces web)"
+exclusive = "frontend"
+dependencies = { "@aphrody/material-web" = "3.3.3", "@lit/react" = "1.0.8", lit = "3.3.3", react = "19.3.0", react-dom = "19.3.0" }
+dev_dependencies = { "@types/react" = "19.3.0", "@types/react-dom" = "19.3.0" }
 
 [template.desktop]
 path = "templates/desktop"
@@ -82,11 +91,13 @@ description = "Tauri 3 shell on the aphrody-tauri crates"
 [template.hono]
 path = "templates/hono"
 description = "Hono variant of the HTTP surface"
+exclusive = "framework"
 dependencies = { hono = "4.13.12" }
 curated = "honojs/hono"
 
 [template.elysia]
 path = "templates/elysia"
 description = "Elysia variant of the HTTP surface"
+exclusive = "framework"
 dependencies = { elysia = "1.4.30" }
 curated = "elysiajs/elysia"
