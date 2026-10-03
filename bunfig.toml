@@ -7,8 +7,9 @@ exact = true
 concurrentScripts = 16
 
 [test]
-# Enforce native test isolation and strict timeouts
+# Enforce native test isolation and strict timeouts on root workbench tests
 timeout = 10000
+root = "tests"
 
 [run]
 # Enforce Bun execution across modern CLI runners

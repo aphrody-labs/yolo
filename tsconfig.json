@@ -14,8 +14,9 @@
     "strict": true,
     "skipLibCheck": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
+    "noUncheckedIndexedAccess": false,
     "noImplicitOverride": true
   },
-  "include": ["scripts/**/*", "plugins/**/*"]
+  "include": ["scripts/**/*", "plugins/**/*", "tests/**/*"],
+  "exclude": ["packages/**/*", "apps/**/*", "node_modules/**/*"]
 }

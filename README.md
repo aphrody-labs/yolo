@@ -23,6 +23,10 @@ All repositories are managed via `.gitmodules` with encapsulation in `.git/modul
 - **Sync & Drift Engine**: [`scripts/bun_upstream_sync.ts`](scripts/bun_upstream_sync.ts) and [`scripts/packages_upstream_sync.ts`](scripts/packages_upstream_sync.ts).
 - **Upstream PR Tracker**: [`scripts/bun_upstream_tracker.ts`](scripts/bun_upstream_tracker.ts) generating [`docs/BUN_UPSTREAM_TRACKER.md`](docs/BUN_UPSTREAM_TRACKER.md).
 
+## Target Applications (`apps/`)
+
+- [`apps/vscode`](apps/vscode) : Main consumer application target mapped directly to `packages/vscode` for runtime tests, tree-sitter integration, component extraction, and native headless verification.
+
 ## Operational Commands
 
 ```bash
@@ -37,6 +41,10 @@ bun run bun:sync
 
 # Query oven-sh/bun GitHub API for upstream performance & stability PRs
 bun run bun:track
+
+# Execute YOLO runtime test suite against VS Code app target
+bun run test
+bun run test:vscode
 
 # Linting, formatting and strict typecheck
 bun run lint
