@@ -4,9 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
+    "dev": "bun run dev.ts",
+    "build": "tsc && bun run build.ts",
     "tauri": "tauri"
   },
   "dependencies": {
@@ -15,7 +14,7 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "{% if v2 %}^3.0.0-alpha{% else %}^1{% endif %}",
-		"vite": "^8.0.16",
+    "@types/bun": "^1.4.2",
     "typescript": "~6.0.3"
   }
 }
