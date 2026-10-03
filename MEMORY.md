@@ -27,3 +27,7 @@ with Tauri and Obscura, and sharply reduce Aphrody's routine compilation cost.
   a separate component, not this runtime repository.
 - First R0 slice (C ABI `yolo-runtime`, SDK `packages/runtime`, `just runtime-package`) lives in
   [docs/RUNTIME-ABI.md](docs/RUNTIME-ABI.md); the artifact uses the unwinding `runtime` profile.
+- 2026-10-03: Stack report recorded in [docs/STACK-REPORT-2026-10.md](docs/STACK-REPORT-2026-10.md) (Decision D27):
+  Dioxus 0.7 for Rust full-stack apps in Tauri; EU bare-metal (OVH fleet + Hetzner auction) + Cloudflare
+  for hosting (PaaS avoided due to 2026 RAM price surge); React 19 + Material 3 web components
+  (`@aphrody/material-web`) under Bun for UI.
