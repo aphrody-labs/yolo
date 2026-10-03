@@ -8,7 +8,8 @@
  */
 import { dlopen, FFIType, ptr, read, suffix, toArrayBuffer, type Pointer } from "bun:ffi";
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 
 /** ABI major this SDK was written for. A library with another major is refused before any call. */
 export const EXPECTED_ABI_MAJOR = 1;
@@ -94,7 +95,7 @@ export function defaultLibraryPath(): string {
       ? resolve(runtimeHomeEnv)
       : yoloHome !== undefined && yoloHome !== ""
         ? resolve(yoloHome, "runtime")
-        : resolve(process.env["HOME"] ?? process.env["USERPROFILE"] ?? "", ".yolo/runtime");
+        : join(homedir(), ".yolo", "runtime");
   const installed = resolve(base, installedTarget(), "current", libraryFile());
   if (existsSync(installed)) return installed;
   return resolve(import.meta.dir, "../../..", "target/runtime", libraryFile());

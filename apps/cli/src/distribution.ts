@@ -13,7 +13,6 @@ import {
   verifyArtifact,
 } from "../../../packages/runtime/src/artifact";
 import { install, list, rollback } from "../../../packages/runtime/src/release";
-import { aphrodyTools } from "./aphrody";
 import { yoloHome, yoloVersion } from "./home";
 
 export const DEFAULT_REPO = "aphrody-labs/yolo";

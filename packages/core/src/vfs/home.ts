@@ -12,7 +12,7 @@ export function isCompiled(): boolean {
   return import.meta.dir.includes("$bunfs") || import.meta.dir.includes("~BUN");
 }
 
-export function findRepoRoot(start: string = import.meta.dir): string {
+export function findRepoRoot(start: string = process.cwd()): string {
   const fromEnv = process.env["YOLO_HOME"];
   if (fromEnv !== undefined && fromEnv !== "") return resolve(fromEnv);
   if (isCompiled()) return dirname(dirname(process.execPath));
@@ -26,6 +26,17 @@ export function findRepoRoot(start: string = import.meta.dir): string {
     if (parent === dir) break;
     dir = parent;
   }
+
+  let metaDir = resolve(import.meta.dir);
+  for (;;) {
+    if (existsSync(join(metaDir, "vendor.toml")) && existsSync(join(metaDir, "package.json"))) {
+      return metaDir;
+    }
+    const parent = dirname(metaDir);
+    if (parent === metaDir) break;
+    metaDir = parent;
+  }
+
   return resolve(import.meta.dir, "../../../..");
 }
 

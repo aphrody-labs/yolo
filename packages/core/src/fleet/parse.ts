@@ -8,7 +8,7 @@
 
 import { DEFAULT_MIN_FREE, spaceGate } from "./space";
 
-export type HostName = "vps" | "dbfr" | "local";
+export type HostName = "vps" | "dbfr" | "local" | (string & {});
 
 // ---------------------------------------------------------------------------------------- formatting
 

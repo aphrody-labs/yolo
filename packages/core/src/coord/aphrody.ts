@@ -33,7 +33,7 @@ export function aphrodyRoot(): string {
 }
 
 export function onPath(bin: string): boolean {
-  return spawnSync("sh", ["-c", `command -v ${bin}`], { stdio: "ignore" }).status === 0;
+  return Boolean(Bun.which(bin));
 }
 
 function run(cmd: readonly string[], cwd: string, env: NodeJS.ProcessEnv = {}): number {
@@ -50,7 +50,8 @@ interface Factory {
 }
 
 function loadFactory(): Factory {
-  const file = join(aphrodyRoot(), "config/build-factory.json");
+  const customConfig = process.env["YOLO_BUILD_FACTORY_CONFIG"];
+  const file = customConfig ?? join(aphrodyRoot(), "config/build-factory.json");
   if (!existsSync(file)) throw new Error(`Build factory config not found: ${file}`);
   const raw = JSON.parse(readFileSync(file, "utf8")) as Factory & { enabled?: boolean };
   if (raw.enabled === false) throw new Error("The Aphrody build factory is disabled");

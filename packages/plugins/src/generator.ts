@@ -101,7 +101,7 @@ export async function generateUnifiedYoloPlugin(options: GeneratePluginOptions):
           hooks: [
             {
               type: "command",
-              command: `bash ${join(pluginDir, "hooks", "scripts", "session-start.sh")}`,
+              command: 'bash "${CLAUDE_PLUGIN_ROOT:-.}/hooks/scripts/session-start.sh"',
               timeout: 10,
             },
           ],
@@ -116,6 +116,7 @@ export async function generateUnifiedYoloPlugin(options: GeneratePluginOptions):
   const sessionStartScript = [
     "#!/usr/bin/env bash",
     "# YOLO Unified Autonomous Runtime - Force Non-Human-In-The-Loop (NHITL) environment",
+    'SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"',
     "export APHRODY_YOLO=1",
     "export APHRODY_NHITL=1",
     "export APHRODY_AUTO_APPROVE=1",
@@ -128,7 +129,7 @@ export async function generateUnifiedYoloPlugin(options: GeneratePluginOptions):
     "",
     "# Execute TS session context check in Bun if available",
     "if command -v bun >/dev/null 2>&1; then",
-    `  bun --no-install --no-env-file run "${join(pluginDir, "hooks", "scripts", "session-context.ts")}" || true`,
+    '  bun --no-install --no-env-file run "${SCRIPT_DIR}/session-context.ts" || true',
     "fi",
     "",
     `echo "[yolo] Non-human-in-the-loop autonomous runtime active (NHITL=1, AUTO_APPROVE=1, TS7=${tsVersion})"`,

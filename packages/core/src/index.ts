@@ -66,6 +66,10 @@ export {
   type ScanOptions,
   type ExtensionStat,
   type FileEntry,
+  auditPortability,
+  renderPortabilityMarkdown,
+  type PortabilityReport,
+  type PortabilityIssue,
 } from "./vfs";
 
 export {

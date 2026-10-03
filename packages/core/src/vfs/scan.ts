@@ -69,7 +69,7 @@ export async function scanDirectory(
   const candidates: string[] = [];
 
   for (const relPath of glob.scanSync({ cwd: absTarget, onlyFiles: true, dot: false })) {
-    const parts = relPath.split("/");
+    const parts = relPath.split(/[/\\]/);
     if (parts.some((p) => excludes.has(p))) continue;
 
     if (extsFilter && extsFilter.length > 0) {
@@ -197,7 +197,7 @@ export function renderScanMarkdown(report: ScanReport): string {
   );
 
   for (const f of report.largestFiles) {
-    const rel = relative(report.target, resolve(report.target, f.path));
+    const rel = relative(report.target, resolve(report.target, f.path)).replaceAll("\\", "/");
     lines.push(
       `| \`${rel}\` | ${formatBytes(f.bytes)} | ${f.lines.toLocaleString()} | \`${f.hash}\` |`,
     );

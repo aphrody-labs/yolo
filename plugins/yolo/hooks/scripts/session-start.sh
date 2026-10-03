@@ -11,8 +11,9 @@ export BUN_TS7_CONTEXT=on
 export TS_VERSION="7.0.2"
 
 # Execute TS session context check in Bun if available
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 if command -v bun >/dev/null 2>&1; then
-  bun --no-install --no-env-file run "/home/aphro/yolo/plugins/yolo/hooks/scripts/session-context.ts" || true
+  bun --no-install --no-env-file run "${SCRIPT_DIR}/session-context.ts" || true
 fi
 
 echo "[yolo] Non-human-in-the-loop autonomous runtime active (NHITL=1, AUTO_APPROVE=1, TS7=7.0.2)"

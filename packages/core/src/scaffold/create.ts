@@ -89,7 +89,7 @@ export async function createProject(options: CreateOptions): Promise<string[]> {
   const substitutions: [string, string][] = [
     ["__NAME__", options.name],
     ["__IDENT__", toIdent(options.name)],
-    ["__YOLO__", options.yoloPath],
+    ["__YOLO__", options.yoloPath.replaceAll("\\", "/")],
   ];
   const written = new Map<string, string | Uint8Array>();
   const extraDependencies: Record<string, string> = {};
@@ -100,7 +100,7 @@ export async function createProject(options: CreateOptions): Promise<string[]> {
     const dir = resolve(options.rootDir, template.path);
     for (const rel of walk(dir)) {
       const destRel = rel
-        .split("/")
+        .split(/[/\\]/)
         .map((part) => (part === "gitignore" ? ".gitignore" : part))
         .join("/");
       const bytes = readFileSync(join(dir, rel));

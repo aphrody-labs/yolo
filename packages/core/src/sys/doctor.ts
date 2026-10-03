@@ -2,7 +2,7 @@
  * Environment diagnostics and stack maturation toolchain verification.
  */
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { hostTarget, loadArtifact, runtimeHome } from "../../../runtime/src/artifact";
 import { list } from "../../../runtime/src/release";
 import { yoloHome, yoloVersion } from "../vfs/home";
@@ -122,7 +122,7 @@ export function collectDoctorReport(): DoctorReport {
 
   const previous = list().find((e) => e.previous);
   const bin = join(home, "bin");
-  const binOnPath = (process.env["PATH"] ?? "").split(":").includes(bin);
+  const binOnPath = (process.env["PATH"] ?? "").split(delimiter).includes(bin);
   const ghFound = Boolean(Bun.which("gh"));
 
   return {

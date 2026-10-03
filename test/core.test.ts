@@ -6,7 +6,6 @@ import {
   vendor,
   runtime,
   verify,
-  server,
   mcp,
   fleet,
   scaffold,
@@ -119,6 +118,17 @@ describe("YOLO Core Library (@aphrody/yolo-core)", () => {
       expect(report.totalFiles).toBeGreaterThan(0);
       expect(report.totalLines).toBeGreaterThan(0);
       expect(report.treeFingerprint.length).toBeGreaterThan(0);
+    });
+
+    it("should audit environment portability and verify zero hardcoded paths", async () => {
+      const report = await vfs.auditPortability(resolve(rootDir, "packages/core"));
+      expect(report.schema).toBe("yolo.portability/1");
+      expect(report.auditedFiles).toBeGreaterThan(10);
+      expect(report.ok).toBe(true);
+      expect(report.totalIssues).toBe(0);
+
+      const md = vfs.renderPortabilityMarkdown(report);
+      expect(md).toContain("# yolo audit --portability: PASS");
     });
   });
 

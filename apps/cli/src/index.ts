@@ -12,7 +12,7 @@
  * - ZERO external runtime npm dependencies
  */
 
-import { existsSync, renameSync, rmSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { runAwesomeCommand } from "./awesome";
 import { runCreateCommand } from "./create";

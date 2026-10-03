@@ -29,7 +29,7 @@ for (const pattern of ["crates/**/package.json", "{apps,packages,vendor}/**/pack
 }
 
 for (const rel of manifests) {
-  if (rel.includes("node_modules/")) continue;
+  if (rel.replaceAll("\\", "/").includes("node_modules/")) continue;
   const manifest = await Bun.file(resolve(root, rel))
     .json()
     .then((json) => json as Manifest)

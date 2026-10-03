@@ -139,7 +139,13 @@ export class LocalTransport implements Transport {
   readonly remote = false;
 
   async exec(cmd: string, timeoutSecs = 120): Promise<ExecResult> {
-    const proc = Bun.spawn(["sh", "-c", cmd], {
+    const shellCmd =
+      process.platform === "win32"
+        ? Bun.which("sh")
+          ? ["sh", "-c", cmd]
+          : [process.env["COMSPEC"] || "cmd.exe", "/c", cmd]
+        : ["sh", "-c", cmd];
+    const proc = Bun.spawn(shellCmd, {
       stdout: "pipe",
       stderr: "pipe",
       timeout: timeoutSecs * 1000,
@@ -2419,7 +2425,7 @@ export async function runHostCommand(
   const f = parseFlags(args.slice(1));
   const one = (k: string): string | undefined => f.values.get(k)?.at(-1);
   const has = (k: string): boolean => f.values.has(k);
-  const hostArg = one("host");
+  const hostArg = one("host") ?? process.env["YOLO_HOST"];
   if (hostArg === undefined || !(HOSTS as readonly string[]).includes(hostArg)) {
     console.error(`--host is required: ${HOSTS.join("|")}`);
     return 2;

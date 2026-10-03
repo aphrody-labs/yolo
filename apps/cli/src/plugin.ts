@@ -15,7 +15,7 @@ export async function runPluginCommand(args: readonly string[], rootDir: string)
     case "create":
     case "generate": {
       const targetArg = args[1];
-      // Default to /home/aphro/yolo/plugins/yolo if no target specified
+      // Default to <rootDir>/plugins/yolo if no target specified
       const targetDir = targetArg
         ? resolve(process.cwd(), targetArg)
         : resolve(rootDir, "plugins", "yolo");
