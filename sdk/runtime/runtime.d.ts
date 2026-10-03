@@ -18,6 +18,19 @@ declare module "runtime:system" {
   };
 }
 
+declare module "runtime:process" {
+  import type { ManagedProcess, SpawnOptions } from "@aphrody/runtime-sdk";
+  export const processes: {
+    spawn(options: SpawnOptions): ManagedProcess;
+    probeHttp(
+      host: string,
+      port: number,
+      path?: string,
+      timeoutMs?: number,
+    ): Promise<number | undefined>;
+  };
+}
+
 // Reserved for the desktop (R3) and browser (R4) phases: importing them throws until then.
 declare module "runtime:desktop" {
   export {};

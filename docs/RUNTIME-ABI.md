@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Runtime C ABI (slice R0)
+# Runtime C ABI (slice R0, ABI 1.1)
 
 First vertical slice of [PLAN.md](../PLAN.md) phase R0: one capability family behind a versioned
 C ABI, a precompiled artifact and a light TypeScript consumer. Nothing here qualifies later
@@ -27,8 +27,13 @@ bun run sdk/runtime/examples/stats.ts
 | `system.stats` | `yolo_system_stats` | `yolo_core::current_system_stats` |
 | `bench.compute` | `yolo_bench_start`, `yolo_operation_wait/cancel/release` | `yolo_core::compute_benchmark_cancellable` |
 
-They were picked because they already existed and need no engine; the capability set and the API
-names are still open and will change with the real first service (R2).
+| `process.supervise` | `yolo_process_spawn/status/stop/release` | `std::process` in its own process group (SIGTERM, then SIGKILL after a grace period; the whole group) |
+| `http.probe` | `yolo_http_probe_start` (an operation: the caller is never blocked) | `std::net`, HTTP/1.0 `GET` |
+
+`system.stats` and `bench.compute` were picked because they already existed and need no engine.
+`process.supervise` and `http.probe` are the first real shared service (decision D10 in
+[DECISIONS](DECISIONS.md)); the TypeScript surface is `runtime:system` and `runtime:process`, loaded
+by the preload plugin of `sdk/runtime`.
 
 ## Contract
 
@@ -56,7 +61,11 @@ names are still open and will change with the real first service (R2).
   `cancel` is idempotent and polled by the worker, `release` cancels, joins and invalidates.
   `yolo_runtime_destroy` cancels and joins every operation of the runtime before it invalidates it,
   so unloading the library after destroy cannot leave a running worker.
-  Handles are thread-safe: any thread may call any function.
+  Processes count against the same limit and are stopped (group SIGTERM, 500 ms grace, SIGKILL)
+  when their runtime is destroyed. Handles are thread-safe: any thread may call any function.
+- **Versioning policy.** ABI 1.x is additive only (D1): 1.0 is the core, 1.1 added the process and
+  probe functions. An older library is refused by the SDK with an ABI error before any symbol other
+  than `yolo_abi_version` is bound.
 
 ## What the light consumer needs
 
@@ -68,9 +77,9 @@ measured, so no saving is claimed.
 
 ## Not claimed
 
-- This is not the Bun fork host (R1): the SDK uses `bun:ffi` against the shared library; native
-  modules inside the fork are still to be designed.
-- No Aphrody consumer has been migrated and no dependency has been retired (R2).
+- The R1 host is the SDK preload (`bun:ffi` + `Bun.plugin`), by decision D5; the Bun fork is not
+  modified.
+- R2 is limited as stated in D11: the consumer's supervision code is retired, the Obscura binary is
+  not (R4).
 - Only the build host target has been produced; there is no supported-target matrix, no signing and
   no rollback procedure yet (R8). `manifest.json` identifies an artifact, it does not qualify it.
-- The ABI is `1.0` and may still change until a first real capability is chosen.

@@ -7,3 +7,4 @@
 - [Tooling](TOOLING.md)
 - [Imported crates](CRATES.md)
 - [Runtime C ABI (R0 slice)](RUNTIME-ABI.md)
+- [Runtime decisions](DECISIONS.md)

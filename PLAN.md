@@ -114,8 +114,8 @@ not automatically satisfy these new runtime gates.
 | R8 | Optimization and releases | Reproducible measures, supported targets, packaging and rollback |
 
 R3/R4 can advance independently after the foundation. R5/R6 do not block the
-first precompiled-runtime benefits. The first capability and final API names
-are still to be selected; implementation starts with one complete vertical slice.
+first precompiled-runtime benefits. The first capability and the API names were decided on 2026-10-03,
+see [docs/DECISIONS.md](docs/DECISIONS.md); implementation proceeds one vertical slice at a time.
 
 ## Evidence and completion
 

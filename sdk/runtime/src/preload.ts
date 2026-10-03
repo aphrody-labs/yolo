@@ -3,12 +3,13 @@
  * (done at the repository root) or `bun --preload @aphrody/runtime-sdk/preload`.
  */
 import { plugin } from "bun";
-import { RESERVED_MODULES, system } from "./modules";
+import { processes, RESERVED_MODULES, system } from "./modules";
 
 plugin({
   name: "yolo-runtime",
   setup(build) {
     build.module("runtime:system", () => ({ exports: { system }, loader: "object" }));
+    build.module("runtime:process", () => ({ exports: { processes }, loader: "object" }));
     for (const specifier of RESERVED_MODULES) {
       build.module(specifier, () => {
         throw new Error(

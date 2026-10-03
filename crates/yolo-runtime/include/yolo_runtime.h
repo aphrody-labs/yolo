@@ -14,7 +14,7 @@ extern "C" {
 #endif
 
 #define YOLO_ABI_MAJOR 1u
-#define YOLO_ABI_MINOR 0u
+#define YOLO_ABI_MINOR 1u
 #define YOLO_MAX_OPERATIONS_LIMIT 64u
 
 /* Opaque handle owned by the library; 0 is never valid. */
@@ -67,6 +67,40 @@ YoloStatus yolo_operation_wait(YoloHandle operation, uint32_t timeout_ms, YoloBu
 YoloStatus yolo_operation_cancel(YoloHandle operation);
 /* Cancels if running, joins the worker, invalidates the handle. Required for every operation. */
 YoloStatus yolo_operation_release(YoloHandle operation);
+
+/* capability "process.supervise" (ABI 1.1): the child runs in its own process group */
+#define YOLO_SPAWN_NULL_STDIO 1u /* YoloSpawnInfo.flags: stdin/stdout/stderr -> null device */
+
+typedef struct YoloSpawnInfo {
+  uint32_t struct_size; /* sizeof(YoloSpawnInfo) of the caller */
+  uint32_t flags;
+  const char *program;       /* UTF-8, NUL-terminated */
+  const char *const *args;   /* NULL-terminated, without the program; may be NULL */
+  const char *const *env;    /* NULL-terminated "KEY=VALUE" added to the environment; may be NULL */
+  const char *cwd;           /* may be NULL */
+} YoloSpawnInfo;
+
+typedef struct YoloProcessStatus {
+  uint32_t struct_size; /* sizeof(YoloProcessStatus) of the caller */
+  uint32_t state;       /* 0 running, 1 exited */
+  int32_t exit_code;    /* -1 if terminated by a signal */
+  int32_t signal;       /* terminating signal (Unix), else 0 */
+  uint32_t pid;
+} YoloProcessStatus;
+
+/* Counts against max_operations (BUSY beyond). */
+YoloStatus yolo_process_spawn(YoloHandle runtime, const YoloSpawnInfo *info, YoloHandle *out);
+YoloStatus yolo_process_status(YoloHandle process, YoloProcessStatus *out); /* non-blocking */
+/* SIGTERM to the group, SIGKILL after grace_ms; waits. The handle stays valid (read the status). */
+YoloStatus yolo_process_stop(YoloHandle process, uint32_t grace_ms);
+/* Stops if running (2 s grace) and invalidates the handle. Required for every process. */
+YoloStatus yolo_process_release(YoloHandle process);
+
+/* capability "http.probe": one HTTP/1.0 GET on a worker thread, never blocking the caller.
+ * Counts against max_operations. yolo_operation_wait returns JSON {"status": <code>} when the
+ * server answered, {"status": null, "error": "<why>"} when it is not reachable (yet). */
+YoloStatus yolo_http_probe_start(YoloHandle runtime, const char *host, uint16_t port,
+                                 const char *path, uint32_t timeout_ms, YoloHandle *out_operation);
 
 /* Buffers and errors */
 void yolo_buffer_free(YoloBuffer *buffer); /* zeroes the buffer; no-op if already empty */

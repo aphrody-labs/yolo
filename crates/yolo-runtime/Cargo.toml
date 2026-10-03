@@ -19,3 +19,7 @@ crate-type = ["cdylib", "rlib"]
 yolo-core = { path = "../yolo-core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# Process groups are signalled on Unix; nothing else is pulled in.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

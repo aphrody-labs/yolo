@@ -160,7 +160,12 @@ fn build_info_and_capabilities_are_json() {
   );
   assert_eq!(
     take_json(out),
-    serde_json::json!(["system.stats", "bench.compute"])
+    serde_json::json!([
+      "system.stats",
+      "bench.compute",
+      "process.supervise",
+      "http.probe"
+    ])
   );
   yolo_runtime_destroy(rt);
 }
@@ -324,6 +329,11 @@ fn every_exported_function_is_declared_in_the_c_header() {
     "yolo_operation_release",
     "yolo_buffer_free",
     "yolo_last_error",
+    "yolo_process_spawn",
+    "yolo_process_status",
+    "yolo_process_stop",
+    "yolo_process_release",
+    "yolo_http_probe_start",
   ] {
     assert!(
       header.contains(&format!("{name}(")),
@@ -332,4 +342,220 @@ fn every_exported_function_is_declared_in_the_c_header() {
   }
   assert!(header.contains(&format!("#define YOLO_ABI_MAJOR {ABI_MAJOR}u")));
   assert!(header.contains(&format!("#define YOLO_ABI_MINOR {ABI_MINOR}u")));
+}
+
+#[cfg(unix)]
+mod process {
+  use super::*;
+  use std::ffi::CString;
+  use std::io::{Read, Write};
+  use std::net::TcpListener;
+  use std::time::Instant;
+
+  fn cstrings(items: &[&str]) -> (Vec<CString>, Vec<*const std::ffi::c_char>) {
+    let owned: Vec<CString> = items.iter().map(|s| CString::new(*s).unwrap()).collect();
+    let mut pointers: Vec<*const std::ffi::c_char> = owned.iter().map(|c| c.as_ptr()).collect();
+    pointers.push(ptr::null());
+    (owned, pointers)
+  }
+
+  fn spawn(rt: YoloHandle, program: &str, args: &[&str], env: &[&str]) -> (YoloStatus, YoloHandle) {
+    let program = CString::new(program).unwrap();
+    let (_args_owned, args_ptrs) = cstrings(args);
+    let (_env_owned, env_ptrs) = cstrings(env);
+    let info = YoloSpawnInfo {
+      struct_size: size_of::<YoloSpawnInfo>() as u32,
+      flags: YOLO_SPAWN_NULL_STDIO,
+      program: program.as_ptr(),
+      args: args_ptrs.as_ptr(),
+      env: env_ptrs.as_ptr(),
+      cwd: ptr::null(),
+    };
+    let mut handle = 0;
+    let status = unsafe { yolo_process_spawn(rt, &info, &mut handle) };
+    (status, handle)
+  }
+
+  fn status_of(process: YoloHandle) -> YoloProcessStatus {
+    let mut out = YoloProcessStatus {
+      struct_size: size_of::<YoloProcessStatus>() as u32,
+      state: 9,
+      exit_code: 0,
+      signal: 0,
+      pid: 0,
+    };
+    assert_eq!(
+      unsafe { yolo_process_status(process, &mut out) },
+      YoloStatus::Ok
+    );
+    out
+  }
+
+  fn wait_exited(process: YoloHandle) -> YoloProcessStatus {
+    for _ in 0..500 {
+      let status = status_of(process);
+      if status.state == 1 {
+        return status;
+      }
+      std::thread::sleep(Duration::from_millis(10));
+    }
+    panic!("process did not exit");
+  }
+
+  #[test]
+  fn spawn_reports_exit_code_and_environment() {
+    let rt = create(0);
+    let (status, process) = spawn(
+      rt,
+      "sh",
+      &["-c", "exit $YOLO_TEST_CODE"],
+      &["YOLO_TEST_CODE=3"],
+    );
+    assert_eq!(status, YoloStatus::Ok);
+    let done = wait_exited(process);
+    assert_eq!((done.exit_code, done.signal), (3, 0));
+    assert!(done.pid > 0);
+    assert_eq!(yolo_process_release(process), YoloStatus::Ok);
+    assert_eq!(yolo_process_release(process), YoloStatus::InvalidHandle);
+    yolo_runtime_destroy(rt);
+  }
+
+  #[test]
+  fn spawn_errors_are_structured() {
+    let rt = create(0);
+    let (status, handle) = spawn(rt, "/nonexistent/binary", &[], &[]);
+    assert_eq!(status, YoloStatus::Internal);
+    assert_eq!(handle, 0);
+    assert!(last_error().contains("cannot spawn"));
+    let (status, _) = spawn(rt, "sh", &[], &["NOT_AN_ASSIGNMENT"]);
+    assert_eq!(status, YoloStatus::InvalidArgument);
+    let mut out = 0;
+    assert_eq!(
+      unsafe { yolo_process_spawn(rt, ptr::null(), &mut out) },
+      YoloStatus::InvalidArgument
+    );
+    yolo_runtime_destroy(rt);
+  }
+
+  #[test]
+  fn stop_terminates_the_whole_process_group() {
+    let rt = create(0);
+    // The shell backgrounds a child and waits: stopping must take both down.
+    let (_, process) = spawn(rt, "sh", &["-c", "sleep 60 & wait"], &[]);
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(status_of(process).state, 0);
+    let pid = status_of(process).pid as i32;
+    let started = Instant::now();
+    assert_eq!(yolo_process_stop(process, 2000), YoloStatus::Ok);
+    assert!(started.elapsed() < Duration::from_secs(5));
+    let done = status_of(process);
+    assert_eq!(done.state, 1);
+    assert_eq!(done.signal, libc::SIGTERM);
+    // the group leader is gone and no member of the group answers any more
+    assert_eq!(unsafe { libc::kill(-pid, 0) }, -1);
+    yolo_process_release(process);
+    yolo_runtime_destroy(rt);
+  }
+
+  #[test]
+  fn a_process_ignoring_sigterm_is_killed_after_the_grace_period() {
+    let rt = create(0);
+    let (_, process) = spawn(
+      rt,
+      "sh",
+      &["-c", "trap '' TERM; while :; do sleep 1; done"],
+      &[],
+    );
+    std::thread::sleep(Duration::from_millis(100));
+    let started = Instant::now();
+    assert_eq!(yolo_process_stop(process, 200), YoloStatus::Ok);
+    assert!(started.elapsed() >= Duration::from_millis(200));
+    assert_eq!(status_of(process).signal, libc::SIGKILL);
+    yolo_process_release(process);
+    yolo_runtime_destroy(rt);
+  }
+
+  #[test]
+  fn processes_count_against_the_operation_limit_and_die_with_the_runtime() {
+    let rt = create(1);
+    let (status, process) = spawn(rt, "sleep", &["60"], &[]);
+    assert_eq!(status, YoloStatus::Ok);
+    let mut op = 0;
+    assert_eq!(
+      unsafe { yolo_bench_start(rt, 10, &mut op) },
+      YoloStatus::Busy
+    );
+    let (status, _) = spawn(rt, "sleep", &["60"], &[]);
+    assert_eq!(status, YoloStatus::Busy);
+    let pid = status_of(process).pid as i32;
+    assert_eq!(yolo_runtime_destroy(rt), YoloStatus::Ok);
+    assert_eq!(yolo_process_stop(process, 0), YoloStatus::InvalidHandle);
+    assert_eq!(
+      unsafe { libc::kill(-pid, 0) },
+      -1,
+      "the runtime must not leave its process running"
+    );
+  }
+
+  fn serve_once(response: &'static str) -> u16 {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+      if let Ok((mut stream, _)) = listener.accept() {
+        let mut buffer = [0u8; 256];
+        let _ = stream.read(&mut buffer);
+        let _ = stream.write_all(response.as_bytes());
+      }
+    });
+    port
+  }
+
+  fn probe(rt: YoloHandle, port: u16, path: &str) -> (YoloStatus, serde_json::Value) {
+    let host = CString::new("127.0.0.1").unwrap();
+    let path = CString::new(path).unwrap();
+    let mut op = 0;
+    let status =
+      unsafe { yolo_http_probe_start(rt, host.as_ptr(), port, path.as_ptr(), 1000, &mut op) };
+    if status != YoloStatus::Ok {
+      return (status, serde_json::Value::Null);
+    }
+    let mut out = empty();
+    assert_eq!(
+      unsafe { yolo_operation_wait(op, 10_000, &mut out) },
+      YoloStatus::Ok
+    );
+    let value = take_json(out);
+    assert_eq!(yolo_operation_release(op), YoloStatus::Ok);
+    (YoloStatus::Ok, value)
+  }
+
+  #[test]
+  fn http_probe_reads_the_status_line_and_reports_unreachable_as_data() {
+    let rt = create(0);
+    let port = serve_once("HTTP/1.1 204 No Content\r\n\r\n");
+    assert_eq!(
+      probe(rt, port, "/json/version"),
+      (YoloStatus::Ok, serde_json::json!({ "status": 204 }))
+    );
+
+    let port = serve_once("garbage");
+    let (status, value) = probe(rt, port, "/");
+    assert_eq!(status, YoloStatus::Ok);
+    assert!(value["status"].is_null() && value["error"].as_str().unwrap().contains("not an HTTP"));
+
+    // a closed port: connection refused is "not ready yet", reported as data
+    let closed = TcpListener::bind("127.0.0.1:0")
+      .unwrap()
+      .local_addr()
+      .unwrap()
+      .port();
+    let (status, value) = probe(rt, closed, "/");
+    assert_eq!(status, YoloStatus::Ok);
+    assert!(value["status"].is_null());
+
+    assert_eq!(probe(rt, 1, "no-slash").0, YoloStatus::InvalidArgument);
+    assert_eq!(probe(rt, 1, "/a b").0, YoloStatus::InvalidArgument);
+    assert_eq!(probe(0, 1, "/").0, YoloStatus::InvalidHandle);
+    yolo_runtime_destroy(rt);
+  }
 }

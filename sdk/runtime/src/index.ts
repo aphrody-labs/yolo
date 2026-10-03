@@ -12,7 +12,7 @@ import { resolve } from "node:path";
 
 /** ABI major this SDK was written for. A library with another major is refused before any call. */
 export const EXPECTED_ABI_MAJOR = 1;
-export const EXPECTED_ABI_MINOR = 0;
+export const EXPECTED_ABI_MINOR = 1;
 
 export const Status = {
   Ok: 0,
@@ -118,6 +118,14 @@ const SYMBOLS = {
   yolo_operation_wait: { args: [FFIType.u64, FFIType.u32, FFIType.ptr], returns: FFIType.i32 },
   yolo_operation_cancel: { args: [FFIType.u64], returns: FFIType.i32 },
   yolo_operation_release: { args: [FFIType.u64], returns: FFIType.i32 },
+  yolo_process_spawn: { args: [FFIType.u64, FFIType.ptr, FFIType.ptr], returns: FFIType.i32 },
+  yolo_process_status: { args: [FFIType.u64, FFIType.ptr], returns: FFIType.i32 },
+  yolo_process_stop: { args: [FFIType.u64, FFIType.u32], returns: FFIType.i32 },
+  yolo_process_release: { args: [FFIType.u64], returns: FFIType.i32 },
+  yolo_http_probe_start: {
+    args: [FFIType.u64, FFIType.ptr, FFIType.u16, FFIType.ptr, FFIType.u32, FFIType.ptr],
+    returns: FFIType.i32,
+  },
   yolo_buffer_free: { args: [FFIType.ptr], returns: FFIType.void },
   yolo_last_error: { args: [FFIType.ptr], returns: FFIType.i32 },
 } as const;
@@ -156,6 +164,136 @@ function callJson<T>(symbols: Symbols, call: (out: Pointer) => number): T {
   return JSON.parse(readBuffer(symbols, buffer)) as T;
 }
 
+export interface SpawnOptions {
+  readonly program: string;
+  readonly args?: readonly string[];
+  /** Added to the inherited environment. */
+  readonly env?: Readonly<Record<string, string>>;
+  readonly cwd?: string;
+  /** `"null"` connects stdin/stdout/stderr to the null device; default inherits them. */
+  readonly stdio?: "inherit" | "null";
+}
+
+export interface ProcessStatus {
+  readonly running: boolean;
+  /** Exit code; -1 when the process was terminated by a signal. */
+  readonly exitCode: number;
+  readonly signal: number;
+  readonly pid: number;
+}
+
+export interface HttpReadyOptions {
+  readonly host?: string;
+  readonly port: number;
+  readonly path?: string;
+  readonly timeoutMs?: number;
+  readonly intervalMs?: number;
+  readonly signal?: AbortSignal;
+}
+
+/** The supervised process exited before the awaited condition held. */
+export class ProcessExitedError extends Error {
+  readonly status: ProcessStatus;
+  constructor(status: ProcessStatus) {
+    super(
+      `process ${status.pid} exited before it was ready (code ${status.exitCode}, signal ${status.signal})`,
+    );
+    this.name = "ProcessExitedError";
+    this.status = status;
+  }
+}
+
+const cString = (text: string): Buffer => Buffer.from(`${text}\0`, "utf8");
+
+/** A NULL-terminated array of C strings; `keep` holds the buffers alive during the call. */
+function cStringArray(items: readonly string[], keep: Buffer[]): Uint8Array {
+  const table = new DataView(new ArrayBuffer((items.length + 1) * 8));
+  items.forEach((item, index) => {
+    const buffer = cString(item);
+    keep.push(buffer);
+    table.setBigUint64(index * 8, BigInt(ptr(buffer)), true);
+  });
+  return new Uint8Array(table.buffer);
+}
+
+/** A supervised child process (own process group). Always `release()` it (or use `using`). */
+export class ManagedProcess implements Disposable {
+  #symbols: Symbols;
+  #runtime: Runtime;
+  #handle: bigint;
+  #released = false;
+  readonly pid: number;
+
+  constructor(symbols: Symbols, runtime: Runtime, handle: bigint, pid: number) {
+    this.#symbols = symbols;
+    this.#runtime = runtime;
+    this.#handle = handle;
+    this.pid = pid;
+  }
+
+  status(): ProcessStatus {
+    const out = new Uint32Array(5);
+    out[0] = 20; // struct_size
+    check(this.#symbols, this.#symbols.yolo_process_status(this.#handle, ptr(out)));
+    const view = new Int32Array(out.buffer);
+    return {
+      running: out[1] === 0,
+      exitCode: out[1] === 0 ? 0 : (view[2] as number),
+      signal: view[3] as number,
+      pid: out[4] as number,
+    };
+  }
+
+  /** SIGTERM to the process group, SIGKILL after `graceMs`; waits and keeps the handle valid. */
+  stop(graceMs = 2000): ProcessStatus {
+    check(this.#symbols, this.#symbols.yolo_process_stop(this.#handle, graceMs));
+    return this.status();
+  }
+
+  /**
+   * Resolves once the server answers over HTTP. Rejects with `ProcessExitedError` if the process
+   * exits first, with the abort reason on abort, and with a timeout `Error` otherwise. Never blocks
+   * the event loop for more than one probe.
+   */
+  async waitForHttp(options: HttpReadyOptions): Promise<number> {
+    const {
+      host = "127.0.0.1",
+      port,
+      path = "/",
+      timeoutMs = 10_000,
+      intervalMs = 50,
+      signal,
+    } = options;
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      signal?.throwIfAborted();
+      const status = this.status();
+      if (!status.running) throw new ProcessExitedError(status);
+      const code = await this.#runtime.probeHttp(
+        host,
+        port,
+        path,
+        Math.min(500, Math.max(1, deadline - Date.now())),
+      );
+      if (code !== undefined) return code;
+      if (Date.now() >= deadline) {
+        throw new Error(`http://${host}:${port}${path} not ready after ${timeoutMs} ms`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
+
+  release(): void {
+    if (this.#released) return;
+    this.#released = true;
+    check(this.#symbols, this.#symbols.yolo_process_release(this.#handle));
+  }
+
+  [Symbol.dispose](): void {
+    this.release();
+  }
+}
+
 /** A started native operation. Always `release()` it (or use `using`). */
 export class Operation implements Disposable {
   #symbols: Symbols;
@@ -169,11 +307,17 @@ export class Operation implements Disposable {
 
   /** Waits up to `timeoutMs`. Resolves to `undefined` on timeout (the operation keeps running). */
   wait(timeoutMs = 0): BenchmarkResult | undefined {
+    const raw = this.waitRaw(timeoutMs);
+    return raw === undefined ? undefined : (JSON.parse(raw) as BenchmarkResult);
+  }
+
+  /** Like `wait`, returning the raw JSON text of the result. */
+  waitRaw(timeoutMs = 0): string | undefined {
     const buffer = new Uint8Array(BUFFER_BYTES);
     const status = this.#symbols.yolo_operation_wait(this.#handle, timeoutMs, ptr(buffer));
     if (status === Status.Timeout) return undefined;
     check(this.#symbols, status);
-    return JSON.parse(readBuffer(this.#symbols, buffer)) as BenchmarkResult;
+    return readBuffer(this.#symbols, buffer);
   }
 
   /** Requests cancellation; `wait()` then throws a `Cancelled` RuntimeError. */
@@ -213,20 +357,23 @@ export class Runtime implements Disposable {
           `or point YOLO_RUNTIME_LIB to a prebuilt artifact.`,
       );
     }
-    const library = dlopen(path, SYMBOLS);
-    const symbols = library.symbols;
-
-    // Negotiate before any other call: refuse an incompatible library.
-    const version = symbols.yolo_abi_version();
+    // Negotiate before binding anything else: an older library lacks symbols the SDK needs and
+    // must be refused with a clear ABI error, not a missing-symbol one.
+    const probe = dlopen(path, {
+      yolo_abi_version: SYMBOLS.yolo_abi_version,
+    });
+    const version = probe.symbols.yolo_abi_version();
+    probe.close();
     const major = version >>> 16;
     const minor = version & 0xffff;
     if (major !== EXPECTED_ABI_MAJOR || minor < EXPECTED_ABI_MINOR) {
-      library.close();
       throw new RuntimeError(
         Status.AbiMismatch,
         `library implements ABI ${major}.${minor}, this SDK needs ${EXPECTED_ABI_MAJOR}.${EXPECTED_ABI_MINOR}+`,
       );
     }
+    const library = dlopen(path, SYMBOLS);
+    const symbols = library.symbols;
 
     const info = new Uint32Array([
       16,
@@ -271,6 +418,76 @@ export class Runtime implements Disposable {
     const out = new BigUint64Array(1);
     check(symbols, symbols.yolo_bench_start(this.#handle, iterations, ptr(out)));
     return new Operation(symbols, out[0] as bigint);
+  }
+
+  /** Spawns a supervised process; the runtime stops it if it is still alive at `close()`. */
+  spawn(options: SpawnOptions): ManagedProcess {
+    const symbols = this.#live();
+    const keep: Buffer[] = [];
+    const program = cString(options.program);
+    const args = cStringArray(options.args ?? [], keep);
+    const env = cStringArray(
+      Object.entries(options.env ?? {}).map(([key, value]) => `${key}=${value}`),
+      keep,
+    );
+    const cwd = options.cwd === undefined ? undefined : cString(options.cwd);
+
+    const info = new DataView(new ArrayBuffer(40));
+    info.setUint32(0, 40, true);
+    info.setUint32(4, options.stdio === "null" ? 1 : 0, true);
+    info.setBigUint64(8, BigInt(ptr(program)), true);
+    info.setBigUint64(16, BigInt(ptr(args)), true);
+    info.setBigUint64(24, BigInt(ptr(env)), true);
+    info.setBigUint64(32, cwd === undefined ? 0n : BigInt(ptr(cwd)), true);
+
+    const out = new BigUint64Array(1);
+    check(
+      symbols,
+      symbols.yolo_process_spawn(this.#handle, ptr(new Uint8Array(info.buffer)), ptr(out)),
+    );
+    const handle = out[0] as bigint;
+    const probe = new Uint32Array(5);
+    probe[0] = 20;
+    check(symbols, symbols.yolo_process_status(handle, ptr(probe)));
+    return new ManagedProcess(symbols, this, handle, probe[4] as number);
+  }
+
+  /**
+   * One HTTP GET on a native worker thread (the event loop is never blocked): the response status
+   * code, or `undefined` when nothing answers (yet).
+   */
+  async probeHttp(
+    host: string,
+    port: number,
+    path: string,
+    timeoutMs = 500,
+  ): Promise<number | undefined> {
+    const symbols = this.#live();
+    const out = new BigUint64Array(1);
+    check(
+      symbols,
+      symbols.yolo_http_probe_start(
+        this.#handle,
+        ptr(cString(host)),
+        port,
+        ptr(cString(path)),
+        timeoutMs,
+        ptr(out),
+      ),
+    );
+    const operation = new Operation(symbols, out[0] as bigint);
+    try {
+      for (;;) {
+        const result = operation.waitRaw(0);
+        if (result !== undefined) {
+          const { status } = JSON.parse(result) as { status: number | null };
+          return status ?? undefined;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2));
+      }
+    } finally {
+      operation.release();
+    }
   }
 
   /**

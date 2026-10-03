@@ -1,6 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import { existsSync } from "node:fs";
-import { defaultLibraryPath, Runtime, RuntimeError, Status } from "../sdk/runtime/src/index";
+import {
+  defaultLibraryPath,
+  ProcessExitedError,
+  Runtime,
+  RuntimeError,
+  Status,
+} from "../sdk/runtime/src/index";
 
 // The precompiled artifact is produced by `just runtime-build`; Bun tests never start Cargo.
 const available = existsSync(defaultLibraryPath());
@@ -20,9 +26,14 @@ suite("runtime SDK against the precompiled library", () => {
     expect(runtime.abi.major).toBe(1);
     const info = runtime.buildInfo();
     expect(info.name).toBe("yolo-runtime");
-    expect(info.abi).toBe("1.0");
+    expect(info.abi).toBe("1.1");
     expect(info.panic_recovery).toBe(true);
-    expect(runtime.capabilities()).toEqual(["system.stats", "bench.compute"]);
+    expect(runtime.capabilities()).toEqual([
+      "system.stats",
+      "bench.compute",
+      "process.supervise",
+      "http.probe",
+    ]);
   });
 
   it("calls system.stats", () => {
@@ -108,5 +119,89 @@ suite("runtime:* modules", () => {
   it("keeps runtime:desktop and runtime:browser reserved with an explicit error", async () => {
     await expect(import("runtime:desktop")).rejects.toThrow(/not available yet/);
     await expect(import("runtime:browser")).rejects.toThrow(/not available yet/);
+  });
+});
+
+suite("process supervision (runtime:process)", () => {
+  const isUnix = process.platform !== "win32";
+  const unix = isUnix ? it : it.skip;
+
+  unix("spawns, reports the exit code and passes the environment", () => {
+    using runtime = Runtime.load();
+    using child = runtime.spawn({
+      program: "sh",
+      args: ["-c", "exit $CODE"],
+      env: { CODE: "7" },
+      stdio: "null",
+    });
+    for (let i = 0; i < 200 && child.status().running; i++) Bun.sleepSync(10);
+    const status = child.status();
+    expect(status).toMatchObject({ running: false, exitCode: 7, signal: 0 });
+    expect(child.pid).toBe(status.pid);
+  });
+
+  unix("stops a process group gracefully and reports the signal", () => {
+    using runtime = Runtime.load();
+    using child = runtime.spawn({ program: "sh", args: ["-c", "sleep 60 & wait"], stdio: "null" });
+    Bun.sleepSync(100);
+    expect(child.status().running).toBe(true);
+    const status = child.stop(2000);
+    expect(status.running).toBe(false);
+    expect(status.signal).toBe(15);
+  });
+
+  unix(
+    "waitForHttp resolves when a server answers and rejects when the process exits first",
+    async () => {
+      using runtime = Runtime.load();
+      const server = Bun.serve({ port: 0, fetch: () => new Response("ok") });
+      try {
+        using child = runtime.spawn({ program: "sleep", args: ["30"], stdio: "null" });
+        expect(
+          await child.waitForHttp({ port: server.port as number, path: "/", timeoutMs: 5000 }),
+        ).toBe(200);
+      } finally {
+        await server.stop(true);
+      }
+      using dying = runtime.spawn({ program: "sh", args: ["-c", "exit 1"], stdio: "null" });
+      await expect(dying.waitForHttp({ port: 9, timeoutMs: 5000 })).rejects.toBeInstanceOf(
+        ProcessExitedError,
+      );
+    },
+  );
+
+  unix("waitForHttp honors timeouts and AbortSignal", async () => {
+    using runtime = Runtime.load();
+    using child = runtime.spawn({ program: "sleep", args: ["30"], stdio: "null" });
+    await expect(child.waitForHttp({ port: 9, timeoutMs: 150 })).rejects.toThrow(/not ready/);
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(new Error("stop")), 30);
+    await expect(
+      child.waitForHttp({ port: 9, timeoutMs: 5000, signal: controller.signal }),
+    ).rejects.toThrow("stop");
+  });
+
+  unix("closing the runtime stops its processes", () => {
+    const runtime = Runtime.load();
+    const child = runtime.spawn({ program: "sleep", args: ["60"], stdio: "null" });
+    const pid = child.pid;
+    runtime.close();
+    expect(() => process.kill(-pid, 0)).toThrow();
+  });
+
+  it("imports runtime:process through the preload plugin", async () => {
+    const { processes } = await import("runtime:process");
+    expect(await processes.probeHttp("127.0.0.1", 9)).toBeUndefined();
+  });
+
+  it("reports spawn failures as structured errors", () => {
+    using runtime = Runtime.load();
+    try {
+      runtime.spawn({ program: "/nonexistent/binary" });
+      throw new Error("spawn must fail");
+    } catch (error) {
+      expect((error as RuntimeError).status).toBe(Status.Internal);
+      expect((error as RuntimeError).message).toContain("cannot spawn");
+    }
   });
 });

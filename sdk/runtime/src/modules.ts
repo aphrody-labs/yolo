@@ -5,7 +5,14 @@
  *
  * One shared runtime instance per process, created lazily and closed at exit.
  */
-import { Runtime, type BenchmarkResult, type BuildInfo, type SystemStats } from "./index";
+import {
+  Runtime,
+  type BenchmarkResult,
+  type BuildInfo,
+  type ManagedProcess,
+  type SpawnOptions,
+  type SystemStats,
+} from "./index";
 
 let shared: Runtime | undefined;
 
@@ -37,6 +44,18 @@ export const system = {
   },
   capabilities(): string[] {
     return sharedRuntime().capabilities();
+  },
+};
+
+/** `runtime:process`: capabilities `process.supervise` and `http.probe`. */
+export const processes = {
+  /** Spawns a child in its own process group; the runtime stops it at exit if still alive. */
+  spawn(options: SpawnOptions): ManagedProcess {
+    return sharedRuntime().spawn(options);
+  },
+  /** One HTTP GET on a native worker: the status code, or `undefined` when nothing answers (yet). */
+  probeHttp(host: string, port: number, path = "/", timeoutMs = 500): Promise<number | undefined> {
+    return sharedRuntime().probeHttp(host, port, path, timeoutMs);
   },
 };
 
