@@ -66,7 +66,7 @@ Keep repositories private, source notices intact and secrets in existing private
 stores. Preserve datasets, models, databases and caches. GitHub releases are cut from `main` by `vX.Y.Z` tag
 (owner authorization of 2026-10-03, see docs/DISTRIBUTION.md); package registries (crates.io, npm) are published only
 when the owner runs or asks for `just publish-*-run`, since a registry publication cannot be undone.
-Do not inspect or change `/home/aphro/aphrody-ui` without explicit UI scope.
+UI applicative M3 et Web : réside désormais canoniquement dans le monorepo Aphrody (`packages/ui/app-ui`, `crates/ui/*`). L'ancien checkout séparé aphrody-ui a été consolidé.
 Use `aphrody-dev <contact@aphrody.com>` for author and committer; no assistant
 attribution, coauthor trailers or AI bots/apps added to repositories.
 Commit completed owned batches and push to the existing authorized remote.
