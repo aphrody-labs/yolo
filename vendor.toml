@@ -81,6 +81,7 @@ crates = [
   "crates/next-taskless",
   "turbopack/crates/*",
 ]
+exclude_crates = ["turbopack/crates/*-tests", "turbopack/crates/*/fuzz"]
 exclude = ["**/tests/**", "**/fixtures/**", "**/benches/**", "**/fuzz/**", "**/benchmarks/**"]
 
 # Sources of the `tauri-examples` crate (its [[example]] entries live outside the crate).
