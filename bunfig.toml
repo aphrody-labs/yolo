@@ -12,7 +12,7 @@ lockfile = true
 preload = ["./sdk/runtime/src/preload.ts"]
 # Strict timeout budget, root isolated scope, UTC timezone
 timeout = 10000
-root = "tests"
+root = "test"
 
 [run]
 # Force Bun runtime for shebangs and nested scripts

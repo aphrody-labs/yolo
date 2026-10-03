@@ -37,7 +37,7 @@ jobs:
       - run: cargo test -p yolo-core -p yolo-runtime
       - run: cargo build --profile runtime -p yolo-runtime
       - run: bun run scripts/runtime_artifact.ts
-      - run: bun test tests/runtime_sdk.test.ts tests/runtime_release.test.ts
+      - run: bun test test/runtime_sdk.test.ts test/runtime_release.test.ts
       - run: bun run scripts/release.ts
       - uses: actions/upload-artifact@v4
         with:

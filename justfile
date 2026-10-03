@@ -22,13 +22,13 @@ typecheck:
     bun x tsc --noEmit
 
 lint:
-    oxlint scripts/ tests/ sdk/ apps/cli/src/ apps/web/src/
+    oxlint scripts/ test/ sdk/ apps/cli/src/ apps/web/src/
 
 fmt:
-    oxfmt --write scripts/ tests/ sdk/ apps/cli/src/ apps/web/src/
+    oxfmt --write scripts/ test/ sdk/ apps/cli/src/ apps/web/src/
 
 fmt-check:
-    oxfmt --check scripts/ tests/ sdk/ apps/cli/src/ apps/web/src/
+    oxfmt --check scripts/ test/ sdk/ apps/cli/src/ apps/web/src/
 
 # Rust formatting. Each vendored crate carries the rustfmt.toml of its upstream repository.
 rust-fmt:
@@ -46,7 +46,7 @@ deny:
     cargo deny check
 
 test:
-    bun test tests/
+    bun test test/
 
 # Rust tests of the default workspace members (cargo-nextest)
 test-crates:
@@ -87,7 +87,7 @@ runtime-build:
 runtime-test: runtime-build
     cargo test -p yolo-runtime -p yolo-core
     bun run scripts/runtime_artifact.ts
-    bun test tests/runtime_sdk.test.ts tests/runtime_release.test.ts
+    bun test test/runtime_sdk.test.ts test/runtime_release.test.ts
 
 # dist/runtime/<target>/: library + C header + manifest (target, toolchain, ABI, revisions, hashes)
 runtime-package: runtime-build

@@ -22,7 +22,7 @@ jobs:
       - run: bun x tsc --noEmit
       - run: bun run lint
       - run: bun run fmt:check
-      - run: bun test tests/
+      - run: bun test test/
 
   rust:
     runs-on: ubuntu-latest

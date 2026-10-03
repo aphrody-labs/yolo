@@ -22,17 +22,12 @@
   },
   "include": [
     "scripts/**/*",
-    "tests/**/*",
+    "test/**/*",
     "sdk/**/*",
     "sdk/runtime/runtime.d.ts",
     "apps/cli/**/*",
     "apps/web/src/**/*",
     "apps/web/build.ts"
   ],
-  "exclude": [
-    "packages/**/*",
-    "crates/**/*",
-    "examples/**/*",
-    "node_modules/**/*"
-  ]
+  "exclude": ["packages/**/*", "crates/**/*", "examples/**/*", "node_modules/**/*"]
 }

@@ -1,4 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Yolo — plan: a native runtime that installs and deploys in one command
 
 Owner direction, 2026-10-03 (revised the same day): remove the limits of the previous plan and design everything to
@@ -28,15 +29,15 @@ bun run build:bin && bun run pack:deploy                            # one archiv
 
 ## Layers
 
-| Layer | Provider | Surface |
-| :--- | :--- | :--- |
-| Host | Bun fork (`packages/bun`), preload plugin | `runtime:*` modules, `bun build --compile` with the SDK bundler plugin |
-| Runtime | `crates/yolo-runtime` | Versioned C ABI 1.x: system, process supervision, HTTP probe, cancellable work |
-| SDK | `sdk/runtime` | `@aphrody/runtime-sdk`: loader with ABI negotiation, artifact verification, install/rollback |
-| Desktop | `crates/aphrody-*` (Tauri 3 alpha, wry, tao, plugins) | `yolo create --with desktop`; `runtime:desktop` |
-| Headless | Obscura (`packages/obscura`) | `runtime:browser` |
-| Distribution | `scripts/release*.ts`, `install.sh/.ps1`, release workflow | Assets for five targets, checksums, installers |
-| Consumers | Aphrody applications | Light SDK dependency, product logic stays in Aphrody |
+| Layer        | Provider                                                   | Surface                                                                                      |
+| :----------- | :--------------------------------------------------------- | :------------------------------------------------------------------------------------------- |
+| Host         | Bun fork (`packages/bun`), preload plugin                  | `runtime:*` modules, `bun build --compile` with the SDK bundler plugin                       |
+| Runtime      | `crates/yolo-runtime`                                      | Versioned C ABI 1.x: system, process supervision, HTTP probe, cancellable work               |
+| SDK          | `sdk/runtime`                                              | `@aphrody/runtime-sdk`: loader with ABI negotiation, artifact verification, install/rollback |
+| Desktop      | `crates/aphrody-*` (Tauri 3 alpha, wry, tao, plugins)      | `yolo create --with desktop`; `runtime:desktop`                                              |
+| Headless     | Obscura (`packages/obscura`)                               | `runtime:browser`                                                                            |
+| Distribution | `scripts/release*.ts`, `install.sh/.ps1`, release workflow | Assets for five targets, checksums, installers                                               |
+| Consumers    | Aphrody applications                                       | Light SDK dependency, product logic stays in Aphrody                                         |
 
 Engines (Bun, Obscura) keep their own build graphs and are combined at distribution level; every artifact that crosses
 the C ABI is built with an unwinding profile so panics become statuses. Names that are contracts (library names,
@@ -44,21 +45,21 @@ dependency keys, `links`, permission and command ids) never change with the `aph
 
 ## Delivery
 
-| Phase | Deliverable | Acceptance |
-| :--- | :--- | :--- |
-| R0 | C ABI runtime, SDK, artifact packaging | `just runtime-test` |
-| R1 | Host: `runtime:system`, `runtime:process`, bundler plugin | `bun test tests/runtime_sdk.test.ts` |
-| R2 | Process supervision service and the agent-browser consumer patch | `docs/CONSUMERS.md` procedure, package tests green |
-| D0 | Standalone `yolo` executable, installer, release assets for the host | `YOLO_RELEASE_DIR=… sh install.sh && yolo doctor` |
-| D1 | Release workflow for five targets, merged assets, `yolo upgrade` | tag `vX.Y.Z` publishes the release; `yolo upgrade --check` |
-| D2 | Server deploy: compile, pack, run elsewhere | `bun run build:bin && bun run pack:deploy`, run the extracted archive |
-| R3 | Desktop adapter: windows, events, permissions, shutdown through `runtime:desktop` | pilot app opens a window and quits cleanly |
-| R4 | Headless variant with Obscura on its current engine | agent-browser consumer navigates, extracts, renders |
-| R5 | JavaScriptCore backend for Obscura | the browser suite passes on the new backend |
-| R6 | V8 removed from the promoted profile | consumer suites pass without V8 |
-| D3 | Desktop bundles (`.deb`, AppImage, `.msi`, `.dmg`) from the scaffold | `cargo tauri build` output installs and starts |
-| D4 | Crates and npm packages published under the `aphrody-*` / `@aphrody/*` names | `just publish-dry` clean, then published |
-| R8 | Measurements (startup, native-call latency, memory, build time) and signing | reproducible benchmark report per target |
+| Phase | Deliverable                                                                       | Acceptance                                                            |
+| :---- | :-------------------------------------------------------------------------------- | :-------------------------------------------------------------------- |
+| R0    | C ABI runtime, SDK, artifact packaging                                            | `just runtime-test`                                                   |
+| R1    | Host: `runtime:system`, `runtime:process`, bundler plugin                         | `bun test test/runtime_sdk.test.ts`                                  |
+| R2    | Process supervision service and the agent-browser consumer patch                  | `docs/CONSUMERS.md` procedure, package tests green                    |
+| D0    | Standalone `yolo` executable, installer, release assets for the host              | `YOLO_RELEASE_DIR=… sh install.sh && yolo doctor`                     |
+| D1    | Release workflow for five targets, merged assets, `yolo upgrade`                  | tag `vX.Y.Z` publishes the release; `yolo upgrade --check`            |
+| D2    | Server deploy: compile, pack, run elsewhere                                       | `bun run build:bin && bun run pack:deploy`, run the extracted archive |
+| R3    | Desktop adapter: windows, events, permissions, shutdown through `runtime:desktop` | pilot app opens a window and quits cleanly                            |
+| R4    | Headless variant with Obscura on its current engine                               | agent-browser consumer navigates, extracts, renders                   |
+| R5    | JavaScriptCore backend for Obscura                                                | the browser suite passes on the new backend                           |
+| R6    | V8 removed from the promoted profile                                              | consumer suites pass without V8                                       |
+| D3    | Desktop bundles (`.deb`, AppImage, `.msi`, `.dmg`) from the scaffold              | `cargo tauri build` output installs and starts                        |
+| D4    | Crates and npm packages published under the `aphrody-*` / `@aphrody/*` names      | `just publish-dry` clean, then published                              |
+| R8    | Measurements (startup, native-call latency, memory, build time) and signing       | reproducible benchmark report per target                              |
 
 Status is tracked by the acceptance commands, not by prose: R0, R1, R2 (patch), D0 and D2 pass on the development
 host (see [DISTRIBUTION](docs/DISTRIBUTION.md) for exactly what was run); D1 is written and runs in CI on a tag; the

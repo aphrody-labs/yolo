@@ -1,17 +1,18 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Runtime C ABI (slice R0, ABI 1.3)
 
 First vertical slice of [PLAN.md](../PLAN.md) phase R0: one capability family behind a versioned
 C ABI, a precompiled artifact and a light TypeScript consumer. Nothing here qualifies later
 phases.
 
-| Piece | Path |
-| :--- | :--- |
-| Library (cdylib + rlib) | `crates/yolo-runtime` |
-| C header | `crates/yolo-runtime/include/yolo_runtime.h` |
-| TypeScript SDK (`bun:ffi`) | `sdk/runtime` |
-| Artifact packaging | `scripts/runtime_artifact.ts` → `dist/runtime/<target>/` |
-| Tests | `cargo test -p yolo-runtime`, `tests/runtime_sdk.test.ts` |
+| Piece                      | Path                                                      |
+| :------------------------- | :-------------------------------------------------------- |
+| Library (cdylib + rlib)    | `crates/yolo-runtime`                                     |
+| C header                   | `crates/yolo-runtime/include/yolo_runtime.h`              |
+| TypeScript SDK (`bun:ffi`) | `sdk/runtime`                                             |
+| Artifact packaging         | `scripts/runtime_artifact.ts` → `dist/runtime/<target>/`  |
+| Tests                      | `cargo test -p yolo-runtime`, `test/runtime_sdk.test.ts` |
 
 ```bash
 just runtime-build      # cargo build --profile runtime -p yolo-runtime
@@ -22,9 +23,9 @@ bun run sdk/runtime/examples/stats.ts
 
 ## Capabilities
 
-| Id | Entry points | Backed by |
-| :--- | :--- | :--- |
-| `system.stats` | `yolo_system_stats` | `yolo_core::current_system_stats` |
+| Id              | Entry points                                             | Backed by                                  |
+| :-------------- | :------------------------------------------------------- | :----------------------------------------- |
+| `system.stats`  | `yolo_system_stats`                                      | `yolo_core::current_system_stats`          |
 | `bench.compute` | `yolo_bench_start`, `yolo_operation_wait/cancel/release` | `yolo_core::compute_benchmark_cancellable` |
 
 | `process.supervise` | `yolo_process_spawn/status/read/stop/release` | `std::process` in its own process group (SIGTERM, then SIGKILL after a grace period; the whole group) |

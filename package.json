@@ -1,41 +1,10 @@
 {
   "name": "@aphrody/yolo-runtime",
   "version": "1.0.0",
-  "description": "Aphrody YOLO Bun Industrial Engine \u2014 TypeScript 7 Go, Oxc, Oxlint, Oxfmt & Obscura",
-  "type": "module",
   "private": true,
-  "author": "aphrody-dev <contact@aphrody.com>",
-  "engines": {
-    "bun": ">=1.4.2"
-  },
-  "scripts": {
-    "status": "bun run scripts/packages_upstream_sync.ts",
-    "sync:all": "bun run scripts/packages_upstream_sync.ts --fetch",
-    "bun:sync": "bun run scripts/bun_upstream_sync.ts --apply",
-    "bun:drift-fix": "bun run scripts/bun_upstream_sync.ts --apply --auto-fix",
-    "bun:track": "bun run scripts/bun_upstream_tracker.ts",
-    "cli": "bun run apps/cli/src/index.ts",
-    "test": "bun test tests/",
-    "test:cli": "bun test tests/cli_app.test.ts",
-    "lint": "oxlint scripts/ tests/ sdk/ apps/cli/src/ apps/web/src/",
-    "fmt": "oxfmt --write scripts/ tests/ sdk/ apps/cli/src/ apps/web/src/",
-    "fmt:check": "oxfmt --check scripts/ tests/ sdk/ apps/cli/src/ apps/web/src/",
-    "typecheck": "tsc --noEmit",
-    "clean": "rm -rf .cache *.log var target dist apps/web/dist",
-    "publish:forks": "bun run scripts/publish_forks.ts",
-    "publish:forks:run": "bun run scripts/publish_forks.ts --publish"
-  },
-  "devDependencies": {
-    "@types/bun": "1.4.2",
-    "oxfmt": "0.71.0",
-    "oxlint": "1.86.0",
-    "typescript": "7.0.2"
-  },
-  "dependencies": {
-    "oxc-parser": "0.152.0",
-    "oxc-transform": "0.152.0"
-  },
+  "description": "Aphrody YOLO Bun Industrial Engine — TypeScript 7 Go, Oxc, Oxlint, Oxfmt & Obscura",
   "license": "MIT",
+  "author": "aphrody-dev <contact@aphrody.com>",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/aphrody-labs/yolo.git"
@@ -43,5 +12,36 @@
   "workspaces": [
     "apps/*",
     "sdk/*"
-  ]
+  ],
+  "type": "module",
+  "scripts": {
+    "status": "bun run scripts/packages_upstream_sync.ts",
+    "sync:all": "bun run scripts/packages_upstream_sync.ts --fetch",
+    "bun:sync": "bun run scripts/bun_upstream_sync.ts --apply",
+    "bun:drift-fix": "bun run scripts/bun_upstream_sync.ts --apply --auto-fix",
+    "bun:track": "bun run scripts/bun_upstream_tracker.ts",
+    "cli": "bun run apps/cli/src/index.ts",
+    "test": "bun test test/",
+    "test:cli": "bun test test/cli_app.test.ts",
+    "lint": "oxlint scripts/ test/ sdk/ apps/cli/src/ apps/web/src/",
+    "fmt": "oxfmt --write scripts/ test/ sdk/ apps/cli/src/ apps/web/src/",
+    "fmt:check": "oxfmt --check scripts/ test/ sdk/ apps/cli/src/ apps/web/src/",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf .cache *.log var target dist apps/web/dist",
+    "publish:forks": "bun run scripts/publish_forks.ts",
+    "publish:forks:run": "bun run scripts/publish_forks.ts --publish"
+  },
+  "dependencies": {
+    "oxc-parser": "0.152.0",
+    "oxc-transform": "0.152.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "oxfmt": "0.71.0",
+    "oxlint": "1.86.0",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "bun": ">=1.4.2"
+  }
 }
