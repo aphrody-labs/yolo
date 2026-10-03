@@ -122,7 +122,8 @@ import-check: vendor-worktree
 # Re-import the submodules on `vendor`, then merge it into the current branch
 vendor-update: vendor-worktree
     bun run apps/cli/src/index.ts import --apply --out .cache/vendor
-    git -C .cache/vendor add -A
+    # -f: nested upstream .gitignore files must not hide imported files
+    git -C .cache/vendor add -A -f -- crates examples docs vendor.lock
     git -C .cache/vendor diff --cached --quiet || git -C .cache/vendor commit -m "vendor: update crates from the pinned submodule commits"
     git merge vendor
 

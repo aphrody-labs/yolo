@@ -430,6 +430,8 @@ export interface ImportResult {
   readonly sources: readonly { name: string; sha: string }[];
   readonly warnings: readonly string[];
   readonly removedDirs: readonly string[];
+  /** Directories fully owned by a [[copy]] rule: wiped before writing, scanned by --check. */
+  readonly copyDirs: readonly string[];
 }
 
 async function git(cwd: string, args: string[]): Promise<string> {
@@ -638,6 +640,7 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
   }
 
   // Extra copies (shared tooling that lives outside any crate).
+  const copyDirs: string[] = [];
   for (const copy of cfg.copy) {
     const [sourceName, ...rest] = copy.from.split(":");
     const sub = rest.join(":");
@@ -645,8 +648,12 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
     if (checkout === undefined) throw new Error(`[[copy]] unknown source "${sourceName}"`);
     const absFrom = join(checkout, sub);
     if (!existsSync(absFrom)) throw new Error(`[[copy]] path not found: ${copy.from}`);
-    const items = lstatSync(absFrom).isDirectory()
-      ? walk(absFrom).map((f) => [join(absFrom, f), posix.join(copy.to, f)] as const)
+    const isDirectory = lstatSync(absFrom).isDirectory();
+    if (isDirectory) copyDirs.push(copy.to);
+    const items = isDirectory
+      ? walk(absFrom)
+          .filter((f) => !globMatch(copy.exclude ?? [], f))
+          .map((f) => [join(absFrom, f), posix.join(copy.to, f)] as const)
       : [[absFrom, copy.to] as const];
     for (const [from, to] of items) {
       put(
@@ -713,7 +720,7 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
 
   const crateDirs = crates.map((c) => c.newDir);
   const removedDirs = options.previousDirs.filter((d) => !crateDirs.includes(d));
-  return { files, crates, sources, warnings, removedDirs };
+  return { files, crates, sources, warnings, removedDirs, copyDirs };
 }
 
 export function renderLock(result: ImportResult): string {
@@ -749,7 +756,11 @@ async function writeOutputs(
   result: ImportResult,
   extra: Map<string, string>,
 ): Promise<void> {
-  for (const dir of [...result.removedDirs, ...result.crates.map((c) => c.newDir)]) {
+  for (const dir of [
+    ...result.removedDirs,
+    ...result.crates.map((c) => c.newDir),
+    ...result.copyDirs,
+  ]) {
     rmSync(resolve(outRoot, dir), { recursive: true, force: true });
   }
   for (const [path, file] of result.files) {
@@ -852,7 +863,7 @@ export async function runImportCommand(args: readonly string[], rootDir: string)
       const actual = new Uint8Array(await Bun.file(abs).arrayBuffer());
       if (Bun.hash.wyhash(actual) !== Bun.hash.wyhash(data)) diffs.push(`differs: ${path}`);
     }
-    for (const dir of result.crates.map((c) => c.newDir)) {
+    for (const dir of [...result.crates.map((c) => c.newDir), ...result.copyDirs]) {
       const abs = resolve(out, dir);
       if (!existsSync(abs)) continue;
       for (const f of walk(abs)) {
