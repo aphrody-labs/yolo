@@ -20,5 +20,7 @@ sudo -n /usr/bin/systemd-run --unit="$name" --collect --wait --pipe --quiet \
   -p OOMScoreAdjust=-500 -p Delegate=yes \
   -- bash "$ws/scripts/release/ship_remote.sh" "$sha" "$ws" "$out" 2>&1 | tee -a "$out/ship.log"
 rc=${PIPESTATUS[0]}
+# a stopped unit exits 0 while ship_remote.sh never reached ok/failed: report it instead of leaving "running"
+grep -qE '^(ok|failed)' "$out/STATUS" || echo "stopped: unit $name ended before the build finished" > "$out/STATUS"
 echo "unit $name exited $rc" | tee -a "$out/ship.log"
 exit "$rc"
