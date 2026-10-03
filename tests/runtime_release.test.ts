@@ -12,7 +12,12 @@ const suite = available ? describe : describe.skip;
 
 const sandbox = mkdtempSync(join(tmpdir(), "yolo-runtime-"));
 process.env["YOLO_RUNTIME_HOME"] = join(sandbox, "home");
-afterAll(() => rmSync(sandbox, { recursive: true, force: true }));
+// Windows keeps a loaded library locked until the process exits: retry, then leave it to the OS temp cleanup.
+afterAll(() => {
+  try {
+    rmSync(sandbox, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  } catch {}
+});
 
 /** A second artifact version: same files, new version string. */
 function variant(version: string): string {

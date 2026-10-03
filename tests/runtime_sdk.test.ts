@@ -39,7 +39,9 @@ suite("runtime SDK against the precompiled library", () => {
   it("calls system.stats", () => {
     using runtime = Runtime.load();
     const stats = runtime.systemStats();
-    expect(stats.os).toBe(process.platform === "darwin" ? "macos" : process.platform);
+    const expected =
+      { darwin: "macos", win32: "windows" }[process.platform as string] ?? process.platform;
+    expect(stats.os).toBe(expected);
     expect(stats.timestamp_ms).toBeGreaterThan(0);
   });
 

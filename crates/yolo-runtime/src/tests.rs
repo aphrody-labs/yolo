@@ -557,6 +557,45 @@ mod process {
     yolo_runtime_destroy(rt);
   }
 
+  /// True once no live member answers in the group. Killed orphans can linger as zombies when the
+  /// container init does not reap them (CI), so on Linux a zombie does not count as alive.
+  fn group_is_gone(pgid: i32) -> bool {
+    let deadline = Instant::now() + Duration::from_secs(3);
+    loop {
+      if unsafe { libc::kill(-pgid, 0) } == -1 {
+        return true;
+      }
+      #[cfg(target_os = "linux")]
+      if !linux_group_has_live_member(pgid) {
+        return true;
+      }
+      if Instant::now() >= deadline {
+        return false;
+      }
+      std::thread::sleep(Duration::from_millis(50));
+    }
+  }
+
+  #[cfg(target_os = "linux")]
+  fn linux_group_has_live_member(pgid: i32) -> bool {
+    let Ok(entries) = std::fs::read_dir("/proc") else {
+      return true;
+    };
+    entries.flatten().any(|entry| {
+      let Ok(stat) = std::fs::read_to_string(entry.path().join("stat")) else {
+        return false;
+      };
+      // "pid (comm) state ppid pgrp ..." — comm may contain spaces, so split after the last ')'
+      let Some(rest) = stat.rsplit_once(')').map(|(_, rest)| rest) else {
+        return false;
+      };
+      let mut fields = rest.split_whitespace();
+      let state = fields.next();
+      let group = fields.nth(1).and_then(|g| g.parse::<i32>().ok());
+      group == Some(pgid) && state != Some("Z")
+    })
+  }
+
   #[test]
   fn stop_terminates_the_whole_process_group() {
     let rt = create(0);
@@ -572,7 +611,10 @@ mod process {
     assert_eq!(done.state, 1);
     assert_eq!(done.signal, libc::SIGTERM);
     // the group leader is gone and no member of the group answers any more
-    assert_eq!(unsafe { libc::kill(-pid, 0) }, -1);
+    assert!(
+      group_is_gone(pid),
+      "a member of process group {pid} is still alive"
+    );
     yolo_process_release(process);
     yolo_runtime_destroy(rt);
   }
