@@ -31,6 +31,7 @@ export * as scaffold from "./scaffold";
 export * as curation from "./curation";
 export * as coord from "./coord";
 export * as distribution from "./distribution";
+export * as ledger from "./ledger";
 
 // Direct flat exports of core capabilities
 export {
