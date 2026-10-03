@@ -478,7 +478,10 @@ fn probe_blocking(host: &str, port: u16, path: &str, timeout: Duration) -> Resul
     };
     let _ = stream.set_read_timeout(Some(timeout));
     let _ = stream.set_write_timeout(Some(timeout));
-    let request = format!("GET {path} HTTP/1.0\r\nHost: {host}\r\nConnection: close\r\n\r\n");
+    let request = format!(
+      "GET {path} HTTP/1.0\r\nHost: {host}:{port}\r\nUser-Agent: yolo-runtime/{}\r\nAccept: */*\r\nConnection: close\r\n\r\n",
+      env!("CARGO_PKG_VERSION")
+    );
     if let Err(error) = stream.write_all(request.as_bytes()) {
       last = error.to_string();
       continue;

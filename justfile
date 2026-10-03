@@ -100,6 +100,10 @@ runtime-install: runtime-package
 runtime-rollback:
     bun run scripts/runtime_release.ts rollback
 
+# Producer-owned archive of the TypeScript SDK for consumers outside this workspace
+runtime-sdk-pack:
+    bun run scripts/runtime_sdk_pack.ts
+
 runtime-list:
     bun run scripts/runtime_release.ts list
 

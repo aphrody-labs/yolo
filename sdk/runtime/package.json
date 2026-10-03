@@ -9,6 +9,11 @@
     "url": "git+https://github.com/aphrody-labs/yolo.git",
     "directory": "sdk/runtime"
   },
+  "files": [
+    "src",
+    "runtime.d.ts",
+    "README.md"
+  ],
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

@@ -8,3 +8,4 @@
 - [Imported crates](CRATES.md)
 - [Runtime C ABI (R0 slice)](RUNTIME-ABI.md)
 - [Runtime decisions](DECISIONS.md)
+- [Consumers (R2)](CONSUMERS.md)
