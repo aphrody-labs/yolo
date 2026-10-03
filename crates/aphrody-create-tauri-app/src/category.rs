@@ -9,23 +9,15 @@ pub enum Category {
     Rust,
     #[default]
     JsTs,
-    Dotnet,
 }
 
 impl Category {
-    pub const ALL: &[Self] = &[Category::JsTs, Category::Rust, Category::Dotnet];
+    pub const ALL: &[Self] = &[Category::JsTs, Category::Rust];
 
     pub const fn package_managers(&self) -> &[PackageManager] {
         match self {
             Category::Rust => &[PackageManager::Cargo],
-            Category::JsTs => &[
-                PackageManager::Pnpm,
-                PackageManager::Yarn,
-                PackageManager::Npm,
-                PackageManager::Deno,
-                PackageManager::Bun,
-            ],
-            Category::Dotnet => &[PackageManager::Dotnet],
+            Category::JsTs => &[PackageManager::Bun],
         }
     }
 }
@@ -42,7 +34,6 @@ impl Display for Category {
         match self {
             Category::Rust => write!(f, "Rust - ({managers})"),
             Category::JsTs => write!(f, "TypeScript / JavaScript - ({managers})"),
-            Category::Dotnet => write!(f, ".NET - ({managers})"),
         }
     }
 }

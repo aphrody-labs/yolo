@@ -37,6 +37,9 @@ impl Display for Flavor {
     }
 }
 
+/// This fork keeps only the Bun-run vanilla JS/TS frontend and the pure-Rust/WASM frameworks
+/// (yew, leptos, sycamore, dioxus); every npm-ecosystem framework template (Vue, Svelte, React,
+/// Solid, Angular, Preact) and the .NET one (Blazor) are dropped (see docs/VENDORING.md upstream).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 #[derive(Default)]
@@ -44,21 +47,9 @@ pub enum Template {
     #[default]
     Vanilla,
     VanillaTs,
-    Vue,
-    VueTs,
-    Svelte,
-    SvelteTs,
-    React,
-    ReactTs,
-    Solid,
-    SolidTs,
     Yew,
     Leptos,
     Sycamore,
-    Angular,
-    Preact,
-    PreactTs,
-    Blazor,
     Dioxus,
 }
 
@@ -67,21 +58,9 @@ impl Display for Template {
         match self {
             Template::Vanilla => write!(f, "vanilla"),
             Template::VanillaTs => write!(f, "vanilla-ts"),
-            Template::Vue => write!(f, "vue"),
-            Template::VueTs => write!(f, "vue-ts"),
-            Template::Svelte => write!(f, "svelte"),
-            Template::SvelteTs => write!(f, "svelte-ts"),
-            Template::React => write!(f, "react"),
-            Template::ReactTs => write!(f, "react-ts"),
-            Template::Solid => write!(f, "solid"),
-            Template::SolidTs => write!(f, "solid-ts"),
             Template::Yew => write!(f, "yew"),
             Template::Leptos => write!(f, "leptos"),
             Template::Sycamore => write!(f, "sycamore"),
-            Template::Angular => write!(f, "angular"),
-            Template::Preact => write!(f, "preact"),
-            Template::PreactTs => write!(f, "preact-ts"),
-            Template::Blazor => write!(f, "blazor"),
             Template::Dioxus => write!(f, "dioxus"),
         }
     }
@@ -93,21 +72,9 @@ impl FromStr for Template {
         match s {
             "vanilla" => Ok(Template::Vanilla),
             "vanilla-ts" => Ok(Template::VanillaTs),
-            "vue" => Ok(Template::Vue),
-            "vue-ts" => Ok(Template::VueTs),
-            "svelte" => Ok(Template::Svelte),
-            "svelte-ts" => Ok(Template::SvelteTs),
-            "react" => Ok(Template::React),
-            "react-ts" => Ok(Template::ReactTs),
-            "solid" => Ok(Template::Solid),
-            "solid-ts" => Ok(Template::SolidTs),
             "yew" => Ok(Template::Yew),
             "leptos" => Ok(Template::Leptos),
             "sycamore" => Ok(Template::Sycamore),
-            "angular" => Ok(Template::Angular),
-            "preact" => Ok(Template::Preact),
-            "preact-ts" => Ok(Template::PreactTs),
-            "blazor" => Ok(Template::Blazor),
             "dioxus" => Ok(Template::Dioxus),
             _ => Err(format!(
                 "{YELLOW}{s}{RESET} is not a valid template. Valid templates are [{}]",
@@ -125,18 +92,9 @@ impl Template {
     pub const fn select_text<'a>(&self) -> &'a str {
         match self {
             Template::Vanilla => "Vanilla",
-            Template::Vue => "Vue - (https://vuejs.org/)",
-            Template::Svelte => "Svelte - (https://svelte.dev/)",
-            Template::React => "React - (https://react.dev/)",
-            Template::Solid => "Solid - (https://solidjs.com/)",
             Template::Yew => "Yew - (https://yew.rs/)",
             Template::Leptos => "Leptos - (https://leptos.dev/)",
             Template::Sycamore => "Sycamore - (https://sycamore.dev/)",
-            Template::Angular => "Angular - (https://angular.dev/)",
-            Template::Preact => "Preact - (https://preactjs.com/)",
-            Template::Blazor => {
-                "Blazor - (https://dotnet.microsoft.com/en-us/apps/aspnet/web-apps/blazor/)"
-            }
             Template::Dioxus => "Dioxus - (https://dioxuslabs.com/)",
             _ => unreachable!(),
         }
@@ -147,21 +105,9 @@ impl Template {
     pub const ALL: &[Template] = &[
         Template::Vanilla,
         Template::VanillaTs,
-        Template::Vue,
-        Template::VueTs,
-        Template::Svelte,
-        Template::SvelteTs,
-        Template::React,
-        Template::ReactTs,
-        Template::Solid,
-        Template::SolidTs,
         Template::Yew,
         Template::Leptos,
         Template::Sycamore,
-        Template::Angular,
-        Template::Preact,
-        Template::PreactTs,
-        Template::Blazor,
         Template::Dioxus,
     ];
 
@@ -174,11 +120,6 @@ impl Template {
                     Some(&[Flavor::TypeScript, Flavor::JavaScript])
                 }
             }
-            Template::Vue => Some(&[Flavor::TypeScript, Flavor::JavaScript]),
-            Template::Svelte => Some(&[Flavor::TypeScript, Flavor::JavaScript]),
-            Template::React => Some(&[Flavor::TypeScript, Flavor::JavaScript]),
-            Template::Solid => Some(&[Flavor::TypeScript, Flavor::JavaScript]),
-            Template::Preact => Some(&[Flavor::TypeScript, Flavor::JavaScript]),
             _ => None,
         }
     }
@@ -186,11 +127,6 @@ impl Template {
     pub fn from_flavor(&self, flavor: Flavor) -> Self {
         match (self, flavor) {
             (Template::Vanilla, Flavor::TypeScript) => Template::VanillaTs,
-            (Template::Vue, Flavor::TypeScript) => Template::VueTs,
-            (Template::Svelte, Flavor::TypeScript) => Template::SvelteTs,
-            (Template::React, Flavor::TypeScript) => Template::ReactTs,
-            (Template::Solid, Flavor::TypeScript) => Template::SolidTs,
-            (Template::Preact, Flavor::TypeScript) => Template::PreactTs,
             _ => *self,
         }
     }
@@ -198,40 +134,17 @@ impl Template {
     pub fn without_flavor(&self) -> Self {
         match self {
             Template::VanillaTs => Template::Vanilla,
-            Template::VueTs => Template::Vue,
-            Template::SvelteTs => Template::Svelte,
-            Template::ReactTs => Template::React,
-            Template::SolidTs => Template::Solid,
-            Template::PreactTs => Template::Preact,
             _ => *self,
         }
     }
 
     pub const fn possible_package_managers(&self) -> &[PackageManager] {
         match self {
-            Template::Vanilla => &[
-                PackageManager::Cargo,
-                PackageManager::Pnpm,
-                PackageManager::Yarn,
-                PackageManager::Npm,
-                PackageManager::Bun,
-            ],
-            Template::VanillaTs
-            | Template::Vue
-            | Template::VueTs
-            | Template::Svelte
-            | Template::SvelteTs
-            | Template::React
-            | Template::ReactTs
-            | Template::Solid
-            | Template::SolidTs
-            | Template::Angular
-            | Template::Preact
-            | Template::PreactTs => PackageManager::NODE,
+            Template::Vanilla => &[PackageManager::Cargo, PackageManager::Bun],
+            Template::VanillaTs => PackageManager::NODE,
             Template::Yew | Template::Leptos | Template::Sycamore | Template::Dioxus => {
                 &[PackageManager::Cargo]
             }
-            Template::Blazor => &[PackageManager::Dotnet],
         }
     }
 
@@ -242,17 +155,8 @@ impl Template {
     pub const fn needs_tauri_cli(&self) -> bool {
         matches!(
             self,
-            Template::Dioxus
-                | Template::Sycamore
-                | Template::Yew
-                | Template::Leptos
-                | Template::Vanilla
-                | Template::Blazor
+            Template::Dioxus | Template::Sycamore | Template::Yew | Template::Leptos | Template::Vanilla
         )
-    }
-
-    pub const fn needs_dotnet(&self) -> bool {
-        matches!(self, Template::Blazor)
     }
 
     pub const fn needs_dioxus_cli(&self) -> bool {
