@@ -1,0 +1,24 @@
+[package]
+name = "aphrody-turbo-tasks-macros-tests"
+version = "0.1.0"
+description = "TBD"
+license = "MIT"
+edition = "2024"
+
+[dev-dependencies]
+anyhow = "1.0.100"
+ctor = "1.0.7"
+bincode = { version = "2.0.1", features = ["serde"] }
+serde = { version = "1.0.228", features = ["derive"] }
+tokio = "1.52.1"
+trybuild = { version = "1.0.116" }
+turbo-rcstr = { path = "../aphrody-turbo-rcstr", package = "aphrody-turbo-rcstr" }
+turbo-tasks = { path = "../aphrody-turbo-tasks", package = "aphrody-turbo-tasks" }
+turbo-tasks-backend = { path = "../aphrody-turbo-tasks-backend", package = "aphrody-turbo-tasks-backend" }
+turbo-tasks-testing = { path = "../aphrody-turbo-tasks-testing", package = "aphrody-turbo-tasks-testing" }
+
+[lints.clippy]
+too_many_arguments = "allow"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(rust_analyzer)", "cfg(fuzzing)", "cfg(codspeed)"] }
