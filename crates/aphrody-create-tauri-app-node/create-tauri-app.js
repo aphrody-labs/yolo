@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: MIT
 
 const cli = require("./index");
-const path = require("path");
+const path = require("node:path");
 
 const [bin, script, ...args] = process.argv;
 const binStem = path.parse(bin).name.toLowerCase();
