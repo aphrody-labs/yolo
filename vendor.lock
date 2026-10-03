@@ -49,6 +49,14 @@
       "dir": "crates/aphrody-create-tauri-app-node"
     },
     {
+      "name": "restart",
+      "package": "aphrody-restart",
+      "version": "0.1.0",
+      "source": "tauri",
+      "from": "crates/tests/restart",
+      "dir": "crates/aphrody-restart"
+    },
+    {
       "name": "tao",
       "package": "aphrody-tao",
       "version": "0.37.1",
@@ -119,6 +127,14 @@
       "source": "tauri",
       "from": "crates/tauri-driver",
       "dir": "crates/aphrody-tauri-driver"
+    },
+    {
+      "name": "tauri-examples",
+      "package": "aphrody-tauri-examples",
+      "version": "0.1.0",
+      "source": "tauri",
+      "from": "crates/tauri-examples",
+      "dir": "crates/aphrody-tauri-examples"
     },
     {
       "name": "tauri-macos-sign",
@@ -415,6 +431,14 @@
       "source": "tauri",
       "from": "crates/tauri-schema-generator",
       "dir": "crates/aphrody-tauri-schema-generator"
+    },
+    {
+      "name": "tauri-schema-worker",
+      "package": "aphrody-tauri-schema-worker",
+      "version": "0.0.0",
+      "source": "tauri",
+      "from": "crates/tauri-schema-worker",
+      "dir": "crates/aphrody-tauri-schema-worker"
     },
     {
       "name": "tauri-utils",
