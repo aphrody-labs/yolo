@@ -13,7 +13,8 @@ les preuves producteur. Les applications et R7 appartiennent à Aphrody.
 
 Une installation sous `~/.yolo` : CLI avec Bun embarqué, runtime vérifié,
 SDK, templates et rollback. Un scaffold fournit serveur/web/desktop avec pins
-dans `templates/stack.toml`. Le serveur distribué fonctionne sans Bun/Rust
+dans `templates/stack.toml` (frontend `web` ou `react` : React 19 et composants Material 3
+sur le bundler HTML de Bun). Le serveur distribué fonctionne sans Bun/Rust
 installés sur la cible. Install, upgrade, doctor, rollback et uninstall sont qualifiés.
 
 | Composant | Propriétaire source |
@@ -48,12 +49,14 @@ et les reçus liés. Metadata check ne qualifie ni exécution ni packaging.
 
 ## Ordre d'exécution
 
-1. Acquisition/distribution native avec SDK épinglé ; requalifier D0/D2,
+1. Désigner l'hôte de fabrique et y pointer `config/build-factory.json` d'Aphrody :
+   le `vps` n'en est plus un (voir Build et release).
+2. Acquisition/distribution native avec SDK épinglé ; requalifier D0/D2,
    installer/upgrade/rollback et release privée courante.
-2. R3 puis R4 avec leurs propriétaires ; D3 dès qualification desktop.
-3. Compléter D1 : Linux x64/ARM64, Windows x64, macOS x64/ARM64 ;
+3. R3 puis R4 avec leurs propriétaires ; D3 dès qualification desktop.
+4. Compléter D1 : Linux x64/ARM64, Windows x64, macOS x64/ARM64 ;
    descendants Windows via ownership qualifié.
-4. R5/R6 puis R8 ; D4 seulement dans son autorité explicite.
+5. R5/R6 puis R8 ; D4 seulement dans son autorité explicite.
 
 Exécuter sans confirmation intermédiaire dans le périmètre autorisé, avec gates
 et livraison de chaque lot. Checkouts existants uniquement ; aucun clone/copie
@@ -67,6 +70,18 @@ Imports reproductibles : `vendor.toml`, `vendor.lock`, workflow
 [VENDORING](docs/VENDORING.md). `dev` intègre ; `main` reçoit les releases par tag.
 Préserver notices, révisions et identités compatibles.
 
+Fabrique (2026-10-03, décision propriétaire) : le `vps` est un hôte d'exécution
+seulement (nginx, docker, bases, secrets, services déployés). Toolchains Rust/Bun,
+agents et `/srv/aphrody-build` y ont été retirés ; `/srv` occupe tout le disque `sdb`.
+`yolo ship` ne construit donc plus tant qu'aucun hôte de fabrique n'est désigné ;
+les déployables D2 n'ont besoin d'aucune toolchain sur la cible.
+
+Avant chaque lot, `yolo verify` exécute les gates locaux en graphe parallèle et
+écrit un rapport JSON/Markdown dans `var/verify/` ; les gates lourds y sont listés
+non exécutés. `yolo ship` refuse sous le plancher d'espace libre de l'hôte, une
+variable (`--min-free`, `YOLO_MIN_FREE`, `[space] min_free`, défaut 0,2) que
+`yolo host audit` signale aussi ; `yolo host space` donne le gain réel d'une suppression.
+
 [Distribution](docs/DISTRIBUTION.md) décrit le propriétaire release/fabrique.
 Sa disponibilité se vérifie lors du lot, sans supposer un ancien statut CI actuel.
 Dépôts privés ; source, tests, artefact, installation et activation sont distincts.
@@ -77,3 +92,5 @@ Dépôts privés ; source, tests, artefact, installation et activation sont dist
 - [Packaging et consommateurs SDK](docs/CONSUMERS.md)
 - [Décisions détaillées](docs/DECISIONS.md)
 - [Commandes et gates](docs/TOOLING.md)
+- [Serveur, espace disque et plancher](docs/SERVER.md)
+- [Rapport de stack 2026-10](docs/STACK-REPORT-2026-10.md)
