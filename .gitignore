@@ -44,3 +44,6 @@ Thumbs.db
 # Local secrets
 .env
 .env.*
+
+# Per-machine plugin store (absolute local path)
+/.agents/plugins.json
