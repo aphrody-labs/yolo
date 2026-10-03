@@ -92,6 +92,14 @@ const PACKAGES_REGISTRY: PackageMeta[] = [
     upstreamRepo: "tauri-apps/create-tauri-app",
     type: "fork",
   },
+  {
+    name: "next",
+    submodulePath: "packages/next",
+    trackingBranch: "yolo",
+    ownerRepo: "aphrody-labs/next.js",
+    upstreamRepo: "vercel/next.js",
+    type: "fork",
+  },
 ];
 
 async function runCommand(

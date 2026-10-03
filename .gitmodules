@@ -26,3 +26,7 @@
 	path = packages/tao
 	url = git@github-dev:aphrody-labs/tao.git
 	branch = yolo
+[submodule "packages/next"]
+	path = packages/next
+	url = git@github-dev:aphrody-labs/next.js.git
+	branch = yolo
