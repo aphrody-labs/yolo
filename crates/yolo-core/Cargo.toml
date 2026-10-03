@@ -1,0 +1,17 @@
+[package]
+name = "yolo-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["benchmark", "hardware", "system-metrics", "bun", "tauri"]
+categories = ["development-tools", "hardware-support"]
+description = "Core native engine and system benchmarking logic for YOLO Monorepo"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

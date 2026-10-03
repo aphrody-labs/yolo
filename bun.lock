@@ -5,18 +5,36 @@
     "": {
       "name": "@aphrody/yolo-runtime",
       "dependencies": {
-        "oxc-parser": "^0.152.0",
-        "oxc-transform": "^0.152.0",
+        "oxc-parser": "0.152.0",
+        "oxc-transform": "0.152.0",
       },
       "devDependencies": {
-        "@types/bun": "^1.4.2",
-        "oxfmt": "^0.71.0",
-        "oxlint": "^1.86.0",
-        "typescript": "^7.0.2",
+        "@types/bun": "1.4.2",
+        "oxfmt": "0.71.0",
+        "oxlint": "1.86.0",
+        "typescript": "7.0.2",
+      },
+    },
+    "apps/cli": {
+      "name": "@aphrody/yolo-cli",
+      "version": "1.0.0",
+      "bin": {
+        "yolo": "./src/index.ts",
+      },
+    },
+    "apps/web": {
+      "name": "@aphrody/yolo-web",
+      "version": "0.1.0",
+      "dependencies": {
+        "@tauri-apps/api": "^3.0.0-alpha.2",
       },
     },
   },
   "packages": {
+    "@aphrody/yolo-cli": ["@aphrody/yolo-cli@workspace:apps/cli"],
+
+    "@aphrody/yolo-web": ["@aphrody/yolo-web@workspace:apps/web"],
+
     "@oxc-parser/binding-android-arm-eabi": ["@oxc-parser/binding-android-arm-eabi@0.152.0", "", { "os": "android", "cpu": "arm" }, "sha512-393VtirINkae4XHBTkq/yQxhOwEr4V+r0et37P2fp+sYZSdYgZTRDPo5Um8vBh0QjMZ+RmaMy4PP0qwr4cTMwA=="],
 
     "@oxc-parser/binding-android-arm64": ["@oxc-parser/binding-android-arm64@0.152.0", "", { "os": "android", "cpu": "arm64" }, "sha512-iYFcExATJNZ0rZj0o02THbD1Nc9jAW0nVgIQPee6ejbSASpbZXlIMw8jxtpzaG14JQTWwGSZ6U5dEtRJXE6V3Q=="],
@@ -170,6 +188,8 @@
     "@oxlint/binding-win32-ia32-msvc": ["@oxlint/binding-win32-ia32-msvc@1.86.0", "", { "os": "win32", "cpu": "ia32" }, "sha512-a47ga7EKVfMU8rO0i1m3mGwfNRj3FhQyt1d/ukO/E9u1HHF3KpR3tyb3VhuJBGEVPF8uR4exSyHUyx7xbE+uxw=="],
 
     "@oxlint/binding-win32-x64-msvc": ["@oxlint/binding-win32-x64-msvc@1.86.0", "", { "os": "win32", "cpu": "x64" }, "sha512-az4dzifCRzES1crwu6pDFXzJTIanrdxXFL9TbiJWrx9LKcuacbR83aPvxDA1LKLNswi/RoqitC7Afcflhu3zBQ=="],
+
+    "@tauri-apps/api": ["@tauri-apps/api@3.0.0-alpha.2", "", {}, "sha512-W5MTTRAsbNqxSO5hf6U6gHwtTfW0ZnEyIWkmn9L6XYWFcSi0n1JtVQAIsJ6EZHLpJkchGEFwSeVBy+IcrtXl4g=="],
 
     "@types/bun": ["@types/bun@1.4.2", "", { "dependencies": { "bun-types": "1.4.2" } }, "sha512-GimotNn7+ZV0uVArItBbriZsR1oNf0+WTzPkdcFrzShI7k2norL0uzEaJT8T33dWr7O/c9ZDuAFQrctKCi72oQ=="],
 

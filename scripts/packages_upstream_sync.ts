@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Packages & Forks Hub Engine for Aphrody / Gemini Monorepo
+ * Packages & Forks Hub Engine for Aphrody YOLO Monorepo
  *
  * Automates inspection, drift calculation, validation and synchronization
  * of all submodules in packages/ using native Aphrody Git (`aphrody git inspect`).
@@ -40,7 +40,7 @@ const PACKAGES_REGISTRY: PackageMeta[] = [
   {
     name: "bun",
     submodulePath: "packages/bun",
-    trackingBranch: "google",
+    trackingBranch: "yolo",
     ownerRepo: "aphrody-labs/bun",
     upstreamRepo: "oven-sh/bun",
     type: "fork",
@@ -48,30 +48,33 @@ const PACKAGES_REGISTRY: PackageMeta[] = [
   {
     name: "obscura",
     submodulePath: "packages/obscura",
-    trackingBranch: "main",
+    trackingBranch: "yolo",
     ownerRepo: "aphrody-labs/obscura",
     type: "fork",
   },
   {
-    name: "oxc",
-    submodulePath: "packages/oxc",
-    trackingBranch: "main",
-    ownerRepo: "oxc-project/oxc",
-    type: "upstream_mirror",
+    name: "tauri",
+    submodulePath: "packages/tauri",
+    trackingBranch: "yolo",
+    ownerRepo: "aphrody-labs/tauri",
+    upstreamRepo: "tauri-apps/tauri",
+    type: "fork",
   },
   {
-    name: "typescript",
-    submodulePath: "packages/typescript",
-    trackingBranch: "main",
-    ownerRepo: "microsoft/TypeScript",
-    type: "upstream_mirror",
+    name: "plugins-workspace",
+    submodulePath: "packages/plugins-workspace",
+    trackingBranch: "yolo",
+    ownerRepo: "aphrody-labs/plugins-workspace",
+    upstreamRepo: "tauri-apps/plugins-workspace",
+    type: "fork",
   },
   {
-    name: "vscode",
-    submodulePath: "packages/vscode",
-    trackingBranch: "main",
-    ownerRepo: "microsoft/vscode",
-    type: "upstream_mirror",
+    name: "create-tauri-app",
+    submodulePath: "packages/create-tauri-app",
+    trackingBranch: "yolo",
+    ownerRepo: "aphrody-labs/create-tauri-app",
+    upstreamRepo: "tauri-apps/create-tauri-app",
+    type: "fork",
   },
 ];
 

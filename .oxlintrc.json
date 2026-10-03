@@ -1,0 +1,31 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["oxc", "typescript", "unicorn", "import", "promise"],
+  "categories": {
+    "correctness": "deny"
+  },
+  "rules": {
+    "no-unused-vars": "warn",
+    "unicorn/prefer-node-protocol": "error",
+    "oxc/no-accumulating-spread": "warn",
+    "no-await-in-loop": "off",
+    "unicorn/prefer-set-has": "off",
+    "promise/always-return": "off"
+  },
+  "env": {
+    "builtin": true,
+    "es2026": true,
+    "browser": true,
+    "node": true
+  },
+  "globals": {
+    "Bun": "readonly"
+  },
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/target/**",
+    "packages/**",
+    "rust-python-2026/**"
+  ]
+}

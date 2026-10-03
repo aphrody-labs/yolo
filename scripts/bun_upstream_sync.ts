@@ -27,7 +27,7 @@ export interface SyncOptions {
 export interface DriftReport {
   readonly upstreamCommit: string;
   readonly mainCommit: string;
-  readonly aphrodyCommit: string;
+  readonly yoloCommit: string;
   readonly commitsBehindUpstream: number;
   readonly commitsAheadUpstream: number;
   readonly hasUncommittedChanges: boolean;
@@ -108,16 +108,16 @@ export class BunUpstreamSyncEngine {
 
     const upstreamCommitRes = await this.runGit(["rev-parse", "upstream/main"]);
     const mainCommitRes = await this.runGit(["rev-parse", "main"]);
-    const aphrodyCommitRes = await this.runGit(["rev-parse", "aphrody"]);
-    if ([upstreamCommitRes, mainCommitRes, aphrodyCommitRes].some((result) => result.code !== 0)) {
+    const yoloCommitRes = await this.runGit(["rev-parse", "yolo"]);
+    if ([upstreamCommitRes, mainCommitRes, yoloCommitRes].some((result) => result.code !== 0)) {
       throw new Error("Required Bun branches are unavailable; inspect remotes before sync.");
     }
 
     const statusRes = await this.runGit(["status", "--porcelain"]);
     const hasUncommittedChanges = statusRes.stdout.length > 0;
 
-    const countBehindRes = await this.runGit(["rev-list", "--count", "aphrody..upstream/main"]);
-    const countAheadRes = await this.runGit(["rev-list", "--count", "upstream/main..aphrody"]);
+    const countBehindRes = await this.runGit(["rev-list", "--count", "yolo..upstream/main"]);
+    const countAheadRes = await this.runGit(["rev-list", "--count", "upstream/main..yolo"]);
 
     const commitsBehind = parseInt(countBehindRes.stdout || "0", 10);
     const commitsAhead = parseInt(countAheadRes.stdout || "0", 10);
@@ -132,7 +132,7 @@ export class BunUpstreamSyncEngine {
     return {
       upstreamCommit: upstreamCommitRes.stdout.slice(0, 8),
       mainCommit: mainCommitRes.stdout.slice(0, 8),
-      aphrodyCommit: aphrodyCommitRes.stdout.slice(0, 8),
+      yoloCommit: yoloCommitRes.stdout.slice(0, 8),
       commitsBehindUpstream: commitsBehind,
       commitsAheadUpstream: commitsAhead,
       hasUncommittedChanges,
@@ -169,50 +169,22 @@ export class BunUpstreamSyncEngine {
   }
 
   /**
-   * Synchronizes google branch directly with upstream/main.
+   * Reintegrates the yolo branch with upstream and resolves any drift.
    */
-  public async syncGoogleBranch(): Promise<boolean> {
-    console.log("[Sync] Switching to google branch...");
-    const checkoutRes = await this.runGit(["checkout", "google"]);
+  public async syncYoloBranch(options: SyncOptions = {}): Promise<boolean> {
+    console.log("[Sync] Switching to yolo branch...");
+    const checkoutRes = await this.runGit(["checkout", "yolo"]);
     if (checkoutRes.code !== 0) {
-      console.error("[Sync Error] Failed to checkout google branch:", checkoutRes.stderr);
+      console.error("[Sync Error] Failed to checkout yolo branch:", checkoutRes.stderr);
       return false;
     }
 
-    console.log("[Sync] Fast-forwarding google branch to upstream/main...");
-    const mergeRes = await this.runGit(["merge", "--ff-only", "upstream/main"]);
-    if (mergeRes.code !== 0) {
-      console.error("[Sync Error] google cannot fast-forward:", mergeRes.stderr);
-      return false;
-    }
-
-    console.log("[Sync] Pushing updated google branch to origin/google...");
-    const pushRes = await this.runGit(["push", "origin", "google"]);
-    if (pushRes.code !== 0) {
-      console.error("[Sync Error] Push to origin/google failed:", pushRes.stderr);
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * Reintegrates the aphrody branch with upstream and resolves any drift.
-   */
-  public async syncAphrodyBranch(options: SyncOptions = {}): Promise<boolean> {
-    console.log("[Sync] Switching to aphrody branch...");
-    const checkoutRes = await this.runGit(["checkout", "aphrody"]);
-    if (checkoutRes.code !== 0) {
-      console.error("[Sync Error] Failed to checkout aphrody branch:", checkoutRes.stderr);
-      return false;
-    }
-
-    console.log("[Sync] Merging main into aphrody branch...");
+    console.log("[Sync] Merging main into yolo branch...");
     const mergeRes = await this.runGit([
       "merge",
       "main",
       "-m",
-      "chore(upstream): merge upstream updates into aphrody",
+      "chore(upstream): merge upstream updates into yolo",
     ]);
     if (mergeRes.code === 0) {
       console.log("[Sync Success] Merged cleanly without conflicts.");
@@ -243,8 +215,8 @@ export class BunUpstreamSyncEngine {
       }
     }
 
-    console.log("[Sync] Pushing aphrody branch to origin/aphrody...");
-    const push = await this.runGit(["push", "origin", "aphrody"]);
+    console.log("[Sync] Pushing yolo branch to origin/yolo...");
+    const push = await this.runGit(["push", "origin", "yolo"]);
     return push.code === 0;
   }
 
@@ -353,14 +325,14 @@ export class BunUpstreamSyncEngine {
       }
     }
     const driftBefore = await this.analyzeDrift();
-    const prevCommit = driftBefore.aphrodyCommit;
+    const prevCommit = driftBefore.yoloCommit;
 
     console.log("─────────────────────────────────────────────────────────────");
     console.log(" Aphrody Bun Upstream Synchronization Engine");
     console.log("─────────────────────────────────────────────────────────────");
     console.log(` Upstream (oven-sh/bun:main) : ${driftBefore.upstreamCommit}`);
     console.log(` Origin Main                 : ${driftBefore.mainCommit}`);
-    console.log(` Fork Aphrody Branch         : ${driftBefore.aphrodyCommit}`);
+    console.log(` Fork Yolo Branch            : ${driftBefore.yoloCommit}`);
     console.log(` Commits Behind Upstream     : ${driftBefore.commitsBehindUpstream}`);
     console.log(` Commits Ahead Upstream      : ${driftBefore.commitsAheadUpstream}`);
     console.log(` Drift Status                : ${driftBefore.status}`);
@@ -412,32 +384,21 @@ export class BunUpstreamSyncEngine {
       };
     }
 
-    const googleSynced = await this.syncGoogleBranch();
-    if (!googleSynced) {
-      return {
-        success: false,
-        previousCommit: prevCommit,
-        currentCommit: prevCommit,
-        message: "Failed to synchronize google branch with upstream.",
-        drift: driftBefore,
-        timestamp: new Date().toISOString(),
-      };
-    }
-    const aphrodySynced = await this.syncAphrodyBranch(options);
+    const aphrodySynced = await this.syncYoloBranch(options);
 
-    // Ensure google branch is always the active branch in ~/.gemini
-    console.log("[Sync] Setting active default branch to google in packages/bun...");
-    await this.runGit(["checkout", "google"]);
+    // Ensure the yolo integration branch stays checked out in packages/bun
+    console.log("[Sync] Setting active default branch to yolo in packages/bun...");
+    await this.runGit(["checkout", "yolo"]);
 
     const driftAfter = await this.analyzeDrift();
 
     return {
       success: aphrodySynced,
       previousCommit: prevCommit,
-      currentCommit: driftAfter.aphrodyCommit,
+      currentCommit: driftAfter.yoloCommit,
       message: aphrodySynced
         ? "Fork successfully synchronized and drift resolved."
-        : "Failed to cleanly synchronize aphrody branch.",
+        : "Failed to cleanly synchronize yolo branch.",
       drift: driftAfter,
       timestamp: new Date().toISOString(),
     };

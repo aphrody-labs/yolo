@@ -1,53 +1,74 @@
-# Aphrody YOLO — Bun Fork Automation & Native Engineering Hub
+# Aphrody YOLO — Bun Fork Automation & Autonomous Monorepo
 
-Autonomous engineering workspace dedicated to maintaining Aphrody forks, upstream mirrors, TypeScript 7 Corsa, and Oxc tooling under strict native Bun runtime.
+Autonomous engineering workspace dedicated to maintaining Aphrody forks, upstream mirrors, TypeScript 7, and Oxc tooling under a 100% native Bun runtime.
 
-## Submodules & Repositories (`packages/`)
+## Monorepo Architecture (`crates/`, `packages/`, `apps/`)
 
-All repositories are managed via `.gitmodules` with encapsulation in `.git/modules/packages/`:
+The repository operates as a unified **Cargo Workspace** and **Bun Workspace**:
 
-| Submodule | Tracking Branch | Upstream Source | Primary Role |
-| :--- | :--- | :--- | :--- |
-| [`packages/bun`](packages/bun) | `google` / `aphrody` | `oven-sh/bun` | High-performance Bun fork (`@aphrody/bun-runtime`, custom patches, fast-forward tracking) |
-| [`packages/obscura`](packages/obscura) | `main` | `aphrody-labs/obscura` | Stealth CDP automation and browser engine in Rust |
-| [`packages/oxc`](packages/oxc) | `main` | `oxc-project/oxc` | Rust JavaScript/TypeScript toolchain (`oxc-parser`, `oxc-transform`, isolated declarations) |
-| [`packages/typescript`](packages/typescript) | `main` | `microsoft/TypeScript` | TypeScript 7 (Go-based native compiler Corsa & LS) |
-| [`packages/vscode`](packages/vscode) | `main` | `microsoft/vscode` | Upstream VS Code mirror for component extraction & refactoring |
+### 1. Rust Crates (`crates/`)
+- [`crates/yolo-core`](crates/yolo-core) : High-performance native Rust core providing cross-platform hardware detection, system metrics, and micro-benchmarking algorithms.
+- [`crates/yolo-desktop`](crates/yolo-desktop) : Tauri 3 desktop application shell wrapping `crates/yolo-core` with direct native IPC.
 
-## Native Toolchain & Automation Engine
+### 2. Fork Packages & Submodules (`packages/`)
+Active upstream forks are isolated, submodule-managed under `packages/`, with dedicated `yolo` branches and bi-directional Bun $\leftrightarrow$ Tauri deep integrations:
 
-- **Runtime**: Native Bun (`bun >= 1.4.2`), zero Node.js runtime overhead.
-- **Transpilation & AST**: In-process `oxc-parser` and `oxc-transform`.
-- **Linter & Formatter**: Multithreaded Rust linting with `oxlint` and native formatting via `oxfmt`.
-- **Type Checker**: TypeScript 7 Native compiler (`tsc --noEmit`).
-- **Sync & Drift Engine**: [`scripts/bun_upstream_sync.ts`](scripts/bun_upstream_sync.ts) and [`scripts/packages_upstream_sync.ts`](scripts/packages_upstream_sync.ts).
-- **Upstream PR Tracker**: [`scripts/bun_upstream_tracker.ts`](scripts/bun_upstream_tracker.ts) generating [`docs/BUN_UPSTREAM_TRACKER.md`](docs/BUN_UPSTREAM_TRACKER.md).
+| Submodule | Active Branch | Upstream Source | Fork Target (`aphrody-labs`) | Primary Role |
+| :--- | :--- | :--- | :--- | :--- |
+| [`packages/bun`](packages/bun) | `yolo` | `oven-sh/bun` | `aphrody-labs/bun` | Upstream Bun repository (`bun-types`, native APIs, SIMD image/markdown engines, Tauri-aware types) |
+| [`packages/obscura`](packages/obscura) | `yolo` | `aphrody-labs/obscura` | `aphrody-labs/obscura` | Stealth CDP automation and browser engine in Rust |
+| [`packages/tauri`](packages/tauri) | `yolo` | `tauri-apps/tauri` | `aphrody-labs/tauri` | Tauri 3 core desktop engine, converted to full native Bun engine scripts & bunfig |
+| [`packages/plugins-workspace`](packages/plugins-workspace) | `yolo` | `tauri-apps/plugins-workspace` | `aphrody-labs/plugins-workspace` | Tauri plugins monorepo converted to Bun native workspaces |
+| [`packages/create-tauri-app`](packages/create-tauri-app) | `yolo` | `tauri-apps/create-tauri-app` | `aphrody-labs/create-tauri-app` | Scaffolding CLI for modern Tauri applications with Bun default runtime |
 
-## Target Applications (`apps/`)
+### Wayland & Custom Compositor Architecture (WSLg)
+- **Compositor Engine**: Native Rust Wayland compositor stack based on **Smithay** (pure Rust protocol toolkit) and **Niri** architecture for maximum zero-copy frame pacing.
+- **Hardware Acceleration**: Automatic WebKitGTK / Wayland DMA-BUF bypass flags (`__NV_DISABLE_EXPLICIT_SYNC=1`, `WEBKIT_DISABLE_DMABUF_RENDERER=1`) enforced prior to GTK initialization in [`crates/yolo-desktop`](crates/yolo-desktop).
+- **Pixel-perfect Pipeline**: End-to-end memory & network inspection via `aphrody n2b` with zero extraneous overhead.
 
-- [`apps/vscode`](apps/vscode) : Main consumer application target mapped directly to `packages/vscode` for runtime tests, tree-sitter integration, component extraction, and native headless verification.
+### 3. Applications (`apps/`)
+- [`apps/cli`](apps/cli) : Zero-dependency CLI powered 100% by native Bun (`Bun.file`, `Bun.Glob`, `Bun.hash.wyhash`, `Bun.TOML`) with an autonomous generator engine (`yolo generate`) that scans upstream Bun.
+- [`apps/web`](apps/web) : Zero-overhead web and desktop frontend built with Bun and OXC in ~3 ms, rendering the self-generated Bun capability catalog and communicating with Tauri 3 via direct Rust IPC.
+
+## Autonomous Generation Engine
+
+YOLO features an autonomous generator that scans the cloned upstream Bun repository (`packages/bun`) across all API domains:
+- **Web Standards & Browser Parity** (`fetch`, `Response`, `Streams`, `WebSocket`, `crypto.subtle`)
+- **Native HTTP Server & WebSockets** (`Bun.serve`, zero-copy routing, SSE streams)
+- **React & JSX Engine** (`Bun.markdown.react`, JSX/TSX transpiler)
+- **LightningCSS & Styling** (CSS nesting, `color-mix()`, `oklch()`, CSS modules)
+- **Native Image Pipeline** (`Bun.Image`, SIMD resize, WebP/AVIF encoding, ThumbHash)
+- **Structured Data** (`Bun.JSONL`, `Bun.TOML`, `Bun.XML`)
+- **Markdown Engine** (`Bun.markdown.html`, `ansi`, `render`)
+
+To trigger code extraction and catalog regeneration:
+```bash
+just generate
+# or: yolo generate
+```
 
 ## Operational Commands
 
 ```bash
-# Submodule and fork status across the 5 repositories
-bun run status
+# Workspace status across active forks and Cargo members
+just status
 
-# Fetch and inspect all 5 forks from remotes
-bun run sync:all
+# Autonomous code generation from upstream Bun
+just generate
 
-# Analyze Bun upstream drift and re-integrate patches
+# Quality gates (TypeScript 7 + Oxlint)
+just check
+
+# Run all test suites (Bun + Cargo)
+just test-all
+
+# Build and dev Web & Desktop frontend
+just web-build
+just web-dev
+
+# Build docs (mdBook)
+just docs-build
+
+# Sync Bun fork upstream
 bun run bun:sync
-
-# Query oven-sh/bun GitHub API for upstream performance & stability PRs
-bun run bun:track
-
-# Execute YOLO runtime test suite against VS Code app target
-bun run test
-bun run test:vscode
-
-# Linting, formatting and strict typecheck
-bun run lint
-bun run fmt:check
-bun run typecheck
 ```

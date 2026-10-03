@@ -4,7 +4,7 @@
 > **Upstream Authority**: [oven-sh/bun](https://github.com/oven-sh/bun)
 > **Organization**: `aphrody-labs`
 > **Submodule Path**: [`packages/bun`](../packages/bun)
-> **Active Fork Branch**: `aphrody`
+> **Active Fork Branch**: `yolo`
 > **Pristine Upstream Branch**: `main`
 > **Sync & Drift Engine**: [`scripts/bun_upstream_sync.ts`](../scripts/bun_upstream_sync.ts)
 > **PR & Issue Tracker Engine**: [`scripts/bun_upstream_tracker.ts`](../scripts/bun_upstream_tracker.ts)
@@ -17,12 +17,12 @@
 ```mermaid
 gitGraph
    commit id: "upstream-v1.4.2"
-   branch aphrody
+   branch yolo
    checkout main
    commit id: "fetch: zlib rfc1950 (#33711)"
    commit id: "build: rm dead flag (#44370)"
-   checkout aphrody
-   commit id: "aphrody: kernel & bunfig"
+   checkout yolo
+   commit id: "yolo: kernel & bunfig"
    merge main id: "sync: auto-merge & drift-fix"
 ```
 
@@ -30,15 +30,10 @@ gitGraph
    - Tracks `upstream/main` directly.
    - Updated strictly via fast-forward or clean upstream merges.
    - Pushed continuously to `origin/main` (`aphrody-labs/bun:main`).
-2. **`google` (Fresh Google Baseline Branch)**:
-   - Branched directly from `upstream/main` (`oven-sh/bun:main` at `468efaca`).
-   - Serves as the clean baseline for Google DeepMind Gemini 4 runtime adaptations.
-   - Pushed and tracked on `origin/google` (`aphrody-labs/bun:google`).
-3. **`aphrody` (High-Performance Fork Integration Branch)**:
-   - Contains Aphrody-specific native packages: [`packages/aphrody-bun-runtime`](../packages/bun/packages/aphrody-bun-runtime).
-   - Contains custom Aphrody engine configuration: [`bunfig.aphrody.toml`](../packages/bun/bunfig.aphrody.toml).
-   - Backed by versioned patches in [`patches/bun/`](../patches/bun/) to survive upstream refactors.
-   - Tracked and pushed to `origin/aphrody` (`aphrody-labs/bun:aphrody`).
+2. **`yolo` (High-Performance Fork Integration Branch)**:
+   - Contains Tauri-aware type definitions: [`packages/bun-types/tauri.d.ts`](../packages/bun/packages/bun-types/tauri.d.ts).
+   - Optional `patches/bun/*.patch` files (root of this repo) are reapplied by `bun:drift-fix --reapply-patches` after upstream refactors.
+   - Tracked and pushed to `origin/yolo` (`aphrody-labs/bun:yolo`).
 
 ---
 
@@ -57,7 +52,7 @@ Root `package.json` provides native entry points:
 
 | Command | Action | Description |
 | :--- | :--- | :--- |
-| `bun run bun:sync` | Auto-Sync Upstream | Fetches `upstream`, fast-forwards `main`, pushes to `origin/main`, merges into `aphrody`, runs tests. |
+| `bun run bun:sync` | Auto-Sync Upstream | Fetches `upstream`, fast-forwards `main`, pushes to `origin/main`, merges into `yolo`, runs tests. |
 | `bun run bun:drift-fix` | Drift Auto-Repair | Resolves conflicts on lockfiles, completions, and re-applies Aphrody patches if diverged. |
 | `bun run bun:track` | Upstream Intelligence | Scans upstream PRs and issues for performance optimizations, memory fixes, and crashes. |
 | `bun run bun:dry-run` | Sync Simulation | Reports commit distances, upstream drift status without modifying working tree. |
@@ -81,7 +76,6 @@ Based on automated upstream tracking:
 
 ## 5. Submodule Pointer Integrity
 
-The monorepo tracks `packages/bun` at the active `aphrody` branch commit:
-- Current Commit: `86fbafc6`
-- Upstream Base Commit: `468efaca` (`oven-sh/bun:main`)
+The monorepo tracks `packages/bun` at the active `yolo` branch commit:
+- Current Commit: see `git submodule status packages/bun`
 - Verification: `git submodule status packages/bun`

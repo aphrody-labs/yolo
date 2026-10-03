@@ -4,7 +4,7 @@
  * Analyzes oven-sh/bun upstream pull requests and issues to discover:
  * - High-impact performance optimizations (SIMD, allocator, fast paths, GC)
  * - Critical memory leak & segmentation fault fixes
- * - Aphrody OS / Gemini 4 agent synergies (FFI, WebSockets, SQLite, streams)
+ * - Aphrody agent synergies (FFI, WebSockets, SQLite, streams)
  * - Upstream regressions to prevent in our fork
  *
  * Generates structured reports and cherry-pick recommendations in memory/BUN_UPSTREAM_TRACKER.md.
@@ -309,7 +309,7 @@ export class BunUpstreamTrackerEngine {
 
     let md = `# Bun Upstream Optimization & Intelligence Tracker\n\n`;
     md += `> **Source**: [oven-sh/bun](https://github.com/oven-sh/bun)  \n`;
-    md += `> **Target Fork**: [aphrody-labs/bun](https://github.com/aphrody-labs/bun) (Branch: \`aphrody\`)  \n`;
+    md += `> **Target Fork**: [aphrody-labs/bun](https://github.com/aphrody-labs/bun) (Branch: \`yolo\`)  \n`;
     md += `> **Updated**: ${new Date().toISOString()}  \n`;
     md += `> **Engine**: \`scripts/bun_upstream_tracker.ts\`\n\n`;
 
@@ -343,13 +343,13 @@ export class BunUpstreamTrackerEngine {
     md += `\`\`\`bash\n`;
     md += `# 1. Fetch latest upstream\n`;
     md += `git -C packages/bun fetch upstream\n\n`;
-    md += `# 2. Switch to aphrody branch\n`;
-    md += `git -C packages/bun checkout aphrody\n\n`;
+    md += `# 2. Switch to yolo branch\n`;
+    md += `git -C packages/bun checkout yolo\n\n`;
     md += `# 3. Cherry pick the commit (example for PR #33711)\n`;
     md += `git -C packages/bun cherry-pick <commit-sha>\n\n`;
     md += `# 4. Verify test suite and push\n`;
-    md += `bun test packages/bun/packages/aphrody-bun-runtime/test/runtime.test.ts\n`;
-    md += `git -C packages/bun push origin aphrody\n`;
+    md += `bun x tsc --noEmit -p packages/bun/packages/bun-types\n`;
+    md += `git -C packages/bun push origin yolo\n`;
     md += `\`\`\`\n`;
 
     return md;
