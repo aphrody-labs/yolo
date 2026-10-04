@@ -47,6 +47,15 @@ interface Factory {
   readonly workspaceRoot: string;
   readonly artifactRoot: string;
   readonly lockPath: string;
+  readonly cacheRoot?: string;
+  readonly executionOnlyTargets?: readonly string[];
+}
+
+const shellQuote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`;
+
+function factoryDirectoryCommand(path: string): string {
+  const quoted = shellQuote(path);
+  return `if [ ! -d ${quoted} ]; then mkdir -p -- ${quoted} 2>/dev/null || sudo -n install -d -m 0755 -o "$(id -u)" -g "$(id -g)" -- ${quoted}; fi; test -w ${quoted} || { echo 'Factory directory is not writable; existing ownership preserved' >&2; exit 2; }`;
 }
 
 function loadFactory(): Factory {
@@ -139,9 +148,9 @@ export function remoteSyncCommand(factory: Factory, sha: string, url: string): s
   const ws = `'${p.workspace}'`;
   return [
     "set -e",
-    "gh auth setup-git",
-    `git config --global --get-all url."https://github.com/".insteadOf | grep -qxF 'git@github-dev:' || git config --global --add url."https://github.com/".insteadOf 'git@github-dev:'`,
-    `mkdir -p "$(dirname ${ws})"`,
+    // Command-local configuration reuses gh authentication without rewriting the operator's Git config.
+    `git() { command git -c credential.helper= -c 'credential.helper=!gh auth git-credential' -c 'url.https://github.com/.insteadOf=git@github-dev:' "$@"; }`,
+    factoryDirectoryCommand(dirname(p.workspace)),
     `[ -d ${ws}/.git ] || git clone --filter=blob:none --no-checkout '${url}' ${ws}`,
     `cd ${ws}`,
     "git fetch --prune --tags --filter=blob:none origin",
@@ -149,6 +158,29 @@ export function remoteSyncCommand(factory: Factory, sha: string, url: string): s
     "command -v tmux >/dev/null || sudo -n apt-get install -y -qq tmux",
     "echo synced",
   ].join("\n");
+}
+
+/** Prepare a pinned factory workspace under its heavy lock, without starting a build. */
+export function remotePrepareCommand(factory: Factory, sha: string): string {
+  if (!/^[a-f0-9]{40}$/.test(sha)) throw new Error("Factory preparation requires a full Git SHA");
+  const paths = remotePaths(factory, sha);
+  const body = [
+    "set -euo pipefail",
+    `cd -- ${shellQuote(paths.workspace)}`,
+    `git() { command git -c credential.helper= -c 'credential.helper=!gh auth git-credential' -c 'url.https://github.com/.insteadOf=git@github-dev:' "$@"; }`,
+    // clone --no-checkout has no index. Only an otherwise empty worktree is eligible for its first checkout.
+    `if [ -f .git/index ]; then test -z "$(git status --porcelain --untracked-files=all)" || { echo 'Factory checkout is dirty; preserved' >&2; exit 2; }; else test -z "$(find . -mindepth 1 -maxdepth 1 ! -name .git -print -quit)" || { echo 'Factory checkout contains unowned files; preserved' >&2; exit 2; }; fi`,
+    `git submodule foreach --quiet --recursive 'test -z "$(git status --porcelain --untracked-files=all)"'`,
+    `git checkout --detach --no-overwrite-ignore ${shellQuote(sha)}`,
+    "git submodule sync --recursive",
+    "git submodule update --init --recursive --jobs 4 --filter=blob:none",
+    `test "$(git rev-parse HEAD)" = ${shellQuote(sha)}`,
+    `test -z "$(git status --porcelain --untracked-files=all)"`,
+    "echo 'Factory workspace prepared; no build started'",
+  ].join("\n");
+  const directories = [dirname(factory.lockPath), factory.artifactRoot];
+  if (factory.cacheRoot) directories.push(factory.cacheRoot);
+  return `${directories.map(factoryDirectoryCommand).join("\n")}\nflock --close -- ${shellQuote(factory.lockPath)} bash -c ${shellQuote(body)}`;
 }
 
 function ssh(host: string, command: string, timeoutSecs = 120): number {
@@ -308,6 +340,7 @@ async function runShip(args: readonly string[], yoloRoot: string): Promise<numbe
   const detach = args.includes("--detach");
   const force = args.includes("--force");
   const wait = args.includes("--wait");
+  const prepare = args.includes("--prepare");
   const factory = loadFactory();
   const host = flag("--host") ?? factory.target;
   const sha = flag("--sha") ?? git(yoloRoot, "rev-parse", "HEAD");
@@ -326,6 +359,18 @@ async function runShip(args: readonly string[], yoloRoot: string): Promise<numbe
   if (sub === "status" || sub === "log") {
     const file = sub === "status" ? "STATUS" : "ship.log";
     return ssh(host, `tail -n 60 '${p.artifacts}/${file}' 2>&1 || echo no-build-for-${sha}`);
+  }
+  if (factory.executionOnlyTargets?.includes(host)) {
+    console.error(`yolo ship refused: ${host} is execution-only in the factory configuration`);
+    return 2;
+  }
+  if (prepare && (detach || wait || force)) {
+    console.error("yolo ship --prepare cannot be combined with --detach, --wait or --force");
+    return 2;
+  }
+  if (prepare && !/^[a-f0-9]{40}$/.test(sha)) {
+    console.error("yolo ship --prepare requires a full pinned Git SHA");
+    return 2;
   }
   if (detach) {
     // used by the pre-push hook: never block the push, keep a local log
@@ -347,10 +392,16 @@ async function runShip(args: readonly string[], yoloRoot: string): Promise<numbe
     `  1. git (gh auth) on ${host}  fetch ${sha.slice(0, 12)} and tags -> ${p.workspace}`,
   );
   console.log(
-    `  2. tmux ${sessionName(sha)}  heavy lock -> checkout + submodules -> systemd unit (no CPU/RAM/swap ceiling) -> ${p.artifacts}`,
+    prepare
+      ? `  2. heavy lock -> clean pinned checkout + submodules (preparation only)`
+      : `  2. tmux ${sessionName(sha)}  heavy lock -> checkout + submodules -> systemd unit -> ${p.artifacts}`,
   );
   if (!apply) {
-    console.log("\nPlan only. Re-run with --apply to fetch the pushed commit and start the build.");
+    console.log(
+      prepare
+        ? "\nPlan only. Re-run with --apply to prepare the pinned factory workspace."
+        : "\nPlan only. Re-run with --apply to fetch the pushed commit and start the build.",
+    );
     return 0;
   }
   const probe = await sshCapture(host, diskProbeCommand(factory.workspaceRoot), 60);
@@ -384,6 +435,7 @@ async function runShip(args: readonly string[], yoloRoot: string): Promise<numbe
     );
   let code = ssh(host, remoteSyncCommand(factory, sha, originUrl(yoloRoot)), 3600);
   if (code !== 0) return code;
+  if (prepare) return ssh(host, remotePrepareCommand(factory, sha), 3600);
   code = ssh(host, remoteCommand(factory, sha, force));
   if (code !== 0) return code;
   writeShipClaim(host, factory, sha);

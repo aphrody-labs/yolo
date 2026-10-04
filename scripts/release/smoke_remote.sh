@@ -4,9 +4,10 @@
 #   D0  install.sh into an empty HOME from the release directory, then `yolo doctor`;
 #   D2  `yolo create` with the installed executable, the scaffold's typecheck and tests, `build:bin` and
 #       `pack:deploy`, then the extracted archive runs with no Bun, no HOME and a minimal PATH and answers /health.
-# usage: smoke_remote.sh <release-dir>
+# usage: smoke_remote.sh <release-dir> [previous-compatible-runtime-artifact]
 set -euo pipefail
 rel=$(cd "$1" && pwd)
+previous_artifact="${2:-}"
 work=$(mktemp -d /tmp/yolo-smoke.XXXXXX)
 pid=""
 cleanup() {
@@ -14,21 +15,27 @@ cleanup() {
   rm -rf "$work"
 }
 trap cleanup EXIT INT TERM
-export HOME="$work/home" YOLO_NO_MODIFY_PATH=1
-mkdir -p "$HOME"
-unset YOLO_HOME
+smoke_home="$work/home"
+smoke_yolo_home="$smoke_home/.yolo"
+mkdir -p "$smoke_home"
 
 echo "--- D0: install from $rel into an empty HOME"
-YOLO_RELEASE_DIR="$rel" sh "$rel/install.sh"
-yolo="$HOME/.yolo/bin/yolo"
-"$yolo" doctor
+env -i HOME="$smoke_home" PATH=/usr/bin:/bin YOLO_RELEASE_DIR="$rel" YOLO_NO_MODIFY_PATH=1 sh "$rel/install.sh"
+yolo="$smoke_yolo_home/bin/yolo"
+portable() { env -i HOME="$smoke_home" PATH=/usr/bin:/bin YOLO_HOME="$smoke_yolo_home" "$yolo" "$@"; }
+cd "$work"
+portable version --json
+portable doctor --json
+portable runtime verify
+portable scan --json
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}' | portable mcp
 
 echo "--- D2: scaffold, check, compile, pack"
 cd "$work"
-"$yolo" create smoke-app
+portable create smoke-app
 cd smoke-app
 bun install
-bun run tsc --noEmit
+tsc --noEmit
 bun test
 bun run build:bin
 bun run pack:deploy
@@ -54,3 +61,24 @@ if ! grep -q '"ok":true' "$work/health.json" 2>/dev/null; then
   exit 1
 fi
 echo "deployed archive answers http://127.0.0.1:$port/health -> $(cat "$work/health.json")"
+
+echo "--- D0: verified offline upgrade, uninstall and reinstall"
+if [ -n "$previous_artifact" ]; then
+  portable runtime install "$previous_artifact"
+  portable doctor --json
+fi
+env -i HOME="$smoke_home" PATH=/usr/bin:/bin YOLO_HOME="$smoke_yolo_home" YOLO_NO_MODIFY_PATH=1 \
+  "$yolo" upgrade --release-dir "$rel" --version "$(cat "$smoke_yolo_home/VERSION")"
+portable doctor --json
+if [ -n "$previous_artifact" ]; then
+  portable runtime rollback
+  portable doctor --json
+  portable runtime rollback
+  portable doctor --json
+else
+  echo "Runtime rollback not qualified: no previous compatible artifact supplied"
+fi
+portable uninstall --yes
+test ! -e "$smoke_yolo_home"
+env -i HOME="$smoke_home" PATH=/usr/bin:/bin YOLO_RELEASE_DIR="$rel" YOLO_NO_MODIFY_PATH=1 sh "$rel/install.sh"
+portable doctor --json

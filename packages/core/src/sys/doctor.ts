@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import { delimiter, join } from "node:path";
 import { hostTarget, loadArtifact, runtimeHome } from "../../../runtime/src/artifact";
 import { list } from "../../../runtime/src/release";
-import { yoloHome, yoloVersion } from "../vfs/home";
+import { isCompiled, yoloHome, yoloVersion } from "../vfs/home";
 
 export interface DoctorComponent {
   readonly label: string;
@@ -69,6 +69,7 @@ export function codeIntelTools(): { name: string; found: boolean }[] {
 
 export function collectDoctorReport(): DoctorReport {
   const home = yoloHome();
+  const sourceInstallation = !isCompiled();
   let okStatus = true;
 
   const tools = aphrodyTools();
@@ -77,8 +78,8 @@ export function collectDoctorReport(): DoctorReport {
   for (const [path, label, required] of [
     ["templates/stack.toml", "templates (yolo create)", true],
     ["packages/runtime/package.json", "runtime SDK", true],
-    ["packages/python/pyproject.toml", "Python package (uv / maturin)", true],
-    ["crates/yolo-pyo3/Cargo.toml", "PyO3 0.29 native extension crate", true],
+    ["packages/python/pyproject.toml", "Python package (uv / maturin)", sourceInstallation],
+    ["crates/yolo-pyo3/Cargo.toml", "PyO3 0.29 native extension crate", sourceInstallation],
     ["crates/yolo-desktop/icons", "desktop scaffold sources (crates/)", false],
   ] as const) {
     const exists = existsSync(join(home, path));

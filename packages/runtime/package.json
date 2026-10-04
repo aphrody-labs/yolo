@@ -26,12 +26,12 @@
     "./artifact": "./src/artifact.ts",
     "./ffi": "./src/ffi.ts"
   },
-  "dependencies": {},
-  "engines": {
-    "bun": ">=1.4.2"
-  },
   "scripts": {
     "test": "bun --cwd=../.. test test/runtime_sdk.test.ts test/runtime_sdk_pack.test.ts test/runtime-ffi.test.ts test/runtime_release.test.ts test/ffi.test.ts test/privilege.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {},
+  "engines": {
+    "bun": ">=1.4.2"
   }
 }

@@ -403,9 +403,18 @@ describe("YOLO awesome curation (Rust-based Bun)", () => {
   it("makes the header's relative images absolute against the source list", async () => {
     const { renderCleanReadme } = await import("../apps/cli/src/awesome");
     const readme = `<img src="./logo.png"> [doc](docs/a.md) [web](https://bun.sh) [top](#top)\n\n## Contents\n`;
-    const out = renderCleanReadme(readme, [], since, "https://raw.githubusercontent.com/oven-sh/awesome-bun/main/");
-    expect(out).toContain('src="https://raw.githubusercontent.com/oven-sh/awesome-bun/main/logo.png"');
-    expect(out).toContain("[doc](https://raw.githubusercontent.com/oven-sh/awesome-bun/main/docs/a.md)");
+    const out = renderCleanReadme(
+      readme,
+      [],
+      since,
+      "https://raw.githubusercontent.com/oven-sh/awesome-bun/main/",
+    );
+    expect(out).toContain(
+      'src="https://raw.githubusercontent.com/oven-sh/awesome-bun/main/logo.png"',
+    );
+    expect(out).toContain(
+      "[doc](https://raw.githubusercontent.com/oven-sh/awesome-bun/main/docs/a.md)",
+    );
     expect(out).toContain("[web](https://bun.sh)");
     expect(out).toContain("[top](#top)");
   });

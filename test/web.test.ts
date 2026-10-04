@@ -7,7 +7,10 @@ const app = resolve(import.meta.dir, "../apps/web");
 
 describe("apps/web", () => {
   test("src/main.ts bundles for the browser", async () => {
-    const result = await Bun.build({ entrypoints: [resolve(app, "src/main.ts")], target: "browser" });
+    const result = await Bun.build({
+      entrypoints: [resolve(app, "src/main.ts")],
+      target: "browser",
+    });
     expect(result.success).toBe(true);
     expect(await result.outputs[0]!.text()).toContain("get_system_stats");
   });

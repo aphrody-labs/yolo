@@ -19,17 +19,17 @@ check: typecheck lint fmt-check rust-fmt-check clippy
     @echo -e "\033[1;32m[OK] Quality gates passed\033[0m"
 
 typecheck:
-    bun run typecheck
+    tsc --noEmit
 
-# lint/fmt run the versions pinned in package.json (node_modules/.bin) under Bun, never a global install
+# Run the installed toolchain binaries directly, without package execution/download runners.
 lint:
-    bun --bun run lint
+    oxlint scripts/ test/ packages/ apps/cli/src/ apps/web/src/
 
 fmt:
-    bun --bun run fmt
+    oxfmt --write scripts/ test/ packages/ apps/cli/src/ apps/web/src/
 
 fmt-check:
-    bun --bun run fmt:check
+    oxfmt --check scripts/ test/ packages/ apps/cli/src/ apps/web/src/
 
 # Rust formatting. Each vendored crate carries the rustfmt.toml of its upstream repository.
 rust-fmt:

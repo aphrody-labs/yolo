@@ -46,14 +46,27 @@ export const GATES: readonly Gate[] = [
   {
     id: "typecheck",
     title: "TypeScript 7 (tsc --noEmit)",
-    command: ["bun", "x", "tsc", "--noEmit"],
+    command: ["tsc", "--noEmit"],
     surfaces: TS,
   },
-  { id: "lint", title: "oxlint", command: ["bun", "--bun", "run", "lint"], surfaces: TS },
+  {
+    id: "lint",
+    title: "oxlint",
+    command: ["oxlint", "scripts/", "test/", "packages/", "apps/cli/src/", "apps/web/src/"],
+    surfaces: TS,
+  },
   {
     id: "fmt-check",
     title: "oxfmt --check",
-    command: ["bun", "--bun", "run", "fmt:check"],
+    command: [
+      "oxfmt",
+      "--check",
+      "scripts/",
+      "test/",
+      "packages/",
+      "apps/cli/src/",
+      "apps/web/src/",
+    ],
     surfaces: TS,
   },
   {

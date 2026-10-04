@@ -30,9 +30,9 @@
     "./distribution": "./src/distribution/index.ts",
     "./units": "./src/units/index.ts"
   },
-  "dependencies": {},
   "scripts": {
     "test": "bun --cwd=../.. test test/core.test.ts test/units.test.ts test/ledger.test.ts test/host-config.test.ts test/redis_monitor.test.ts test/startup.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
-  }
+  },
+  "dependencies": {}
 }

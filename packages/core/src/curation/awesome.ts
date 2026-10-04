@@ -381,7 +381,10 @@ export function renderCleanReadme(
     base === undefined
       ? rawHeader
       : rawHeader
-          .replace(/(\s(?:src|href)=["'])\.?\/?(?![a-z][a-z0-9+.-]*:|#|\/)([^"']+)/gi, `$1${base}$2`)
+          .replace(
+            /(\s(?:src|href)=["'])\.?\/?(?![a-z][a-z0-9+.-]*:|#|\/)([^"']+)/gi,
+            `$1${base}$2`,
+          )
           .replace(/(\]\()\.?\/?(?![a-z][a-z0-9+.-]*:|#|\/)([^)\s]+)/gi, `$1${base}$2`);
   const sectionTitles = [...kept.keys()];
   const contents = sectionTitles.map((t) => `- [${t}](#${slugify(t)})`).join("\n");
@@ -591,7 +594,12 @@ export async function runAwesomeCommand(
         );
         await Bun.write(
           out ?? resolve(rootDir, "templates/AWESOME.md"),
-          renderCleanReadme(text, curated, since, `https://raw.githubusercontent.com/${repo}/${ref}/`),
+          renderCleanReadme(
+            text,
+            curated,
+            since,
+            `https://raw.githubusercontent.com/${repo}/${ref}/`,
+          ),
         );
       }
       print({ total: record.total, kept: record.kept, dropped: record.dropped }, () => {

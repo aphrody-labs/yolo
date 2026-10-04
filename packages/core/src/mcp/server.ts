@@ -11,8 +11,7 @@
 
 import { resolve } from "node:path";
 import { parseTsSource } from "../vfs/parse";
-import { inspectPackages, readVendorStatus } from "../vendor/status";
-import { readWorkspaceCargo } from "../vendor/cargo";
+import { collectStatusReport } from "../vendor/status";
 import {
   runGates,
   GATES,
@@ -196,18 +195,7 @@ export async function executeTool(
     }
 
     case "yolo_status": {
-      const [packages, vendor, cargo] = await Promise.all([
-        inspectPackages(),
-        readVendorStatus(),
-        readWorkspaceCargo(),
-      ]);
-      return {
-        schema: "yolo.status/1",
-        root: rootDir,
-        packages,
-        vendor,
-        cargo,
-      };
+      return await collectStatusReport(rootDir);
     }
 
     case "yolo_scan": {

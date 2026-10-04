@@ -3,7 +3,7 @@
  * `upgrade`, `uninstall`. They manage the installation under the yolo home
  * (`~/.yolo`: bin/, runtime/, packages/runtime/, templates/, crates/, VERSION), see docs/DISTRIBUTION.md.
  */
-import { existsSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -134,7 +134,11 @@ async function githubToken(): Promise<string | undefined> {
   const fromEnv = process.env["GITHUB_TOKEN"] ?? process.env["GH_TOKEN"];
   if (fromEnv) return fromEnv;
   if (!Bun.which("gh")) return undefined;
-  const proc = Bun.spawn(["gh", "auth", "token"], { stdout: "pipe", stderr: "ignore" });
+  const proc = Bun.spawn(["gh", "auth", "token"], {
+    stdout: "pipe",
+    stderr: "ignore",
+    timeout: 5_000,
+  });
   const out = (await new Response(proc.stdout).text()).trim();
   return (await proc.exited) === 0 && out !== "" ? out : undefined;
 }
@@ -144,9 +148,21 @@ interface ReleaseAsset {
   readonly url: string;
 }
 
-async function latestRelease(repo: string): Promise<{ tag: string; assets: ReleaseAsset[] }> {
-  const token = await githubToken();
-  const response = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+const VERSION_PATTERN =
+  /^v?(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+
+function validVersion(value: string): boolean {
+  const match = value.match(VERSION_PATTERN);
+  return match !== null && !(match[1]?.split(".").some((part) => /^0\d+$/.test(part)) ?? false);
+}
+
+async function githubRelease(
+  repo: string,
+  wanted: string | undefined,
+  token: string | undefined,
+): Promise<{ tag: string; assets: ReleaseAsset[] }> {
+  const selector = wanted === undefined ? "latest" : `tags/${encodeURIComponent(wanted)}`;
+  const response = await fetch(`https://api.github.com/repos/${repo}/releases/${selector}`, {
     headers: {
       accept: "application/vnd.github+json",
       "user-agent": "yolo-cli",
@@ -155,29 +171,109 @@ async function latestRelease(repo: string): Promise<{ tag: string; assets: Relea
     signal: AbortSignal.timeout(20_000),
   });
   if (!response.ok)
-    throw new Error(`cannot read the latest release of ${repo}: HTTP ${response.status}`);
-  const json = (await response.json()) as {
-    tag_name: string;
-    assets: { name: string; url: string }[];
-  };
-  return { tag: json.tag_name, assets: json.assets };
+    throw new Error(
+      `cannot read release ${wanted ?? "latest"} of ${repo}: HTTP ${response.status}`,
+    );
+  const json = (await response.json()) as { tag_name?: unknown; assets?: unknown };
+  if (typeof json.tag_name !== "string" || !validVersion(json.tag_name)) {
+    throw new Error("Invalid release metadata: expected a semantic version tag");
+  }
+  if (wanted !== undefined && json.tag_name !== wanted) {
+    throw new Error(`Requested release ${wanted}, received ${json.tag_name}`);
+  }
+  if (
+    !Array.isArray(json.assets) ||
+    !json.assets.every(
+      (asset: unknown) =>
+        asset !== null &&
+        typeof asset === "object" &&
+        "name" in asset &&
+        typeof asset.name === "string" &&
+        "url" in asset &&
+        typeof asset.url === "string",
+    )
+  ) {
+    throw new Error("Invalid release metadata: expected named assets");
+  }
+  return { tag: json.tag_name, assets: json.assets as ReleaseAsset[] };
+}
+
+async function githubAsset(
+  assets: readonly ReleaseAsset[],
+  name: string,
+  repo: string,
+  token: string | undefined,
+): Promise<Uint8Array> {
+  const matches = assets.filter((asset) => asset.name === name);
+  if (matches.length !== 1) throw new Error(`Release must contain exactly one ${name} asset`);
+  const asset = matches[0] as ReleaseAsset;
+  const url = new URL(asset.url);
+  // Credentials belong only to GitHub's asset API, even if release metadata is malformed.
+  if (
+    url.origin !== "https://api.github.com" ||
+    !url.pathname.toLowerCase().startsWith(`/repos/${repo.toLowerCase()}/releases/assets/`) ||
+    !/^\d+$/.test(url.pathname.split("/").at(-1) ?? "") ||
+    url.username !== "" ||
+    url.password !== "" ||
+    url.search !== "" ||
+    url.hash !== ""
+  ) {
+    throw new Error(`Invalid GitHub asset URL for ${name}`);
+  }
+  const response = await fetch(url, {
+    headers: {
+      accept: "application/octet-stream",
+      "user-agent": "yolo-cli",
+      ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
+    },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) throw new Error(`cannot download ${name}: HTTP ${response.status}`);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+function offlineVersion(dir: string): string {
+  let metadata: unknown;
+  try {
+    metadata = JSON.parse(readFileSync(join(dir, "release.json"), "utf8"));
+  } catch {
+    throw new Error(`Cannot read valid release.json in ${dir}`);
+  }
+  if (
+    metadata === null ||
+    typeof metadata !== "object" ||
+    !("version" in metadata) ||
+    typeof metadata.version !== "string" ||
+    !validVersion(metadata.version) ||
+    ("name" in metadata && metadata.name !== "yolo")
+  ) {
+    throw new Error(`Invalid release.json in ${dir}: expected a yolo semantic version`);
+  }
+  return metadata.version;
+}
+
+function verifyInstaller(script: Uint8Array, sums: string, name: string): void {
+  const entries: string[] = [];
+  for (const line of sums.split(/\r?\n/)) {
+    if (line.trim() === "") continue;
+    const match = line.match(/^([0-9a-fA-F]{64})[ \t]+\*?(.+)$/);
+    if (match === null) throw new Error("Invalid SHA256SUMS entry");
+    if (match[2] === name) entries.push((match[1] as string).toLowerCase());
+  }
+  if (entries.length !== 1) throw new Error(`SHA256SUMS must contain exactly one ${name} entry`);
+  const hash = new Bun.CryptoHasher("sha256").update(script).digest("hex");
+  if (hash !== entries[0]) throw new Error(`Checksum mismatch for ${name}`);
 }
 
 function compareVersions(a: string, b: string): number {
-  const parse = (v: string): number[] =>
-    v
-      .replace(/^v/, "")
-      .split(/[.+-]/)
-      .slice(0, 3)
-      .map((n) => Number(n) || 0);
-  const [x, y] = [parse(a), parse(b)];
-  for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0);
-  return 0;
+  return Bun.semver.order(a.replace(/^v/, ""), b.replace(/^v/, ""));
 }
 
 /**
- * `yolo upgrade [--check] [--repo owner/name] [--version vX.Y.Z]`: re-runs the release's installer.
- * Known limitation, not fixed here (untestable without a Windows host): on win32 the installer replaces
+ * `yolo upgrade [--check] [--repo owner/name] [--version vX.Y.Z] [--release-dir DIR]`:
+ * verifies and runs the selected release's installer. An explicit offline directory reinstalls that release
+ * even when its version matches; --check compares versions without executing or qualifying its artifacts.
+ * Windows self-replacement remains unqualified: on win32 the installer replaces
  * `bin/yolo.exe` while this very process is that executable, which Windows can refuse (the running file is
  * locked). install.ps1 replaces it the same `.new` + rename way install.sh does, which helps, but a locked
  * executable specifically still needs a detached helper that waits for this process to exit first.
@@ -186,43 +282,76 @@ export async function runUpgrade(args: readonly string[]): Promise<number> {
   let repo = process.env["YOLO_REPO"] ?? DEFAULT_REPO;
   let checkOnly = false;
   let wanted: string | undefined;
+  let releaseDir = process.env["YOLO_RELEASE_DIR"] || undefined;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i] as string;
+    const value = (): string => {
+      const result = args[++i];
+      if (result === undefined || result.trim() === "" || result.startsWith("--")) {
+        throw new Error(`${arg} requires a value`);
+      }
+      return result;
+    };
     if (arg === "--check") checkOnly = true;
-    else if (arg === "--repo") repo = args[++i] ?? repo;
-    else if (arg === "--version") wanted = args[++i];
+    else if (arg === "--repo") repo = value();
+    else if (arg === "--version") wanted = value();
+    else if (arg === "--release-dir") releaseDir = resolve(value());
     else throw new Error(`Unknown option ${arg}`);
   }
-  const release = await latestRelease(repo);
-  const tag = wanted ?? release.tag;
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
+    throw new Error("--repo must be owner/name");
+  }
+  if (wanted !== undefined && !validVersion(wanted)) {
+    throw new Error("--version must be a semantic version such as v1.2.3");
+  }
+  if (releaseDir !== undefined) releaseDir = resolve(releaseDir);
+  let token: string | undefined;
+  let tag: string;
+  let assets: readonly ReleaseAsset[] = [];
+  if (releaseDir === undefined) {
+    token = await githubToken();
+    const release = await githubRelease(repo, wanted, token);
+    tag = release.tag;
+    assets = release.assets;
+  } else {
+    tag = offlineVersion(releaseDir);
+  }
+  if (wanted !== undefined && wanted.replace(/^v/, "") !== tag.replace(/^v/, "")) {
+    throw new Error(`Requested version ${wanted} does not match offline release ${tag}`);
+  }
   const current = yoloVersion();
   console.log(`installed ${current}, available ${tag}`);
   if (checkOnly) return compareVersions(tag, current) > 0 ? 10 : 0;
-  if (wanted === undefined && compareVersions(tag, current) <= 0) {
+  if (wanted === undefined && releaseDir === undefined && compareVersions(tag, current) <= 0) {
     console.log("Already up to date.");
     return 0;
   }
   // Windows has no `sh`: re-run install.ps1 under PowerShell (pwsh if present, else the built-in powershell.exe).
   const installerName = process.platform === "win32" ? "install.ps1" : "install.sh";
-  const asset = release.assets.find((a) => a.name === installerName);
-  if (asset === undefined) throw new Error(`release ${release.tag} has no ${installerName} asset`);
-  const token = await githubToken();
-  const script = await fetch(asset.url, {
-    headers: {
-      accept: "application/octet-stream",
-      "user-agent": "yolo-cli",
-      ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
-    },
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!script.ok) throw new Error(`cannot download ${installerName}: HTTP ${script.status}`);
-  const env = { ...process.env, YOLO_VERSION: tag, YOLO_REPO: repo, YOLO_HOME: yoloHome() };
+  const [script, checksums] =
+    releaseDir === undefined
+      ? await Promise.all([
+          githubAsset(assets, installerName, repo, token),
+          githubAsset(assets, "SHA256SUMS", repo, token),
+        ])
+      : [
+          new Uint8Array(readFileSync(join(releaseDir, installerName))),
+          new Uint8Array(readFileSync(join(releaseDir, "SHA256SUMS"))),
+        ];
+  verifyInstaller(script, new TextDecoder().decode(checksums), installerName);
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    YOLO_VERSION: tag,
+    YOLO_REPO: repo,
+    YOLO_HOME: yoloHome(),
+  };
+  if (releaseDir !== undefined) env["YOLO_RELEASE_DIR"] = releaseDir;
   const command =
     process.platform === "win32"
       ? [Bun.which("pwsh") ?? "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", "-"]
       : ["sh", "-s", "--"];
   const proc = Bun.spawn(command, {
-    stdin: new Response(await script.text()),
+    stdin: script,
     stdout: "inherit",
     stderr: "inherit",
     env,

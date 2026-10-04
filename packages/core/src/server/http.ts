@@ -12,8 +12,7 @@ import { yoloHome, yoloVersion } from "../vfs/home";
 import { hostTarget } from "../../../runtime/src/artifact";
 import { TOOLS, executeTool } from "../mcp/server";
 import { collectDoctorReport } from "../sys/doctor";
-import { inspectPackages, readVendorStatus } from "../vendor/status";
-import { readWorkspaceCargo } from "../vendor/cargo";
+import { collectStatusReport } from "../vendor/status";
 import { scanDirectory } from "../vfs/scan";
 
 export interface ApiServerOptions {
@@ -211,22 +210,7 @@ export function createApiServer(options: ApiServerOptions = {}) {
         }
 
         if (path === "/api/status" && req.method === "GET") {
-          const [packages, vendor, cargo] = await Promise.all([
-            inspectPackages(),
-            readVendorStatus(),
-            readWorkspaceCargo(),
-          ]);
-          return jsonResponse(
-            {
-              schema: "yolo.status/1",
-              root: rootDir,
-              packages,
-              vendor,
-              cargo,
-            },
-            200,
-            corsHeaders,
-          );
+          return jsonResponse(await collectStatusReport(rootDir), 200, corsHeaders);
         }
 
         if (path === "/api/doctor" && req.method === "GET") {

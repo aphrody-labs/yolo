@@ -17,12 +17,12 @@
     "./generator": "./src/generator.ts",
     "./schema": "./src/schema.ts"
   },
-  "dependencies": {},
-  "engines": {
-    "bun": ">=1.4.2"
-  },
   "scripts": {
     "test": "bun --cwd=../.. test test/plugins.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {},
+  "engines": {
+    "bun": ">=1.4.2"
   }
 }

@@ -13,7 +13,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import { findCheckout, isCompiled, yoloHome } from "./home";
 import type {
   AutonomousGenerationReport,
@@ -98,7 +98,7 @@ ${header}
   \x1b[32mdocs [query] [--json|--md]\x1b[0m Search or inspect version-matched Bun documentation in vendor/bun/docs
   \x1b[32mversion [--json] | doctor [--json|--md]\x1b[0m Installed version, target; check the installation
   \x1b[32mruntime install|list|verify|rollback|info\x1b[0m  Manage installed runtime artifacts
-  \x1b[32mupgrade [--check]\x1b[0m     Install the latest release; \x1b[32muninstall [--yes]\x1b[0m removes ~/.yolo
+  \x1b[32mupgrade [--check|--release-dir DIR]\x1b[0m Install a verified release; \x1b[32muninstall [--yes]\x1b[0m removes ~/.yolo
   \x1b[32mcreate <dir> [--with web,desktop]\x1b[0m Scaffold an Aphrody stack project (Bun + runtime SDK + Tauri) from templates/
   \x1b[32mawesome [stats|list|search|github|check]\x1b[0m Browse oven-sh/awesome-bun (README cached, no clone)
   \x1b[32mimport [--apply|--check]\x1b[0m Vendor the fork crates into crates/aphrody-* (see vendor.toml)
@@ -106,7 +106,7 @@ ${header}
   \x1b[32minfra|ops|workspace|workflow|git|ssh ...\x1b[0m Aphrody control plane (aphrody-infra / aphrody-ops), same workflow
   \x1b[32mverify [--only a,b] [--changed] [--parallel N] [--json|--md] [--list|--last]\x1b[0m Run the repository gates as a parallel graph; JSON or Markdown evidence in var/verify
   \x1b[32mhost audit|reclaim|archive|services|tune|net|mount|journal --host vps|dbfr|local [--apply]\x1b[0m Manage a Linux server (plan by default, journaled, safety-checked)
-  \x1b[32mship [--apply] [status|log|attach|stop]\x1b[0m Build all of yolo on the build factory host; \x1b[32mhooks install\x1b[0m does it on every push to main/dev
+  \x1b[32mship [--apply] [--prepare] [status|log|attach|stop]\x1b[0m Prepare or build on the factory; \x1b[32mhooks install\x1b[0m ships main/dev pushes
   \x1b[32mplugin <create|status>\x1b[0m Generate or inspect unified YOLO & Bun-TS7 plugin
   \x1b[32mpy [status|test|lint|fmt|build]\x1b[0m Python + uv + PyO3 polyglot runtime toolchain
   \x1b[32mbench [--json|--md]\x1b[0m Run native Bun nanoseconds and hashing micro-benchmark
@@ -126,20 +126,16 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const command = args[0] || (isCompiled() ? "help" : "status");
 
-  // Source-tree commands need a checkout; the installed executable carries the distribution ones.
+  // These commands need repository data. Their implementation is bundled, so a checkout never requires
+  // another Bun installation or a subprocess that loads potentially different CLI sources.
   const CHECKOUT_ONLY = new Set([
     "status",
-    "scan",
-    "mcp",
-    "api",
-    "serve",
     "generate",
     "web",
     "desktop",
     "tauri",
     "docs",
     "import",
-    "rename",
     "plugin",
     "py",
     "python",
@@ -148,27 +144,19 @@ async function main(): Promise<void> {
     "hooks",
   ]);
   if (isCompiled() && CHECKOUT_ONLY.has(command)) {
-    // Inside a checkout the installed executable hands the command to the checkout's own sources (its root, not
-    // YOLO_HOME, is then the home), so `yolo ship` works wherever `bun run cli ship` would.
     const checkout = findCheckout();
-    const bun = Bun.which("bun");
-    if (checkout !== null && bun !== null) {
-      const env = { ...process.env };
-      delete env["YOLO_HOME"];
-      const child = Bun.spawnSync([bun, "run", join(checkout, "apps/cli/src/index.ts"), ...args], {
-        cwd: checkout,
-        env,
-        stdin: "inherit",
-        stdout: "inherit",
-        stderr: "inherit",
-      });
-      process.exit(child.exitCode ?? 1);
+    if (checkout === null) {
+      console.error(
+        `\`yolo ${command}\` requires yolo checkout data. Run it inside a checkout containing vendor.toml and apps/cli/src/index.ts.`,
+      );
+      process.exitCode = 1;
+      return;
     }
-    console.error(
-      `\`yolo ${command}\` works on a yolo checkout: run it there (or \`bun run cli ${command}\`).`,
-    );
-    process.exit(1);
+    cachedRoot = checkout;
+    process.env["YOLO_HOME"] = checkout;
   }
+
+  const workspaceRoot = (): string => findCheckout() ?? process.cwd();
 
   switch (command) {
     case "status": {
@@ -403,20 +391,23 @@ async function main(): Promise<void> {
 
     case "scan": {
       const { runScanCommand } = await import("./scan");
-      process.exitCode = await runScanCommand(args.slice(1), rootDir());
+      process.exitCode = await runScanCommand(
+        args.slice(1),
+        isCompiled() ? process.cwd() : rootDir(),
+      );
       break;
     }
 
     case "mcp": {
       const { runMcpServer } = await import("./mcp");
-      await runMcpServer(rootDir());
+      await runMcpServer(workspaceRoot());
       break;
     }
 
     case "api":
     case "serve": {
       const { runApiCommand } = await import("./api");
-      process.exitCode = await runApiCommand(args.slice(1), rootDir());
+      process.exitCode = await runApiCommand(args.slice(1), workspaceRoot());
       break;
     }
 
@@ -458,7 +449,10 @@ async function main(): Promise<void> {
 
     case "rename": {
       const { runRenameCommand } = await import("./rename");
-      process.exitCode = await runRenameCommand(args.slice(1), rootDir());
+      process.exitCode = await runRenameCommand(
+        args.slice(1),
+        isCompiled() ? process.cwd() : rootDir(),
+      );
       break;
     }
 

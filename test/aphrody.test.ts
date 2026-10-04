@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   releaseShipClaim,
   remoteCommand,
   remotePaths,
+  remotePrepareCommand,
   remoteSyncCommand,
   shipClaimPath,
   stopCommand,
@@ -20,7 +21,7 @@ const factory = {
   artifactRoot: "/srv/aphrody-build/artifacts",
   lockPath: "/srv/aphrody-build/locks/heavy.lock",
 };
-const sha = "abcdef0123456789abcdef0123456789abcdef01";
+const sha = "abcdef012345".padEnd(40, "0");
 
 describe("aphrody bridge", () => {
   it("places the yolo workspace next to the other first-party workspaces", () => {
@@ -55,7 +56,78 @@ describe("aphrody bridge", () => {
     expect(cmd).toContain("git fetch --prune --tags --filter=blob:none origin");
     expect(cmd).not.toContain("checkout -f");
     expect(cmd).not.toContain("submodule update");
+    expect(cmd).not.toContain("--global");
+    expect(cmd).not.toContain("auth setup-git");
   });
+
+  it("prepares a clean pinned workspace under the lock without forcing a checkout or starting engines", () => {
+    const cmd = remotePrepareCommand(factory, sha);
+    expect(cmd).toContain("flock --close -- '/srv/aphrody-build/locks/heavy.lock'");
+    expect(cmd).toContain("checkout --detach");
+    expect(cmd).toContain("Factory checkout is dirty; preserved");
+    expect(cmd).toContain("unowned files; preserved");
+    expect(cmd).not.toContain("checkout -f");
+    expect(cmd).not.toContain("systemd-run");
+    expect(cmd).not.toContain("tmux new-session");
+    expect(() => remotePrepareCommand(factory, "abc123")).toThrow("full Git SHA");
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "actually selects the requested revision and preserves a dirty factory checkout",
+    () => {
+      const temporary = mkdtempSync(join(tmpdir(), "yolo-factory-prepare-"));
+      const workspace = join(temporary, "workspaces/yolo");
+      const localFactory = {
+        target: "local",
+        workspaceRoot: join(temporary, "workspaces/aphrody"),
+        artifactRoot: join(temporary, "artifacts"),
+        lockPath: join(temporary, "locks/heavy.lock"),
+      };
+      const git = (...args: string[]): string => {
+        const result = Bun.spawnSync(["git", "-C", workspace, ...args], {
+          stdout: "pipe",
+          stderr: "pipe",
+          env: {
+            ...process.env,
+            GIT_AUTHOR_NAME: "aphrody-dev",
+            GIT_AUTHOR_EMAIL: "contact@aphrody.com",
+            GIT_COMMITTER_NAME: "aphrody-dev",
+            GIT_COMMITTER_EMAIL: "contact@aphrody.com",
+          },
+        });
+        if (result.exitCode !== 0) throw new Error(result.stderr.toString());
+        return result.stdout.toString().trim();
+      };
+      try {
+        mkdirSync(workspace, { recursive: true });
+        git("init", "-q");
+        writeFileSync(join(workspace, "source.txt"), "first");
+        git("add", "source.txt");
+        git("commit", "-qm", "first");
+        const first = git("rev-parse", "HEAD");
+        writeFileSync(join(workspace, "source.txt"), "second");
+        git("commit", "-qam", "second");
+        const second = git("rev-parse", "HEAD");
+        const prepared = Bun.spawnSync(["bash", "-c", remotePrepareCommand(localFactory, first)], {
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+        expect(prepared.exitCode).toBe(0);
+        expect(git("rev-parse", "HEAD")).toBe(first);
+        expect(readFileSync(join(workspace, "source.txt"), "utf8")).toBe("first");
+        writeFileSync(join(workspace, "source.txt"), "concurrent work");
+        const rejected = Bun.spawnSync(["bash", "-c", remotePrepareCommand(localFactory, second)], {
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+        expect(rejected.exitCode).toBe(2);
+        expect(git("rev-parse", "HEAD")).toBe(first);
+        expect(readFileSync(join(workspace, "source.txt"), "utf8")).toBe("concurrent work");
+      } finally {
+        rmSync(temporary, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("stops the tmux session and the systemd unit together", () => {
     const cmd = stopCommand(sha);
