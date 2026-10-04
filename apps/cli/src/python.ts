@@ -112,21 +112,33 @@ export async function runPythonCommand(
       console.error("uv is required to run Python tests (https://github.com/astral-sh/uv)");
       return 1;
     }
-    const proc = Bun.spawn(["uv", "run", "--directory", "packages/python", "pytest"], {
-      cwd: root,
-      stdio: ["inherit", "inherit", "inherit"],
-    });
+    const proc = Bun.spawn(
+      [
+        "uv",
+        "run",
+        "--package",
+        "yolo",
+        "--extra",
+        "dev",
+        "--no-sync",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "packages/python/tests",
+      ],
+      {
+        cwd: root,
+        stdio: ["inherit", "inherit", "inherit"],
+      },
+    );
     return (await proc.exited) ?? 1;
   }
 
   if (sub === "lint") {
-    const cmd = ruffBin
-      ? ["ruff", "check", "."]
-      : uvBin
-        ? ["uv", "run", "ruff", "check", "."]
-        : null;
+    const cmd = ruffBin ? [ruffBin, "check", "packages/python"] : null;
     if (!cmd) {
-      console.error("ruff or uv is required for Python linting");
+      console.error("The installed ruff binary is required for Python linting");
       return 1;
     }
     const proc = Bun.spawn(cmd, { cwd: root, stdio: ["inherit", "inherit", "inherit"] });
@@ -134,13 +146,9 @@ export async function runPythonCommand(
   }
 
   if (sub === "fmt") {
-    const cmd = ruffBin
-      ? ["ruff", "format", "."]
-      : uvBin
-        ? ["uv", "run", "ruff", "format", "."]
-        : null;
+    const cmd = ruffBin ? [ruffBin, "format", "packages/python"] : null;
     if (!cmd) {
-      console.error("ruff or uv is required for Python formatting");
+      console.error("The installed ruff binary is required for Python formatting");
       return 1;
     }
     const proc = Bun.spawn(cmd, { cwd: root, stdio: ["inherit", "inherit", "inherit"] });

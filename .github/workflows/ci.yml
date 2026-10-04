@@ -58,11 +58,9 @@ jobs:
       - name: Python linting and formatting
         run: |
           uv tool install ruff@latest
-          ruff check .
-          ruff format --check .
+          ruff check packages/python
+          ruff format --check packages/python
       - name: Python package build and test (Maturin + PyO3)
         run: |
-          cd packages/python
-          uv venv
-          uv run maturin develop
-          uv run pytest
+          uv sync --locked --package yolo --extra dev
+          uv run --package yolo --extra dev --no-sync -- python -m pytest packages/python/tests

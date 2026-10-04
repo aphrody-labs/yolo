@@ -36,9 +36,9 @@ portable create smoke-app
 cd smoke-app
 bun install
 tsc --noEmit
-bun test
-bun run build:bin
-bun run pack:deploy
+YOLO_HOME="$smoke_yolo_home" bun test
+YOLO_HOME="$smoke_yolo_home" bun run build:bin
+YOLO_HOME="$smoke_yolo_home" bun run pack:deploy
 archive=$(ls dist/smoke-app-*.tar.gz | head -1)
 mkdir -p "$work/srv"
 tar -xzf "$archive" -C "$work/srv" --strip-components=1

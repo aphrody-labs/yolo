@@ -8,12 +8,14 @@ les implémentations nécessaires ; le périmètre de maintenance hors sources d
 
 ## Lot actif — autonomie et release courante
 
-- [ ] Exécuter les commandes embarquées sans délégation à un Bun externe.
-- [ ] Qualifier scan, parse, MCP et API du binaire en environnement minimal.
-- [ ] Corriger les options de scan et le diagnostic de la distribution.
+- [x] Exécuter les commandes embarquées sans délégation à un Bun externe.
+- [x] Qualifier scan, parse, MCP et API du binaire en environnement minimal.
+- [x] Corriger les options de scan et le diagnostic de la distribution.
 - [ ] Requalifier runtime ABI 1.4, installer et serveur depuis des assets courants.
-- [ ] Réparer le routage natif de la fabrique pour le dépôt Yolo après sondes réelles.
+- [x] Réparer le routage natif de la fabrique pour le dépôt Yolo après sondes réelles.
 - [ ] Gates propriétaires, revue, commits et push des seuls chemins possédés.
+- [ ] Synchroniser les commits des trois dépôts vers main et la fabrique SSH,
+  avec suivi des tâches en arrière-plan et compilation automatique sérialisée.
 
 ## Suite conservée
 
