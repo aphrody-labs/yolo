@@ -145,8 +145,10 @@ describe("Native Bun SQLite Audit & Training Ledger", () => {
       sampleId: "sample-secret-test",
       profile: "yolo",
       domain: "privacy_audit",
-      instruction: "Use sk-proj-1234567890abcdef1234567890 to authenticate and AIzaSyD1234567890abcdefghijklmnopqrstuvw for Google",
-      inputContext: '{"password": "plain_password_12345", "token": "ghp_1234567890abcdefghijklmnopqrstuvwxyz12"}',
+      instruction:
+        "Use sk-proj-1234567890abcdef1234567890 to authenticate and AIzaSyD1234567890abcdefghijklmnopqrstuvw for Google",
+      inputContext:
+        '{"password": "plain_password_12345", "token": "ghp_1234567890abcdefghijklmnopqrstuvwxyz12"}',
       action: "Run command with --password=supersecret and Bearer 1234567890abcdef1234567890",
       outcome: "Success with password: secret_pass_987",
       rewardScore: 1.0,

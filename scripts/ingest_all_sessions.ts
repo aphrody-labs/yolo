@@ -40,11 +40,16 @@ const now = new Date().toISOString();
  */
 function detectSessionProfile(content: string): "yolo" | "aphrody" | "iecode" | "dbfr" | "unknown" {
   const yoloMatches = (content.match(/\/home\/aphro\/yolo/g) || []).length;
-  const aphrodyMatches = (content.match(/\/home\/aphro\/aphrody(?!\-py)/g) || []).length;
+  const aphrodyMatches = (content.match(/\/home\/aphro\/aphrody(?!-py)/g) || []).length;
   const iecodeMatches = (content.match(/iecode/gi) || []).length;
   const dbfrMatches = (content.match(/dbfr/gi) || []).length;
 
-  if (yoloMatches > 0 && yoloMatches >= aphrodyMatches && yoloMatches >= iecodeMatches && yoloMatches >= dbfrMatches) {
+  if (
+    yoloMatches > 0 &&
+    yoloMatches >= aphrodyMatches &&
+    yoloMatches >= iecodeMatches &&
+    yoloMatches >= dbfrMatches
+  ) {
     return "yolo";
   }
   if (aphrodyMatches > 0 && aphrodyMatches >= iecodeMatches && aphrodyMatches >= dbfrMatches) {
@@ -82,7 +87,9 @@ const db = initLedgerDatabase(targetDbPath);
 
 // Purge any previous foreign profile contamination or mixed profile records
 try {
-  db.run("DELETE FROM training_samples WHERE profile != 'yolo' OR instruction LIKE '%dbfr%' OR instruction LIKE '%iecode%' OR action LIKE '%dbfr%' OR action LIKE '%iecode%' OR input_context LIKE '%dbfr%' OR input_context LIKE '%iecode%';");
+  db.run(
+    "DELETE FROM training_samples WHERE profile != 'yolo' OR instruction LIKE '%dbfr%' OR instruction LIKE '%iecode%' OR action LIKE '%dbfr%' OR action LIKE '%iecode%' OR input_context LIKE '%dbfr%' OR input_context LIKE '%iecode%';",
+  );
 } catch {}
 
 let totalSamples = 0;
@@ -145,7 +152,8 @@ if (existsSync(geminiBrainDir)) {
               typeof step.content === "string" ? redactSecrets(step.content.slice(0, 1000)) : "";
           } else if (step.type === "PLANNER_RESPONSE" && step.content) {
             const sampleId = wyhash(`${sessionId}:${step.step_index}:${step.created_at}`);
-            const actionText = typeof step.content === "string" ? redactSecrets(step.content.slice(0, 2000)) : "";
+            const actionText =
+              typeof step.content === "string" ? redactSecrets(step.content.slice(0, 2000)) : "";
             const sample: TrainingSampleRecord = {
               sampleId: `sample-agy-${sampleId}`,
               profile: "yolo",
@@ -201,7 +209,7 @@ if (existsSync(codexHistoryPath)) {
         const item = JSON.parse(line);
         const itemStr = JSON.stringify(item);
         // Exclude foreign profile contamination
-        if (/dbfr|iecode|\/home\/aphro\/aphrody(?!\-py)/i.test(itemStr)) {
+        if (/dbfr|iecode|\/home\/aphro\/aphrody(?!-py)/i.test(itemStr)) {
           continue;
         }
 
@@ -210,9 +218,13 @@ if (existsSync(codexHistoryPath)) {
           sampleId: `sample-codex-${sampleId}`,
           profile: "yolo",
           domain: "codex_cli",
-          instruction: redactSecrets((item.prompt || item.text || item.query || "Codex instruction").slice(0, 1000)),
+          instruction: redactSecrets(
+            (item.prompt || item.text || item.query || "Codex instruction").slice(0, 1000),
+          ),
           inputContext: redactSecrets(JSON.stringify({ source: "codex", ...item })),
-          action: redactSecrets((item.command || item.action || "Executed tool command").slice(0, 2000)),
+          action: redactSecrets(
+            (item.command || item.action || "Executed tool command").slice(0, 2000),
+          ),
           outcome: item.success !== false ? "SUCCESS" : "FAILED",
           rewardScore: item.success !== false ? 1.0 : 0.0,
           createdAt: item.timestamp || now,
@@ -249,7 +261,7 @@ if (existsSync(claudeHistoryPath)) {
         const item = JSON.parse(line);
         const itemStr = JSON.stringify(item);
         // Exclude foreign profile contamination
-        if (/dbfr|iecode|\/home\/aphro\/aphrody(?!\-py)/i.test(itemStr)) {
+        if (/dbfr|iecode|\/home\/aphro\/aphrody(?!-py)/i.test(itemStr)) {
           continue;
         }
 
@@ -258,7 +270,9 @@ if (existsSync(claudeHistoryPath)) {
           sampleId: `sample-claude-${sampleId}`,
           profile: "yolo",
           domain: "claude_code",
-          instruction: redactSecrets((item.prompt || item.display || "Claude instruction").slice(0, 1000)),
+          instruction: redactSecrets(
+            (item.prompt || item.display || "Claude instruction").slice(0, 1000),
+          ),
           inputContext: redactSecrets(JSON.stringify({ source: "claude", ...item })),
           action: redactSecrets((item.action || item.command || "Claude action").slice(0, 2000)),
           outcome: item.error ? "ERROR" : "DONE",

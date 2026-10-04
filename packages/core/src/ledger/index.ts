@@ -21,35 +21,43 @@ import { findRepoRoot } from "../vfs/index";
 export function redactSecrets(text: string | null | undefined): string {
   if (!text || typeof text !== "string") return "";
 
-  return text
-    // 1. OpenAI API Keys (sk-..., sk-proj-..., sk-admin-..., ctx7sk-...)
-    .replace(/(?:[a-zA-Z0-9_\-]*?)sk-(?:proj-|admin-|org-)?[a-zA-Z0-9_\-]{20,}/g, "[REDACTED_OPENAI_KEY]")
-    // 2. Google API Keys (AIza...)
-    .replace(/\bAIza[0-9A-Za-z\-_]{30,45}\b/g, "[REDACTED_GOOGLE_KEY]")
-    // 3. GitHub Tokens (ghp_..., gho_..., github_pat_...)
-    .replace(/\bgh[pousr]_[A-Za-z0-9_]{36,255}\b/g, "[REDACTED_GITHUB_TOKEN]")
-    .replace(/\bgithub_pat_[a-zA-Z0-9_]{82}\b/g, "[REDACTED_GITHUB_TOKEN]")
-    // 4. Slack tokens (xoxb-..., xoxp-...)
-    .replace(/\bxox[baprs]-[0-9a-zA-Z]{10,48}\b/g, "[REDACTED_SLACK_TOKEN]")
-    // 5. Bearer tokens in headers
-    .replace(/\bBearer\s+[a-zA-Z0-9_\-\.]{20,}\b/gi, "Bearer [REDACTED_TOKEN]")
-    // 6. Generic password / secret assignments in key-value format
-    .replace(
-      /([?&"'`\s]|^)(?:password|passwd|pwd|client_secret|api_key|apikey|secret_key|private_key)\s*[:=]\s*(['"]?)([^'"\s\\,;&]+)\2/gi,
-      '$1password: "[REDACTED_PASSWORD]"',
-    )
-    // 7. JSON secret fields: "password": "...", "apiKey": "...", etc.
-    .replace(
-      /"(?:password|passwd|pwd|secret|apiKey|api_key|apiSecret|api_secret|auth_token|access_token|private_key)"\s*:\s*"[^"]*"/gi,
-      (match) => {
-        const key = match.split(":")[0];
-        return `${key}: "[REDACTED_SECRET]"`;
-      },
-    )
-    // 8. CLI flags --password=..., --token=...
-    .replace(/--(?:password|passwd|token|secret)[=\s]+[^\s]+/gi, "--password=[REDACTED_SECRET]")
-    // 9. JWT tokens (header.payload.signature)
-    .replace(/\bey[A-Za-z0-9_-]{10,}\.ey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9-_]{10,}\b/g, "[REDACTED_JWT]");
+  return (
+    text
+      // 1. OpenAI API Keys (sk-..., sk-proj-..., sk-admin-..., ctx7sk-...)
+      .replace(
+        /(?:[a-zA-Z0-9_-]*?)sk-(?:proj-|admin-|org-)?[a-zA-Z0-9_-]{20,}/g,
+        "[REDACTED_OPENAI_KEY]",
+      )
+      // 2. Google API Keys (AIza...)
+      .replace(/\bAIza[0-9A-Za-z_-]{30,45}\b/g, "[REDACTED_GOOGLE_KEY]")
+      // 3. GitHub Tokens (ghp_..., gho_..., github_pat_...)
+      .replace(/\bgh[pousr]_[A-Za-z0-9_]{36,255}\b/g, "[REDACTED_GITHUB_TOKEN]")
+      .replace(/\bgithub_pat_[a-zA-Z0-9_]{82}\b/g, "[REDACTED_GITHUB_TOKEN]")
+      // 4. Slack tokens (xoxb-..., xoxp-...)
+      .replace(/\bxox[baprs]-[0-9a-zA-Z]{10,48}\b/g, "[REDACTED_SLACK_TOKEN]")
+      // 5. Bearer tokens in headers
+      .replace(/\bBearer\s+[a-zA-Z0-9_.-]{20,}\b/gi, "Bearer [REDACTED_TOKEN]")
+      // 6. Generic password / secret assignments in key-value format
+      .replace(
+        /([?&"'`\s]|^)(?:password|passwd|pwd|client_secret|api_key|apikey|secret_key|private_key)\s*[:=]\s*(['"]?)([^'"\s\\,;&]+)\2/gi,
+        '$1password: "[REDACTED_PASSWORD]"',
+      )
+      // 7. JSON secret fields: "password": "...", "apiKey": "...", etc.
+      .replace(
+        /"(?:password|passwd|pwd|secret|apiKey|api_key|apiSecret|api_secret|auth_token|access_token|private_key)"\s*:\s*"[^"]*"/gi,
+        (match) => {
+          const key = match.split(":")[0];
+          return `${key}: "[REDACTED_SECRET]"`;
+        },
+      )
+      // 8. CLI flags --password=..., --token=...
+      .replace(/--(?:password|passwd|token|secret)[=\s]+[^\s]+/gi, "--password=[REDACTED_SECRET]")
+      // 9. JWT tokens (header.payload.signature)
+      .replace(
+        /\bey[A-Za-z0-9_-]{10,}\.ey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9-_]{10,}\b/g,
+        "[REDACTED_JWT]",
+      )
+  );
 }
 
 export interface SessionRecord {
