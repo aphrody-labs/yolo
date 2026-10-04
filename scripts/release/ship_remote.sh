@@ -7,6 +7,18 @@
 #   doctor, scaffold, compile, pack, run the archive); the GitHub release when <sha> is the v<VERSION> tag on main.
 # usage: ship_remote.sh <sha> <workspace> <artifact-dir>
 set -uo pipefail
+# The historical systemd launcher does not establish this owner environment.
+# Refuse before bootstrap; use the native Workspace factory route to supply it.
+if [[ "${APHRODY_BUILD_HOST:-}" != vps ]]; then
+  echo "Full ship requires the native Workspace factory environment (APHRODY_BUILD_HOST=vps)." >&2
+  exit 64
+fi
+ship_cargo_wrapper=${YOLO_CARGO_WRAPPER:-$HOME/aphrody/scripts/build/rust/cargo-serial.sh}
+if [[ ! -x "$ship_cargo_wrapper" ]]; then
+  echo "Full ship requires the installed Aphrody Cargo owner wrapper (YOLO_CARGO_WRAPPER)." >&2
+  exit 64
+fi
+export YOLO_CARGO_WRAPPER="$ship_cargo_wrapper"
 sha=$1; ws=$2; out=$3
 cache=${APHRODY_BUILD_CACHE:-/srv/aphrody-build/cache}
 export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:/usr/lib/llvm-${YOLO_LLVM:-23}/bin:$HOME/.local/bin:$PATH"
@@ -27,7 +39,9 @@ step "toolchain bootstrap" bash scripts/release/bootstrap_remote.sh
 command -v sccache >/dev/null && export RUSTC_WRAPPER=sccache
 step "bun install" bun install --frozen-lockfile
 step "check: types, lint, format, rustfmt, clippy" just check
-step "check: workspace, all targets" just check-workspace
+step "desktop provider: format, check, clippy and tests" just qualify-desktop
+step "imported providers: format, workspace check and tests" just qualify-upstream
+step "Python adapter native tests" just test-python-crate
 step "licenses and sources (cargo deny)" just deny-ci
 step "runtime artifact (build + package)" just runtime-package
 step "tests (bun + nextest)" just test-all

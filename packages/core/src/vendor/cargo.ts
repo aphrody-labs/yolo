@@ -7,6 +7,8 @@ import { yoloHome } from "../vfs/home";
 export interface WorkspaceCargoSummary {
   readonly resolver: string;
   readonly members: readonly string[];
+  /** Explicit Cargo selection; null means Cargo applies its implicit workspace/root-package rules. */
+  readonly defaultMembers: readonly string[] | null;
   readonly releaseProfile: Record<string, unknown>;
 }
 
@@ -21,6 +23,7 @@ export async function readWorkspaceCargo(
       workspace?: {
         resolver?: string;
         members?: string[];
+        "default-members"?: string[];
       };
       profile?: {
         release?: Record<string, unknown>;
@@ -30,6 +33,7 @@ export async function readWorkspaceCargo(
     return {
       resolver: parsed.workspace?.resolver ?? "3",
       members: parsed.workspace?.members ?? [],
+      defaultMembers: parsed.workspace?.["default-members"] ?? null,
       releaseProfile: parsed.profile?.release ?? {},
     };
   } catch {

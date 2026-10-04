@@ -8,7 +8,7 @@
  *
  * Exit 0: every selected gate passed. 1: one failed (or was skipped because a dependency failed). 2: usage.
  * A gate that was not run is never silent: it is listed with the reason (`skipped`, or `notRun` for the heavy
- * checks that belong to the build factory). Zero dependencies.
+ * checks that belong to the build factory or require explicit optional-provider selection). Zero dependencies.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -77,9 +77,15 @@ export const GATES: readonly Gate[] = [
   },
   {
     id: "rust-fmt",
-    title: "rustfmt --check",
-    command: ["cargo", "fmt", "--all", "--check"],
-    surfaces: ["**/*.rs", "Cargo.toml", "rustfmt.toml"],
+    title: "rustfmt --check (yolo-core and yolo-runtime)",
+    command: ["cargo", "fmt", "--check", "-p", "yolo-core", "-p", "yolo-runtime"],
+    surfaces: [
+      "crates/yolo-core/**",
+      "crates/yolo-runtime/**",
+      "Cargo.toml",
+      "rustfmt.toml",
+      ".rustfmt.toml",
+    ],
   },
   {
     id: "docs",
@@ -155,8 +161,14 @@ export const GATES: readonly Gate[] = [
   },
 ];
 
-/** Checks this command never runs locally: CLAUDE.md sends them to the build factory (`yolo ship`). */
+/** Checks outside the default local core gates: heavy factory work and explicit optional-provider selection. */
 export const NOT_RUN_HEAVY: readonly NotRun[] = [
+  {
+    id: "rust-fmt-upstream",
+    title: "rustfmt --all --check (imports and optional providers)",
+    reason:
+      "explicit upstream profile: run just rust-fmt-upstream-check to check engine/import formatting; no compilation or reformatting, and the default core gate does not qualify these sources",
+  },
   {
     id: "clippy",
     title: "strict clippy on yolo-core and yolo-desktop",
@@ -435,17 +447,88 @@ export function changedFiles(root: string): string[] {
 
 export const reportDir = (root: string): string => join(root, "var/verify");
 
+const VERIFY_USAGE = `Usage: yolo verify [--only a,b | --changed] [--parallel N] [--timeout SECS] [--json | --md] [--out FILE]
+       yolo verify --list [--json | --md]
+       yolo verify --last [--json | --md]
+       yolo verify --help
+Run repository gates; heavy engine checks belong to the build factory. Reports are written to var/verify/.`;
+
+/** Validate the entire argv before reading reports, inspecting Git or starting a gate. */
+function parseVerifyArgs(args: readonly string[]): Map<string, string | true> {
+  const flags = new Set(["--help", "--json", "--md", "--list", "--last", "--changed"]);
+  const values = new Set(["--only", "--parallel", "--timeout", "--out"]);
+  const parsed = new Map<string, string | true>();
+  for (let index = 0; index < args.length; index++) {
+    const option = args[index] === "-h" ? "--help" : args[index]!;
+    if (!flags.has(option) && !values.has(option))
+      throw new Error(`unknown option: ${option} (see yolo verify --help)`);
+    if (parsed.has(option)) throw new Error(`duplicate option: ${option}`);
+    if (flags.has(option)) {
+      parsed.set(option, true);
+      continue;
+    }
+    const value = args[++index];
+    if (!value || value.startsWith("-")) throw new Error(`missing value for ${option}`);
+    parsed.set(option, value);
+  }
+  for (const [a, b] of [
+    ["--json", "--md"],
+    ["--only", "--changed"],
+    ["--list", "--last"],
+  ]) {
+    if (parsed.has(a!) && parsed.has(b!)) throw new Error(`${a} and ${b} cannot be combined`);
+  }
+  if (parsed.has("--list") || parsed.has("--last")) {
+    for (const option of ["--only", "--changed", "--parallel", "--timeout", "--out"])
+      if (parsed.has(option)) throw new Error(`${option} requires a gate run`);
+  }
+  const only = parsed.get("--only");
+  if (typeof only === "string" && only.split(",").some((name) => !name.trim()))
+    throw new Error("--only requires a comma-separated list of gate names");
+  const parallel = parsed.get("--parallel");
+  if (
+    typeof parallel === "string" &&
+    (!Number.isSafeInteger(Number(parallel)) || Number(parallel) < 1)
+  )
+    throw new Error("--parallel must be a positive integer");
+  const timeout = parsed.get("--timeout");
+  if (typeof timeout === "string") {
+    const milliseconds = Number(timeout) * 1000;
+    if (!Number.isFinite(milliseconds) || milliseconds < 1 || milliseconds > 2_147_483_647)
+      throw new Error("--timeout must be positive seconds between 0.001 and 2147483.647");
+  }
+  return parsed;
+}
+
 export async function runVerifyCommand(
   args: readonly string[],
   root: string,
-  deps: { gates?: readonly Gate[]; run?: Runner; out?: (s: string) => void; cpus?: number } = {},
+  deps: {
+    gates?: readonly Gate[];
+    run?: Runner;
+    out?: (s: string) => void;
+    err?: (s: string) => void;
+    cpus?: number;
+  } = {},
 ): Promise<number> {
   const out = deps.out ?? ((s: string): void => console.log(s));
+  const err = deps.err ?? ((s: string): void => console.error(s));
+  let parsed: ReturnType<typeof parseVerifyArgs>;
+  try {
+    parsed = parseVerifyArgs(args);
+  } catch (error) {
+    err(`yolo verify: ${(error as Error).message}`);
+    return 2;
+  }
   const flag = (n: string): string | undefined => {
-    const i = args.indexOf(n);
-    return i >= 0 ? args[i + 1] : undefined;
+    const value = parsed.get(n);
+    return typeof value === "string" ? value : undefined;
   };
-  const has = (n: string): boolean => args.includes(n);
+  const has = (n: string): boolean => parsed.has(n);
+  if (has("--help")) {
+    out(VERIFY_USAGE);
+    return 0;
+  }
   const json = has("--json");
   const catalog = deps.gates ?? GATES;
 
@@ -456,7 +539,7 @@ export async function runVerifyCommand(
   if (has("--last")) {
     const file = join(reportDir(root), "latest.json");
     if (!existsSync(file)) {
-      console.error("no previous report (var/verify/latest.json)");
+      err("no previous report (var/verify/latest.json)");
       return 2;
     }
     const last = JSON.parse(readFileSync(file, "utf8")) as Report;
@@ -471,7 +554,7 @@ export async function runVerifyCommand(
     const want = only.split(",").filter(Boolean);
     const unknown = want.filter((w) => !catalog.some((g) => g.id === w));
     if (unknown.length > 0) {
-      console.error(`unknown gate(s): ${unknown.join(", ")} (see yolo verify --list)`);
+      err(`unknown gate(s): ${unknown.join(", ")} (see yolo verify --list)`);
       return 2;
     }
     selected = catalog.filter((g) => want.includes(g.id));
@@ -496,7 +579,7 @@ export async function runVerifyCommand(
     1,
     Number(flag("--parallel") ?? deps.cpus ?? navigator.hardwareConcurrency ?? 4),
   );
-  const timeoutMs = Math.max(1, Number(flag("--timeout") ?? 900)) * 1000;
+  const timeoutMs = Number(flag("--timeout") ?? 900) * 1000;
   const startedAt = new Date().toISOString();
 
   let outcome: Awaited<ReturnType<typeof runGates>>;
@@ -506,7 +589,7 @@ export async function runVerifyCommand(
       root,
     });
   } catch (e) {
-    console.error(`yolo verify: ${(e as Error).message}`);
+    err(`yolo verify: ${(e as Error).message}`);
     return 2;
   }
   const sum = summarize(outcome.results, outcome.wallMs);

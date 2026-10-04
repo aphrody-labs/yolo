@@ -4,6 +4,18 @@
 Décision propriétaire : 2026-10-03. Livrer un runtime natif Bun/Tauri/Obscura,
 un SDK léger et un CLI autonome, installables et déployables en une commande.
 
+Précision du 2026-10-05 : la cible est le **fork Bun desktop**, intégrant les vrais
+moteurs V8/Tauri/Obscura/Turbopack et uv. `vendor/bun` conserve le cœur Bun complet.
+Le socle `yolo-core`/`yolo-runtime`, ses profils de build et le SDK ne constituent
+pas à eux seuls cette absorption. Les intégrations par sous-processus existantes
+restent des transitions identifiées jusqu’à remplacement natif qualifié.
+Mesurer le démarrage face à Bun et le premier usage desktop/browser séparément ;
+initialiser les moteurs à la demande sans remplacer leurs comportements par des stubs.
+Conserver JSC/WebKit et la compatibilité V8 ; R6 ne vise plus le retrait général
+de V8. Tauri devient le plugin desktop, Obscura le fournisseur headless, avec
+une WebView embarquée partagée à raccorder réellement à Wry. Les builds
+React/Next 16 et le packaging desktop en un fichier Bun restent à qualifier.
+
 L'[architecture Aphrody](../aphrody/PLAN.md) possède les contrats communs,
 le workflow no-human-in-the-loop et les critères globaux.
 [AGENTS.md](AGENTS.md) fixe les règles Yolo ; [MEMORY.md](MEMORY.md) conserve
@@ -24,7 +36,7 @@ les preuves courantes et antérieures restent distinguées ci-dessous.
 | Runtime C ABI | `crates/yolo-runtime` |
 | SDK | `packages/runtime` |
 | Desktop | `crates/aphrody-*`, Tauri/Wry/Tao/plugins retenus |
-| Headless | `vendor/obscura`, moteur actuel avant parité JSC |
+| Headless | `vendor/obscura`, fournisseur V8 ; JSC/WebKit conservés dans Bun |
 | Distribution | `scripts/release/`, `install.sh`, `install.ps1` |
 
 ## Jalons uniques
@@ -42,7 +54,7 @@ les preuves courantes et antérieures restent distinguées ci-dessous.
 | D3 | Bundles desktop : installation et démarrage par cible | Ouvert |
 | D4 | Packages : dry-run et publication dans le périmètre explicitement autorisé | Publication registre non autorisée par ce plan seul |
 | R5 | Backend JSC : cas difficiles et suite browser requise | Ouvert |
-| R6 | Retrait V8 : mêmes contrats consommateur sans ancien backend | Dépend de R5/parité |
+| R6 | Coexistence JSC/V8 : capacités, ownership et sélection sans doublons inutiles | Ouvert ; remplace le retrait V8 selon directive du 2026-10-05 |
 | R8 | Gains et signature : mesures reproductibles froid/chaud par cible | Ouvert |
 
 Les résultats et limites exacts sont uniquement dans [MEMORY.md](MEMORY.md)
@@ -91,9 +103,11 @@ Dépôts privés ; source, tests, artefact, installation et activation sont dist
 
 Arbitrage propriétaire du 2026-10-04 : [cœur et fournisseurs optionnels](docs/CORE-MODULE-BOUNDARIES.md).
 Le cœur natif cible `yolo-core` + `yolo-runtime` ; desktop, browser, Python et
-compilateur ont des distributions/sélections explicites. Les 48 racines Cargo
-par défaut restent à réduire dans le lot intégrateur. Les imports reproductibles
-sont conservés ; Aphrody reste propriétaire de l’UI et du comportement produit.
+compilateur ont des distributions/sélections explicites. Depuis le 2026-10-05,
+les racines Cargo par défaut sont ces deux crates ; les 117 membres et les imports
+reproductibles sont conservés. Aphrody reste propriétaire de l’UI et du produit.
+Les recettes de qualification des fournisseurs sont explicites ; leur présence
+ne ferme pas R3/R4 ni la migration des consommateurs Rust.
 
 - [Contrat ABI](docs/RUNTIME-ABI.md)
 - [Packaging et consommateurs SDK](docs/CONSUMERS.md)

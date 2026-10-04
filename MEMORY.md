@@ -111,3 +111,38 @@ conformes ; gates natifs `whitespace,docs` réussis. L’appel CLI `verify --hel
 a déclenché toute la suite (option non traitée) : deux tests et `rust-fmt` échouent
 dans le checkout concurrent. Ce lot documentaire ne les corrige pas et ne
 revendique aucune qualification globale ni compilation moteur.
+
+## Profils natifs et mesure initiale (2026-10-05)
+
+Les 117 membres Cargo restent présents ; les racines par défaut passent de 48
+à `yolo-core` et `yolo-runtime`. Ce socle d’interopérabilité ne remplace pas le
+vrai cœur Bun. Recettes et CI séparent cœur, desktop, browser, Python,
+compilateur et imports. Le wrapper Cargo conserve sérialisation et sccache.
+L’aide `verify` n’exécute plus les gates ; les arguments invalides sont refusés
+avant effets. Le benchmark de supervision compile dans le CLI autonome.
+
+Qualification locale du checkout concurrent : 37 tests Rust, check, Clippy
+strict et format cœur réussis ; les 11 gates du CLI source passent. Le format
+global rapporte encore 103 fichiers Obscura, préservés et couverts par une gate
+upstream explicite. Les cinq tests de dispatch Just/80 assertions ne prouvent
+pas un build moteur. Aphrody conserve son consommateur runtime ABI 1.4 déjà
+qualifié ; 14 tests/55 assertions passent. Son aide installée peut désormais
+être capturée pour un seul binaire, sans parcourir ses sous-commandes.
+[Reçu du lot](docs/core-modules-implementation-2026-10-05.json).
+
+La mesure appariée de 40 lancements par série donne, en conditions préparées,
+0,753 ms de médiane pour `bun --version`, 11,646 ms pour l’ancien Yolo installé
+et 9,298 ms pour le lanceur source. Avec une sortie identique, le surcoût médian
+apparié de Yolo installé est de 8,989 ms. Processus neufs, cache OS non contrôlé,
+binaire installé antérieur de révision source inconnue : ni le fork reconstruit
+ni une fenêtre desktop ne sont qualifiés. L’outil a trois tests/136 assertions,
+types/lint/format conformes. [Mesure et provenance](docs/startup-baseline-2026-10-05.json).
+
+Directive propriétaire précisée : conserver JSC/WebKit, supporter V8 via
+Obscura, Tauri en plugin desktop et WebView embarquée partagée, améliorer les
+builds React/Next 16, puis empaqueter l’application dans un fichier Bun. Les
+sous-processus existants restent des transitions, pas l’absorption demandée.
+Le linker natif du fork et la sélection des sources de fabrique sont les lots
+suivants. Le 4 octobre à 22:21 UTC, la préparation SSH distincte attend toujours
+un fetch M3 sous verrou ; l’ancien job watcher est en échec. Le nightly Bun
+requis manque au VPS, aucun nouveau binaire fork n’a été produit ou installé.

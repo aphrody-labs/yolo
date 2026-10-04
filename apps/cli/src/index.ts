@@ -194,6 +194,9 @@ async function main(): Promise<void> {
         console.log(`  Resolver: v${report.cargo.resolver}`);
         console.log(`  Members:  ${report.cargo.members.join(", ")}`);
         console.log(
+          `  Default:  ${report.cargo.defaultMembers?.join(", ") ?? "Cargo implicit selection"}`,
+        );
+        console.log(
           `  Release:  opt-level=${String(report.cargo.releaseProfile["opt-level"] ?? "z")}, strip=${String(report.cargo.releaseProfile["strip"] ?? true)}`,
         );
       }
@@ -260,6 +263,12 @@ async function main(): Promise<void> {
     }
 
     case "bench": {
+      if (args.includes("--supervisor")) {
+        const { runSupervisorBenchCli } =
+          await import("../../../packages/core/src/sys/supervisor-benchmark");
+        process.exitCode = await runSupervisorBenchCli(args.slice(1));
+        break;
+      }
       const metrics = runBenchMetrics();
       if (args.includes("--json")) {
         console.log(JSON.stringify(metrics, null, 2));

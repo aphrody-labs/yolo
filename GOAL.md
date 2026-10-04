@@ -7,6 +7,25 @@ et [aphrody-py](../aphrody-py/GOAL.md) pour la surface Python IA/ML.
 
 ## 1. Rôle
 
+Précision propriétaire du 2026-10-05 : **Yolo est un fork Bun orienté desktop**.
+Le livrable final conserve le vrai cœur et les crates de Bun et intègre nativement
+V8, Tauri, Obscura, Turbopack et uv. Réutiliser leurs sources/API réelles ; les
+sous-processus et les imitations de Bun/uv ne constituent pas cette absorption.
+Les fournisseurs peuvent être sélectionnés au build et initialisés à la demande
+dans le processus. Le démarrage doit être comparable à Bun, avec preuves appariées
+sur les mêmes parcours ; ni `--version` seul ni un petit wrapper ne qualifient
+le démarrage d’une application desktop. Les deux crates Rust par défaut sont
+le socle commun de qualification/interop, pas le remplacement du cœur Bun.
+
+Précision complémentaire du même jour : conserver **JSC et WebKit**, ajouter la
+compatibilité V8 à partir d’Obscura, et améliorer les builds React/Next 16 avec
+les composants natifs existants. Tauri reste un plugin desktop ; Bun et ce plugin
+doivent pouvoir partager le même fournisseur WebView embarqué. Wry utilise
+aujourd’hui les moteurs système : un backend embarqué réel reste à implémenter
+et qualifier. Obscura fournit le headless ; sa présence ne prouve pas une
+implémentation Chromium complète. La cible de packaging est une application
+desktop en un fichier Bun, sans qualifier par avance sa réalisation ni ses gains.
+
 Yolo est la **bibliothèque partagée native d'Aphrody**, dans cet ordre de priorité :
 
 1. **Unix et POSIX d'abord** ; Windows (MSVC) reste une cible de compilation croisée.

@@ -8,6 +8,9 @@ One workspace, one set of commands (`just --list`).
 | TypeScript, oxlint, oxfmt, rustfmt, clippy | `just check` |
 | Bun tests | `just test` |
 | Rust tests (cargo-nextest, default members) | `just test-crates` |
+| Minimal native core, strict Clippy | `just check-core`, `just clippy` |
+| Optional provider gates | `just qualify-desktop`, `just qualify-browser`, `just qualify-python`, `just qualify-compiler`, `just qualify-upstream` |
+| Pinned provider build through Workspace | `just factory core\|desktop\|browser\|python\|compiler\|upstream <full-sha>` |
 | Everything | `just test-all` |
 | The repository gates as one parallel, measured report (JSON or Markdown) | `yolo verify [--only a,b] [--changed] [--json|--md]`, `--list`, `--last` |
 | Licenses / advisories / sources | `just deny` |
@@ -46,13 +49,31 @@ Measured on this repository: 13.1 s serial against 4.2 s with 16 in parallel, sa
 ## Cargo workspace
 
 - `Cargo.toml`: resolver 3, `members = ["crates/*"]`.
-- `default-members` excludes the heavy or side-effecting crates (`aphrody-tauri-runtime-cef`,
-  `aphrody-tauri-cli`, `aphrody-tauri-bundler`, `aphrody-tauri-macos-sign`, the napi bindings and the
-  schema generator). Build them explicitly with `-p`.
+- `default-members` contains only `yolo-core` and `yolo-runtime`. All 117 members
+  remain available through explicit provider/upstream recipes. Core commands use
+  `--locked --no-default-features`; they do not enable desktop, browser or Python.
+- Compiling recipes use `YOLO_CARGO_WRAPPER`, defaulting to Aphrody's installed
+  `scripts/build/rust/cargo-serial.sh`. The wrapper keeps its shared lock, sccache
+  and resource guard. `just factory <profile> <full-sha>` routes through the native
+  Workspace owner; it does not acquire missing toolchains or qualify an artifact
+  merely by dispatching a job.
 - `rust-toolchain.toml`: stable with rustfmt and clippy. `rustfmt.toml` is the Tauri style and applies
   to our crates; every vendored crate carries the `rustfmt.toml` of its upstream repository.
+- The default `rust-fmt` gate selects the two core crates. The former global
+  format check remains `just rust-fmt-upstream-check` and in the optional CI job.
+  `cargo fmt --all` can traverse external path dependencies even when they are
+  excluded from workspace membership. On the concurrent tree examined on
+  2026-10-05, it reports differences in 103 Obscura files; no engine is reformatted
+  by this reorganization.
 - `.cargo/config.toml`: `__TAURI_WORKSPACE__` and the macOS flags wry needs.
 - `deny.toml`: cargo-deny policy.
+
+CI separates the minimal Rust job from desktop/imported-source coverage. The
+five-target runtime and release matrices select only the core. Browser and
+compiler recipes require their producer sources and toolchains; GitHub workflow
+definitions are not evidence that those jobs ran. The current Aphrody consumer
+already verifies a pinned ABI 1.4 SDK/runtime without building the workspace.
+Its desktop/browser replacement still requires qualified provider artifacts.
 
 ## Layout
 

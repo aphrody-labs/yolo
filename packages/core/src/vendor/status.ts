@@ -245,6 +245,7 @@ export function renderStatusMarkdown(report: StatusReport): string {
       "",
       `- **Resolver:** v${report.cargo.resolver}`,
       `- **Members:** ${report.cargo.members.join(", ")}`,
+      `- **Default Members:** ${report.cargo.defaultMembers?.join(", ") ?? "Cargo implicit selection"}`,
       `- **Release Profile:** opt-level=${String(report.cargo.releaseProfile["opt-level"] ?? "z")}, strip=${String(report.cargo.releaseProfile["strip"] ?? true)}`,
     );
   }

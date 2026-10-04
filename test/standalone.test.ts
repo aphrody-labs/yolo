@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { COMPILE_FLAGS } from "../scripts/release/compile-flags";
@@ -72,6 +72,27 @@ afterAll(() => {
 });
 
 describe("compiled CLI without an installed Bun", () => {
+  it("prints verify and supervisor help and rejects invalid verify arguments without gates", () => {
+    const before = readdirSync(checkout).sort();
+    const installationBefore = readdirSync(home).sort();
+    const help = run(["verify", "--help"], checkout);
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout.toString()).toContain("Usage: yolo verify");
+    for (const args of [
+      ["verify", "--unrecognized"],
+      ["verify", "--parallel", "NaN"],
+    ]) {
+      const rejected = run(args, checkout);
+      expect(rejected.exitCode).toBe(2);
+      expect(rejected.stderr.toString()).toContain("yolo verify:");
+    }
+    const bench = run(["bench", "--supervisor", "--help"]);
+    expect(bench.exitCode).toBe(0);
+    expect(bench.stdout.toString()).toContain("Usage: yolo bench --supervisor");
+    expect(readdirSync(checkout).sort()).toEqual(before);
+    expect(readdirSync(home).sort()).toEqual(installationBefore);
+  });
+
   it("uses embedded Bun and version without loading the project's config or dotenv", () => {
     const result = run(["version", "--json"]);
     expect(result.exitCode).toBe(0);
@@ -212,7 +233,7 @@ describe("compiled CLI without an installed Bun", () => {
         body: JSON.stringify({ path: "../installation/VERSION" }),
         signal: AbortSignal.timeout(2_000),
       });
-      expect(outside.status).toBe(500);
+      expect(outside.status).toBe(400);
       expect((await outside.json()).error).toContain("Path traversal denied");
     } finally {
       child.kill();

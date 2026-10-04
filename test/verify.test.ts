@@ -104,6 +104,42 @@ describe("validateGraph", () => {
 });
 
 describe("selectChanged", () => {
+  it("selects only core Rust formatting by default and declares upstream checks explicitly", () => {
+    const core = GATES.find((entry) => entry.id === "rust-fmt");
+    expect(core?.command).toEqual([
+      "cargo",
+      "fmt",
+      "--check",
+      "-p",
+      "yolo-core",
+      "-p",
+      "yolo-runtime",
+    ]);
+    expect(core?.title).toContain("yolo-core and yolo-runtime");
+    for (const file of [
+      "crates/yolo-core/src/lib.rs",
+      "crates/yolo-runtime/src/lib.rs",
+      "Cargo.toml",
+      "rustfmt.toml",
+      ".rustfmt.toml",
+    ])
+      expect(selectChanged(GATES, [file]).map((entry) => entry.id)).toContain("rust-fmt");
+    for (const file of [
+      "vendor/obscura/crates/obscura-core/src/lib.rs",
+      "crates/aphrody-tauri/src/lib.rs",
+      "crates/yolo-desktop/src/lib.rs",
+      "crates/yolo-pyo3/src/lib.rs",
+    ])
+      expect(selectChanged(GATES, [file]).map((entry) => entry.id)).not.toContain("rust-fmt");
+    const upstream = NOT_RUN_HEAVY.find((entry) => entry.id === "rust-fmt-upstream");
+    expect(upstream?.title).toContain("--all --check");
+    expect(upstream?.reason).toContain("just rust-fmt-upstream-check");
+    expect(upstream?.reason).toContain("explicit upstream profile");
+    expect(upstream?.reason).toContain("no compilation or reformatting");
+    const listed = JSON.parse(renderList(GATES, NOT_RUN_HEAVY, true));
+    expect(listed.notRun).toContainEqual(upstream);
+  });
+
   it("selects the gates whose surfaces match a changed file", () => {
     const only = (files: string[]) => selectChanged(GATES, files).map((g) => g.id);
     expect(only(["docs/SERVER.md"])).toEqual(["whitespace", "docs"]);
@@ -203,6 +239,127 @@ describe("spawnRunner (real processes)", () => {
 });
 
 describe("yolo verify command", () => {
+  it("prints help without inspecting gates or creating a report", async () => {
+    const root = mkdtempSync(join(tmpdir(), "verify-help-"));
+    try {
+      for (const help of ["--help", "-h"]) {
+        let printed = "";
+        let touched = 0;
+        const code = await runVerifyCommand([help], root, {
+          gates: [
+            {
+              ...gate("must-not-run"),
+              precondition: () => {
+                touched++;
+                throw new Error("help inspected a gate");
+              },
+            },
+          ],
+          run: async () => {
+            touched++;
+            throw new Error("help executed a gate");
+          },
+          out: (text) => (printed += text),
+        });
+        expect(code).toBe(0);
+        expect(printed).toContain("Usage: yolo verify");
+        expect(printed).toContain("--timeout SECS");
+        expect(touched).toBe(0);
+        expect(readdirSync(root)).toEqual([]);
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects malformed argv before any gate or report side effect", async () => {
+    const root = mkdtempSync(join(tmpdir(), "verify-arguments-"));
+    try {
+      const invalid = [
+        ["--unrecognized"],
+        ["unexpected-position"],
+        ["--help", "--unrecognized"],
+        ["--list", "--unrecognized"],
+        ["--last", "--unrecognized"],
+        ["--only"],
+        ["--only", "--json"],
+        ["--only", ""],
+        ["--only", ",a"],
+        ["--only", "a,"],
+        ["--parallel"],
+        ["--parallel", "0"],
+        ["--parallel", "-1"],
+        ["--parallel", "1.5"],
+        ["--parallel", "NaN"],
+        ["--parallel", "Infinity"],
+        ["--parallel", "9007199254740992"],
+        ["--timeout"],
+        ["--timeout", "0"],
+        ["--timeout", "NaN"],
+        ["--timeout", "Infinity"],
+        ["--timeout", "2147484"],
+        ["--timeout", "0.0001"],
+        ["--out"],
+        ["--out", "--json"],
+        ["--json", "--md"],
+        ["--only", "a", "--changed"],
+        ["--list", "--last"],
+        ["--list", "--only", "a"],
+        ["--last", "--out", join(root, "unexpected")],
+        ["--parallel", "1", "--parallel", "2"],
+      ];
+      for (const args of invalid) {
+        let executed = 0;
+        let error = "";
+        const code = await runVerifyCommand(args, root, {
+          gates: [gate("a")],
+          run: async () => {
+            executed++;
+            return { exitCode: 0, output: "" };
+          },
+          out: () => {},
+          err: (text) => (error += text),
+        });
+        expect({ args, code, executed }).toEqual({ args, code: 2, executed: 0 });
+        expect(error).toContain("yolo verify:");
+        expect(readdirSync(root)).toEqual([]);
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("lists gates without a run and accepts validated numeric options for a selected gate", async () => {
+    const root = mkdtempSync(join(tmpdir(), "verify-options-"));
+    try {
+      const executed: string[] = [];
+      let printed = "";
+      const deps = {
+        gates: [gate("a")],
+        run: async (entry: Gate) => {
+          executed.push(entry.id);
+          return { exitCode: 0, output: "" };
+        },
+        out: (text: string) => (printed = text),
+      };
+      expect(await runVerifyCommand(["--list", "--json"], root, deps)).toBe(0);
+      expect(JSON.parse(printed).schema).toBe("yolo.verify.gates/1");
+      expect(executed).toEqual([]);
+      expect(readdirSync(root)).toEqual([]);
+      expect(
+        await runVerifyCommand(
+          ["--only", "a", "--parallel", "2", "--timeout", "0.5", "--json"],
+          root,
+          deps,
+        ),
+      ).toBe(0);
+      expect(executed).toEqual(["a"]);
+      expect(JSON.parse(printed).parallel).toBe(2);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("writes latest.json and a timestamped copy, prints JSON, and exits 1 when a gate fails", async () => {
     const root = mkdtempSync(join(tmpdir(), "verify-"));
     try {

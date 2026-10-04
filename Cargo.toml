@@ -1,58 +1,9 @@
 [workspace]
 resolver = "3"
 members = ["crates/*"]
-# Heavy or side-effecting crates (CEF runtime, CLI/bundler, napi bindings, schema generator)
-# are workspace members but excluded from default `cargo check/test/build` runs.
-default-members = [
-  "crates/aphrody-acl-tests",
-  "crates/aphrody-create-tauri-app",
-  "crates/aphrody-tao",
-  "crates/aphrody-tao-macros",
-  "crates/aphrody-tauri",
-  "crates/aphrody-tauri-build",
-  "crates/aphrody-tauri-codegen",
-  "crates/aphrody-tauri-driver",
-  "crates/aphrody-tauri-macros",
-  "crates/aphrody-tauri-plugin",
-  "crates/aphrody-tauri-plugin-autostart",
-  "crates/aphrody-tauri-plugin-barcode-scanner",
-  "crates/aphrody-tauri-plugin-biometric",
-  "crates/aphrody-tauri-plugin-cli",
-  "crates/aphrody-tauri-plugin-clipboard-manager",
-  "crates/aphrody-tauri-plugin-deep-link",
-  "crates/aphrody-tauri-plugin-dialog",
-  "crates/aphrody-tauri-plugin-fs",
-  "crates/aphrody-tauri-plugin-geolocation",
-  "crates/aphrody-tauri-plugin-global-shortcut",
-  "crates/aphrody-tauri-plugin-haptics",
-  "crates/aphrody-tauri-plugin-http",
-  "crates/aphrody-tauri-plugin-localhost",
-  "crates/aphrody-tauri-plugin-log",
-  "crates/aphrody-tauri-plugin-nfc",
-  "crates/aphrody-tauri-plugin-notification",
-  "crates/aphrody-tauri-plugin-opener",
-  "crates/aphrody-tauri-plugin-os",
-  "crates/aphrody-tauri-plugin-persisted-scope",
-  "crates/aphrody-tauri-plugin-positioner",
-  "crates/aphrody-tauri-plugin-process",
-  "crates/aphrody-tauri-plugin-shell",
-  "crates/aphrody-tauri-plugin-single-instance",
-  "crates/aphrody-tauri-plugin-sql",
-  "crates/aphrody-tauri-plugin-store",
-  "crates/aphrody-tauri-plugin-stronghold",
-  "crates/aphrody-tauri-plugin-updater",
-  "crates/aphrody-tauri-plugin-upload",
-  "crates/aphrody-tauri-plugin-websocket",
-  "crates/aphrody-tauri-plugin-window-state",
-  "crates/aphrody-tauri-runtime",
-  "crates/aphrody-tauri-runtime-wry",
-  "crates/aphrody-tauri-utils",
-  "crates/aphrody-wry",
-  "crates/yolo-core",
-  "crates/yolo-desktop",
-  "crates/yolo-pyo3",
-  "crates/yolo-runtime",
-]
+# The default build is the shared native core. Desktop, Python and compiler
+# providers remain workspace members selected explicitly by their build recipes.
+default-members = ["crates/yolo-core", "crates/yolo-runtime"]
 
 [workspace.package]
 version = "0.1.0"

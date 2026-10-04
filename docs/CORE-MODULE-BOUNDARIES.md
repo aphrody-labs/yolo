@@ -15,6 +15,38 @@ et 59 compilateur. Ce comptage décrit les sources, pas une résolution Cargo
 transitive ni la taille d’un binaire. Les modifications concurrentes des
 manifestes et du navigateur sont identifiées dans le recensement.
 
+Mise en œuvre du 2026-10-05 : les racines Cargo par défaut sont réduites aux deux
+crates cœur ; les recettes, la CI et le format Rust distinguent le cœur des
+fournisseurs. Le recensement du 4 octobre reste une preuve de l’état précédent.
+La qualification et les limites courantes sont dans
+[le reçu d’implémentation](core-modules-implementation-2026-10-05.json).
+
+## Précision propriétaire : absorption dans le fork Bun
+
+Le 2026-10-05, le propriétaire confirme la cible **fork Bun orienté desktop**,
+avec les vrais moteurs V8/Tauri/Obscura/Turbopack et uv absorbés nativement.
+Le cœur Bun complet reste dans `vendor/bun` ; les deux crates `yolo-*` minimales
+désignent le socle commun de qualification et d’interopérabilité, pas tout le
+runtime final. Les modules organisent le code et l’initialisation à la demande
+dans le processus. Un preload ou un wrapper qui invoque les CLI ne réalise pas
+cette absorption.
+
+Le tableau ci-dessous décrit les propriétaires et la séparation des builds.
+L’hôte desktop supervisé et l’acquisition actuelle par CLI sont des étapes
+existantes, pas la cible d’intégration native. Le raccordement doit réutiliser les
+bibliothèques réelles, leurs boucles d’événements et leurs garanties de panic/ABI.
+La parité de démarrage avec Bun nécessite une mesure appariée des mêmes parcours,
+puis des mesures du premier usage desktop/browser ; elle n’est pas acquise.
+
+La précision suivante du même jour conserve JSC/WebKit et la compatibilité V8.
+Tauri reste un plugin desktop et partage à terme le fournisseur WebView de Bun ;
+Obscura porte le headless. Wry ne fournit pas actuellement un moteur Web embarqué :
+ses backends sélectionnent les WebViews des plateformes. Un raccord réel doit
+donc remplacer cette dépendance dans le profil embarqué, sans déclarer cette
+capacité sur la seule base d’un flag. La cible inclut React/Next 16 et une
+application desktop empaquetée en un fichier Bun ; aucune parité Chromium ni
+amélioration du compilateur n’est déduite de cet arbitrage.
+
 ## Arbitrage par ensemble
 
 | Ensemble constaté | Destination retenue | Limite publique |
@@ -54,9 +86,10 @@ suffit pas : `turbo-tasks` et `turbo-tasks-fs` restent internes au compilateur.
 
 ## Desktop : conserver le fournisseur, sélectionner les extensions
 
-Tauri, Wry et Tao restent ensemble comme fournisseur optionnel. Le
-[SDK desktop](../packages/runtime/src/desktop.ts) supervise un hôte précompilé
-séparé ; sa boucle UI principale justifie cette frontière de processus.
+Tauri, Wry et Tao restent ensemble comme plugin optionnel. Le
+[SDK desktop](../packages/runtime/src/desktop.ts) supervise actuellement un hôte
+précompilé séparé ; ce chemin transitoire n’est pas l’absorption demandée.
+L’intégration dans Bun doit respecter la boucle UI principale et ses règles de thread.
 La source générique et les artefacts moteur appartiennent à Yolo ; les fenêtres,
 workflows, capacités accordées et l’UI canonique appartiennent à Aphrody.
 
@@ -105,8 +138,9 @@ que résoudre les imports du SDK runtime.
 | Accès interne à la VM | Patch du fork Bun, build et tests propres | [Registre des builtins](../vendor/bun/src/resolve_builtins/HardcodedModule.rs) |
 
 `Bun.plugin()` ne commute pas JSC vers V8 et ne remplace pas globalement
-`Bun.file`. Obscura possède son propre backend V8 ; la parité JSC puis le retrait
-de V8 suivent R5/R6. Le GOAL de moteur commutable dans Bun reste un chantier
+`Bun.file`. Obscura possède son propre backend V8 ; R5/R6 qualifient désormais
+les contrats JSC/V8 et leur coexistence, sans retrait général de V8.
+Le GOAL de moteur commutable dans Bun reste un chantier
 distinct à mener dans le fork Bun, avec qualification propre, hors prérequis du cœur minimal.
 Les déclarations `bun-types/tauri.d.ts` ne prouvent pas un builtin Tauri exécuté.
 
@@ -141,11 +175,10 @@ pas nécessaire pour adopter ce découpage.
 
 ## Mise en œuvre et critères de fermeture
 
-1. Réduire les `default-members` Cargo aux deux crates cœur. Le manifeste
-   observé sélectionne 48 racines, dont 44 imports, desktop et PyO3. Conserver
-   les autres membres et des sélections explicites desktop, Python, compiler
-   et qualification upstream. Le manifeste appartient au lot concurrent
-   d’intégration ; cet arbitrage ne le modifie pas.
+1. **Appliqué le 2026-10-05 :** `default-members` contient uniquement les deux
+   crates cœur, contre 48 racines précédemment. Les 117 membres sont conservés
+   avec des sélections explicites desktop, browser, Python, compiler et upstream.
+   Les ajouts concurrents de dépendances browser restent préservés.
 2. Qualifier les fournisseurs desktop/browser en cours : artefact épinglé,
    capacités détectées, erreurs et refus de droits, annulation et arrêt,
    installation et consommateur réel. Builds lourds par la fabrique sérialisée.

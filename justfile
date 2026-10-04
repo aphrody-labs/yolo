@@ -3,6 +3,12 @@
 
 set shell := ["bash", "-l", "-c"]
 
+# Local/factory builds use Aphrody's shared Cargo lock, cache and resource guard.
+# The factory may override this with its installed owner wrapper.
+cargo_owner := env("YOLO_CARGO_WRAPPER", env("HOME") / "aphrody/scripts/build/rust/cargo-serial.sh")
+# Keep in sync with the pinned vendor/next/rust-toolchain.toml; core stays stable.
+compiler_toolchain := "nightly-2026-08-20"
+
 default: status
 
 # Status & Diagnostics
@@ -12,10 +18,10 @@ status:
     @echo -e "\n\033[1;36m=== Submodules ===\033[0m"
     @bun run scripts/vendor/packages_upstream_sync.ts
     @echo -e "\n\033[1;36m=== Cargo Workspace ===\033[0m"
-    @cargo check --message-format=short
+    @"{{cargo_owner}}" check --locked --no-default-features -p yolo-core -p yolo-runtime --message-format=short
 
 # Quality gates & verification
-check: typecheck lint fmt-check rust-fmt-check clippy
+check: typecheck lint fmt-check rust-fmt-check check-core clippy
     @echo -e "\033[1;32m[OK] Quality gates passed\033[0m"
 
 typecheck:
@@ -31,16 +37,29 @@ fmt:
 fmt-check:
     oxfmt --check scripts/ test/ packages/ apps/cli/src/ apps/web/src/
 
-# Rust formatting. Each vendored crate carries the rustfmt.toml of its upstream repository.
+# Minimal owned source formatting; imported engines keep an explicit upstream gate.
 rust-fmt:
-    cargo fmt --all
+    "{{cargo_owner}}" fmt -p yolo-core -p yolo-runtime
 
 rust-fmt-check:
-    cargo fmt --all --check
+    "{{cargo_owner}}" fmt --check -p yolo-core -p yolo-runtime
 
-# Clippy is enforced on our own crates only; vendored crates keep their upstream lint level.
+rust-fmt-upstream-check:
+    "{{cargo_owner}}" fmt --all --check
+
+rust-fmt-desktop-check:
+    "{{cargo_owner}}" fmt --check -p yolo-desktop
+
+rust-fmt-python-check:
+    "{{cargo_owner}}" fmt --check -p yolo-pyo3
+
+# Minimal native server graph: no desktop, Python, browser or compiler provider.
+check-core:
+    "{{cargo_owner}}" check --locked --no-default-features -p yolo-core -p yolo-runtime --all-targets
+
+# Clippy is strict on the core; optional owned providers have their own gates below.
 clippy:
-    cargo clippy -p yolo-core -p yolo-desktop --all-targets -- -D warnings
+    "{{cargo_owner}}" clippy --locked --no-default-features -p yolo-core -p yolo-runtime --all-targets -- -D warnings
 
 # Licenses, advisories, sources (cargo-deny, policy in deny.toml)
 deny:
@@ -50,20 +69,26 @@ deny:
 deny-ci:
     cargo deny check licenses sources
 
-# The workspace check of CI: every member but the heavy or side-effecting ones, all targets (examples included)
-check-workspace:
-    cargo check --workspace --exclude aphrody-tauri-runtime-cef --exclude 'aphrody-turbo*' --exclude 'aphrody-next*' --exclude aphrody-auto-hash-map --exclude aphrody-swc-ast-explorer --all-targets
+# Explicit imported desktop graph and tools, preserving the former workspace gate.
+# Compiler and CEF engines retain separate opt-in selections.
+check-upstream:
+    "{{cargo_owner}}" check --locked --workspace --exclude aphrody-tauri-runtime-cef --exclude 'aphrody-turbo*' --exclude 'aphrody-next*' --exclude aphrody-auto-hash-map --exclude aphrody-swc-ast-explorer --all-targets
 
-# Every gate of .github/workflows/ci.yml in one recipe (the build factory runs it through `yolo ship`)
-ci: check check-workspace deny-ci test-all
+check-workspace: check-upstream
+
+# Test the former desktop/default-member selection explicitly, including upstream helpers.
+test-upstream:
+    "{{cargo_owner}}" nextest run --locked --no-fail-fast --lib --bins --tests -p 'aphrody-tauri' -p 'aphrody-tauri-build' -p 'aphrody-tauri-codegen' -p 'aphrody-tauri-driver' -p 'aphrody-tauri-macros' -p 'aphrody-tauri-plugin' -p 'aphrody-tauri-plugin-*' -p 'aphrody-tauri-runtime' -p 'aphrody-tauri-runtime-wry' -p 'aphrody-tauri-utils' -p aphrody-acl-tests -p aphrody-create-tauri-app -p aphrody-tao -p aphrody-tao-macros -p aphrody-wry
+
+# Default gates cover the minimal core; provider/upstream gates are explicit below.
+ci: check deny-ci test-all
 
 test:
     bun test test/
 
-# Rust tests of the default workspace members (cargo-nextest). Examples are compiled by `check-workspace`;
-# linking them here would collide (wry and tao both ship `transparent` and `multiwindow` examples).
+# Explicit packages keep this contract stable when other workspace members are added.
 test-crates:
-    cargo nextest run --no-fail-fast --lib --bins --tests
+    "{{cargo_owner}}" nextest run --locked --no-default-features --no-fail-fast --lib --bins --tests -p yolo-core -p yolo-runtime
 
 test-all: test test-crates
 
@@ -78,16 +103,83 @@ web-dev:
     cd apps/web && bun run dev
 
 desktop-build: web-build
-    cargo build -p yolo-desktop
+    "{{cargo_owner}}" build --locked -p yolo-desktop
 
 desktop-dev: web-dev
 
 desktop-tauri-check:
-    cargo check -p yolo-desktop
+    "{{cargo_owner}}" check --locked -p yolo-desktop --all-targets
+
+clippy-desktop:
+    "{{cargo_owner}}" clippy --locked -p yolo-desktop --all-targets -- -D warnings
+
+test-desktop:
+    "{{cargo_owner}}" nextest run --locked -p yolo-desktop --lib --bins --tests --no-fail-fast
+
+qualify-desktop: rust-fmt-desktop-check desktop-tauri-check clippy-desktop test-desktop
+
+# Requires a producer revision containing the optional browser feature. This selection
+# does not assert that the feature or its installed artifact is already qualified.
+check-browser:
+    "{{cargo_owner}}" check --locked -p yolo-runtime --no-default-features --features browser --all-targets
+
+clippy-browser:
+    "{{cargo_owner}}" clippy --locked -p yolo-runtime --no-default-features --features browser --all-targets -- -D warnings
+
+test-browser:
+    "{{cargo_owner}}" test --locked -p yolo-runtime --no-default-features --features browser --lib
+
+qualify-browser: rust-fmt-check check-browser clippy-browser test-browser
+
+check-python:
+    "{{cargo_owner}}" check --locked -p yolo-pyo3 --all-targets
+
+clippy-python:
+    "{{cargo_owner}}" clippy --locked -p yolo-pyo3 --all-targets -- -D warnings
+
+test-python-crate:
+    "{{cargo_owner}}" test --locked -p yolo-pyo3 --lib --bins --tests
+
+# uv invokes Maturin/Cargo; run it inside the factory's shared heavy lock.
+test-python:
+    @test "${APHRODY_BUILD_HOST:-}" = vps || { echo 'Python native build requires the declared factory; use just factory python <sha>.' >&2; exit 64; }
+    just test-python-crate
+    uv sync --locked --package yolo --extra dev
+    uv run --package yolo --extra dev --no-sync -- python -m pytest packages/python/tests
+
+qualify-python: rust-fmt-python-check check-python clippy-python test-python
+
+# `rustup run` without --install refuses an absent toolchain instead of acquiring it.
+_compiler-ready:
+    rustup run "{{compiler_toolchain}}" rustc --version
+
+# Upstream compiler lints keep their upstream levels; check all native entry points.
+check-compiler: _compiler-ready
+    "{{cargo_owner}}" +{{compiler_toolchain}} check --locked -p 'aphrody-turbo*' -p 'aphrody-next*' -p aphrody-auto-hash-map -p aphrody-swc-ast-explorer --all-targets
+
+test-compiler: _compiler-ready
+    "{{cargo_owner}}" +{{compiler_toolchain}} nextest run --locked -p 'aphrody-turbo*' -p 'aphrody-next*' -p aphrody-auto-hash-map -p aphrody-swc-ast-explorer --lib --bins --tests --no-fail-fast
+
+qualify-compiler: _compiler-ready rust-fmt-upstream-check check-compiler test-compiler
+
+qualify-upstream: rust-fmt-upstream-check check-upstream test-upstream
+
+# Native Workspace owner pins the source revision and serializes heavy provider builds.
+[positional-arguments]
+factory profile revision:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "$1" in
+      core) recipe=ci ;;
+      desktop|browser|python|compiler|upstream) recipe="qualify-$1" ;;
+      *) echo 'Unknown profile: expected core, desktop, browser, python, compiler or upstream.' >&2; exit 64 ;;
+    esac
+    [[ "$2" =~ ^[0-9a-f]{40}$ ]] || { echo 'Factory revision must be a full Git SHA.' >&2; exit 64; }
+    exec ./bin/yolo ops build-factory run --repo yolo --revision "$2" -- just "$recipe"
 
 # Install the forked Tauri CLI (`cargo tauri`) from crates/aphrody-tauri-cli
 install-cli:
-    cargo install --path crates/aphrody-tauri-cli --locked
+    "{{cargo_owner}}" install --path crates/aphrody-tauri-cli --locked
 
 # Autonomous Code Generation Engine (from Bun upstream)
 generate:
@@ -95,10 +187,10 @@ generate:
 
 # Native runtime (docs/RUNTIME-ABI.md): the artifact uses the `runtime` profile (unwinding panics)
 runtime-build:
-    cargo build --profile runtime -p yolo-runtime
+    "{{cargo_owner}}" build --locked --no-default-features --profile runtime -p yolo-runtime
 
 runtime-test: runtime-build
-    cargo test -p yolo-runtime -p yolo-core
+    "{{cargo_owner}}" test --locked --no-default-features -p yolo-runtime -p yolo-core
     bun run scripts/release/runtime_artifact.ts
     YOLO_RUNTIME_LIB="$(bun -e 'import { libraryFile } from "./packages/runtime/src/index.ts"; console.log("target/runtime/" + libraryFile())')" bun test test/runtime_sdk.test.ts test/runtime_release.test.ts
 

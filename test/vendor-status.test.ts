@@ -3,7 +3,14 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { inspectPackages, readGitHead, readVendorStatus } from "../packages/core/src/vendor/status";
+import {
+  collectStatusReport,
+  inspectPackages,
+  readGitHead,
+  readVendorStatus,
+  renderStatusMarkdown,
+} from "../packages/core/src/vendor/status";
+import { readWorkspaceCargo } from "../packages/core/src/vendor/cargo";
 
 const roots: string[] = [];
 afterEach(() => roots.splice(0).forEach((root) => rmSync(root, { recursive: true, force: true })));
@@ -71,4 +78,26 @@ test("bounded symbolic refs resolve while malformed or cyclic metadata stays unq
   expect(await readGitHead(value.repository)).toBeUndefined();
   writeFileSync(join(value.repository, ".git/HEAD"), "ref: refs/../outside\n");
   expect(await readGitHead(value.repository)).toBeUndefined();
+});
+
+test("status distinguishes the core default selection from all workspace members", async () => {
+  const root = mkdtempSync(join(tmpdir(), "yolo-cargo-selection-"));
+  roots.push(root);
+  writeFileSync(
+    join(root, "Cargo.toml"),
+    '[workspace]\nmembers = ["crates/*"]\ndefault-members = ["crates/yolo-core", "crates/yolo-runtime"]\n',
+  );
+  const status = await collectStatusReport(root);
+  expect(status.cargo?.members).toEqual(["crates/*"]);
+  expect(status.cargo?.defaultMembers).toEqual(["crates/yolo-core", "crates/yolo-runtime"]);
+  expect(renderStatusMarkdown(status)).toContain(
+    "**Default Members:** crates/yolo-core, crates/yolo-runtime",
+  );
+  writeFileSync(join(root, "Cargo.toml"), '[workspace]\nmembers = ["crates/*"]\n');
+  expect((await readWorkspaceCargo(root))?.defaultMembers).toBeNull();
+  writeFileSync(
+    join(root, "Cargo.toml"),
+    '[workspace]\nmembers = ["crates/*"]\ndefault-members = []\n',
+  );
+  expect((await readWorkspaceCargo(root))?.defaultMembers).toEqual([]);
 });
