@@ -6,6 +6,8 @@
     "aphrodyCommit": "447f2c84dc03cfef1066e6c975e5983dccd84d47",
     "directServiceCommit": "1094f850dff1b691be037d810f3d9833b897b13b",
     "gitCancellationCommit": "5697fc108",
+    "workerIdentityCommit": "d290897c076e6940a2d35654a5d2f93d5c59794e",
+    "statusCommand": "aphrody-ops repo-sync status --json",
     "configuration": "../../aphrody/config/commit-sync.json",
     "sourceOwner": "../../aphrody/scripts/source-sync.ts",
     "factoryOwner": "../../aphrody/packages/infra/workspace/src/build-factory.ts",
@@ -32,6 +34,14 @@
     "watcherPidAfterRestart": 4091523,
     "preservedWorkerPid": 4057238,
     "actualRestartPreservedSameWorker": true
+  },
+  "qualifiedRestart": {
+    "observedAt": "2026-10-04T21:11:23.846Z",
+    "watcherPid": 5618,
+    "preservedWorkerPid": 4057238,
+    "serviceActiveAndEnabled": true,
+    "legacyWorkerReconciliationRequired": true,
+    "legacyWorkerState": "running, prepare; terminal lifecycle receipt will release pending work"
   },
   "synchronizedMainSnapshot": [
     {
