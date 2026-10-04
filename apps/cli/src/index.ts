@@ -299,7 +299,7 @@ async function main(): Promise<void> {
           stdout: "inherit",
           stderr: "inherit",
         });
-        await proc.exited;
+        process.exitCode = await proc.exited;
       } else {
         console.log(`\x1b[1m\x1b[36m=== Building Web Frontend ===\x1b[0m`);
         const proc = Bun.spawn(["bun", "run", "build"], {
@@ -307,7 +307,7 @@ async function main(): Promise<void> {
           stdout: "inherit",
           stderr: "inherit",
         });
-        await proc.exited;
+        process.exitCode = await proc.exited;
       }
       break;
     }
