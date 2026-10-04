@@ -63,3 +63,27 @@ Mémoire fichier uniquement ; aucune mémoire fournisseur synchronisée.
 
 Requalification et corrections : [fact-check du 2026-10-04](docs/FACT-CHECK-2026-10-04.md),
 [reçu](docs/fact-check-2026-10-04.json). Les anciens résultats restent des preuves datées.
+
+
+## Gestionnaire unifié — première tranche (2026-10-04)
+
+Le jalon encore ouvert du GOAL §3 possède maintenant un propriétaire Bun
+`packages/core/src/pm` : plan de manifestes/locks puis synchronisation explicite
+Bun/uv/Cargo avec les binaires globaux. Cargo reste sérialisé par Aphrody ; les
+processus sont supervisés par le runtime natif installé ABI 1.4,
+source `0ade1c71ccb5`. Sept tests/39 assertions exécutent réellement les trois
+outils sur des projets temporaires, préservent les locks et annulent un
+téléchargement HTTP local bloqué. `yolo mcp` expose `yolo_package_sync` et un
+appel stdio réel, sans newline terminale, retourne un preflight prêt/non appliqué.
+
+Le lot core préalable compte 134 tests réussis/0 échec, 18 fichiers ; TypeScript,
+oxlint strict, format et whitespace passent. La suite générale du checkout
+concurrent compte 411 pass, 20 skip et deux échecs de compilation déjà présents
+avant ce lot : top-level await du benchmark de supervision dans les tests
+standalone/installer. Ces fichiers concurrents restent préservés.
+
+Le gestionnaire complet reste ouvert : add/remove/update, acquisition des outils,
+sélection des moteurs et autres cibles n'ont pas été qualifiés. Redis conserve
+une mémoire hors ligne volatile et KNN exact O(N) ; Gemma qualifie des transports
+HTTP locaux, pas des poids, un tokenizer numérique ou un entraînement.
+Preuves : [gestionnaire et lot core](docs/package-manager-2026-10-04.json).

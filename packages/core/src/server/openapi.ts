@@ -1,3 +1,5 @@
+import { TOOLS } from "../mcp/server";
+
 /**
  * OpenAPI 3.1 schema specification for the YOLO micro-server.
  */
@@ -47,14 +49,73 @@ export function buildOpenApiSpec(version: string, bunVersion: string) {
                 schema: {
                   type: "object",
                   properties: {
-                    target: { type: "string" },
-                    exts: { type: "array", items: { type: "string" } },
+                    path: { type: "string" },
+                    exts: { type: "string" },
+                    parallel: { type: "integer", minimum: 1, maximum: 256 },
                   },
                 },
               },
             },
           },
           responses: { "200": { description: "Scan results" } },
+        },
+      },
+      "/api/parse": {
+        post: {
+          summary: "Parse source inside the workspace",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: TOOLS.find((tool) => tool.name === "yolo_parse")!.inputSchema,
+              },
+            },
+          },
+          responses: {
+            "200": { description: "Source analysis" },
+            "400": { description: "Invalid arguments" },
+          },
+        },
+      },
+      "/api/verify": {
+        post: {
+          summary: "Run selected gates and their prerequisites",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: TOOLS.find((tool) => tool.name === "yolo_verify")!.inputSchema,
+              },
+            },
+          },
+          responses: {
+            "200": { description: "Gate report" },
+            "400": { description: "Invalid arguments" },
+          },
+        },
+      },
+      "/api/tools/call": {
+        post: {
+          summary: "Execute a native MCP tool",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  oneOf: TOOLS.map((tool) => ({
+                    type: "object",
+                    required: ["name"],
+                    properties: { name: { const: tool.name }, arguments: tool.inputSchema },
+                  })),
+                },
+              },
+            },
+          },
+          responses: {
+            "200": { description: "Structured tool result" },
+            "400": { description: "Invalid arguments" },
+            "401": { description: "Token required" },
+          },
         },
       },
       "/api/tools": {

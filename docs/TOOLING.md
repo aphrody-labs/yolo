@@ -152,3 +152,20 @@ The canonical `yolo` plugin merges Bun/TypeScript and Yolo guidance, with both p
 Use `aphrody-workspace plugins status`, `facts` and `validate` for actual registrations and evidence. In the store, `bun scripts/sync.ts refresh --name yolo` updates source snapshots without staging or publishing concurrent edits; `once` and `watch` publish and require an owned, validated batch. Current upstream branches and installed versions remain separate evidence.
 
 `yolo plugin status` inspects the bundle. The existing template generator lacks an overwrite guard; do not run `generate/create` against the curated submodule. Use an explicit temporary output for templates. This maintenance did not change excluded runtime source or qualify engine builds.
+
+
+## Native dependency synchronization
+
+The core `@aphrody/yolo-core/pm` owner exposes `planPackageSync` and `syncPackages`.
+`yolo mcp` serves `yolo_package_sync`; `yolo api` serves the same tool through
+`POST /api/tools/call`. Arguments are `path`, optional `managers` (`bun,uv,cargo`),
+`offline`, `production`, `timeoutMs` and `apply` (false by default). HTTP contains
+project paths within its configured root and applies its existing token policy.
+
+Plans require installed global binaries and existing native locks. Apply runs
+Bun frozen/without scripts, uv locked/without Python downloads, and serialized
+Cargo fetch under the installed ABI 1.4 supervisor. No engine compilation is
+performed. Missing/stale locks and failures remain explicit. The full manager
+milestone stays open beyond this Linux x64 dependency-acquisition tranche.
+See [qualification](package-manager-2026-10-04.json) and
+[core API](../packages/core/README.md).

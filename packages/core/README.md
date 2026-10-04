@@ -1,24 +1,78 @@
 # YOLO Core Library (`@aphrody/yolo-core`)
 
-Unified native core library for YOLO, modeled directly after Bun's core architecture (`bun_core` + `src/js/internal` + `packages/bun-types`).
+Native Bun owners shared by the Yolo CLI, MCP server and HTTP API. Public subpaths
+cover `sys`, `vfs`, `vendor`, `runtime`, `verify`, `server`, `mcp`, `fleet`,
+`scaffold`, `curation`, `coord`, `distribution`, `host`, `units`, `ledger`,
+`monitor`, `redis`, `gemma4` and `pm`.
 
-## Architecture
+## Unified dependency synchronization
 
-- **`yolo/sys`** (`./sys`): Low-level platform primitives, hardware statistics, sub-microsecond benchmarking, diagnostic probes (`doctor`), and zero-copy hashing (`wyhash`, `crc32`, `sha256`).
-- **`yolo/vfs`** (`./vfs`): High-performance filesystem operations: parallel tree traversal with wyhash fingerprinting (`scanDirectory`), fast AST token analysis (`parseTsSource`), and path layout resolution.
-- **`yolo/vendor`** (`./vendor`): Monorepo submodule tracker, `vendor.lock` verification, workspace `Cargo.toml` inspection, autonomous Bun upstream capability crawler, and crate importer.
-- **`yolo/runtime`** (`./runtime`): Native C ABI 1.4 bridge to `yolo_runtime` cdylib, process supervisor, and readiness probes.
-- **`yolo/verify`** (`./verify`): Quality gate graph scheduler, parallel worker execution, timing metrics, and structured reporting (`yolo.verify/1`).
-- **`yolo/server`** (`./server`): Native HTTP / REST / OpenAPI 3.1 micro-server powered 100% by `Bun.serve`.
-- **`yolo/mcp`** (`./mcp`): Model Context Protocol (MCP 2024-11-05) JSON-RPC 2.0 stdio server for AI agents.
-- **`yolo/fleet`** (`./fleet`): Remote host fleet management, hardlink space accounting, and command safety engine.
-- **`yolo/scaffold`** (`./scaffold`): Project template scaffolder, variable substitution, and feature layer injector.
-- **`yolo/curation`** (`./curation`): Awesome repository curation and mass identifier renamer.
-- **`yolo/coord`** (`./coord`): Sibling workspace coordination, advisory claim locks, and unit execution.
-- **`yolo/distribution`** (`./distribution`): Artifact verification and release packaging.
+The `pm` owner implements the first dependency-acquisition tranche of the
+Bun/uv/Cargo manager requested in [GOAL](../../GOAL.md). It detects manifests,
+requires existing locks and installed global binaries, and returns a read-only
+preflight by default. Applying a ready plan runs each manager sequentially under
+the existing native runtime supervisor. Cargo uses Aphrody's serialization wrapper.
 
-## Design Principles
+```ts
+import { planPackageSync, syncPackages } from "@aphrody/yolo-core/pm";
 
-1. **Zero External Runtime Dependencies**: 100% pure native Bun APIs (`Bun.file`, `Bun.write`, `Bun.Glob`, `Bun.hash.wyhash`, `Bun.TOML`, `Bun.serve`).
-2. **Agent-First**: Outputs are structured JSON with strict schemas (`yolo.scan/1`, `yolo.verify/1`, `yolo.status/1`, `yolo.doctor/1`) or GFM markdown.
-3. **Recursive Outillage**: The CLI is a thin dispatcher over `@aphrody/yolo-core`; scripts and tools import the core library directly.
+const plan = await planPackageSync({ root: "/path/to/project", offline: true });
+const result = await syncPackages({
+  root: plan.root,
+  offline: true,
+  apply: true,
+  signal: controller.signal,
+});
+```
+
+The same operation is available through `yolo mcp` as `yolo_package_sync` and
+through `POST /api/tools/call` on `yolo api`:
+
+```json
+{
+  "name": "yolo_package_sync",
+  "arguments": { "path": ".", "managers": "bun,uv,cargo", "offline": true, "apply": false }
+}
+```
+
+Bun uses `--frozen-lockfile --ignore-scripts`; uv uses `--locked` and disables
+Python downloads; Cargo uses `fetch --locked`. Authentication and shared caches
+remain with their existing owners. Failed preflight applies nothing; a failed
+manager stops subsequent managers. Native process ownership handles timeout and
+cancellation. Apply needs an installed compatible native runtime. The initial
+qualified platform is Linux x64; Windows descendant ownership remains open.
+
+Add/remove/update operations, tool installation, engine selection, builds and
+publication are outside this tranche. Lock creation belongs to the native manager;
+missing or stale locks are reported instead of silently regenerated.
+
+## Transport and persistence contracts
+
+MCP and HTTP share tool definitions and argument validation; OpenAPI comes from
+one owner. Each transport retains its Redis stores. HTTP file operations contain
+both resolved paths and symlink targets within the workspace. HTTP mutation
+requests honor configured tokens and reject untrusted browser origins.
+
+`RedisVectorStore` persists copied Float32 vectors with validated dimensions,
+metadata and cosine KNN filtering. Its exact search reads candidates in O(N);
+it does not implement a Redis Search ANN index. `RedisTrainDb` persists validated
+instruction/triple records and reports type/split counts. Pending offline writes,
+deletes and clears reconcile on reconnect; the memory overlay is volatile across
+process restarts. `persistenceState` and `sync()` expose that distinction.
+
+Gemma profiles and memory estimates are explicitly unverified repository profiles.
+Formatting is a text template, not a numeric tokenizer. `UnifiedInferenceEngine`
+uses configured OpenAI-compatible providers for inference, incremental SSE and
+`/embeddings`; errors propagate without simulated success. Local/OpenAI backends
+require an endpoint, and mock inference requires explicit injection. No model
+weights, tokenizer, native numerical inference or training are qualified here.
+Text vector search requires an injected real embedder; callers can also supply
+`queryVector` directly. The deterministic embedding utility is synthetic.
+
+Monitors honor configured intervals, serialize cycles/probes and drain on stop.
+Tests use explicit beacon paths, disposable repositories and isolated Redis/HTTP
+servers. Scan fingerprints cover raw bytes in stable order; ledger fingerprints
+cover file content. Vendor status reads complete refs, including packed refs and
+worktrees; generated catalogs distinguish source and host-runtime revisions.
+
+Evidence: [package-manager qualification](../../docs/package-manager-2026-10-04.json).

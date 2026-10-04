@@ -3,8 +3,9 @@
 /**
  * Gemma 4 Core Module (@aphrody/yolo-core/gemma4)
  *
- * Full Google DeepMind Gemma 4 architecture specs, E2B ultra-compact smallest model,
- * chat template tokenizer, KV cache estimator, zero-copy vector math, and unified inference.
+ * Unverified architecture profiles, text formatting, arithmetic memory estimates,
+ * vector utilities, and real HTTP transport to caller-configured native providers.
+ * Model weights, tokenization, training and execution belong to those providers.
  */
 export * from "./models";
 export * from "./tokenizer";

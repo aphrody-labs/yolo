@@ -1,152 +1,75 @@
-/**
- * `yolo api`: Native high-performance HTTP / REST / OpenAPI micro-server.
- * Powered 100% by native Bun (`Bun.serve`) with zero external runtime dependencies.
- *
- * Exposes YOLO CLI tools, diagnostics, metrics and OpenAPI schemas for direct
- * agent integration with strict loopback isolation, Host header validation,
- * path traversal containment, and optional token-based authorization.
- */
-
-import { resolve } from "node:path";
+/** Native Bun HTTP transport sharing the MCP tool owner and OpenAPI contract. */
 import { yoloHome, yoloVersion } from "../vfs/home";
 import { hostTarget } from "../../../runtime/src/artifact";
-import { TOOLS, executeTool } from "../mcp/server";
-import { collectDoctorReport } from "../sys/doctor";
-import { collectStatusReport } from "../vendor/status";
-import { scanDirectory } from "../vfs/scan";
+import {
+  TOOLS,
+  executeTool,
+  isRecord,
+  validateToolArguments,
+  ToolArgumentError,
+  ToolExecutionContext,
+} from "../mcp/server";
+import { resolveContainedPath } from "../mcp/paths";
+import { buildOpenApiSpec } from "./openapi";
+export { buildOpenApiSpec } from "./openapi";
 
 export interface ApiServerOptions {
   readonly port?: number;
   readonly hostname?: string;
   readonly rootDir?: string;
   readonly token?: string | undefined;
-}
-
-export function buildOpenApiSpec(version: string, bunVersion: string) {
-  return {
-    openapi: "3.1.0",
-    info: {
-      title: "YOLO Industrial Engine API",
-      version,
-      description: `Native Bun-powered REST API for YOLO monorepo and runtime (Bun ${bunVersion})`,
-    },
-    paths: {
-      "/health": {
-        get: {
-          summary: "Service health and version check",
-          responses: { "200": { description: "Health status" } },
-        },
-      },
-      "/api/status": {
-        get: {
-          summary: "Monorepo submodule and cargo status",
-          responses: { "200": { description: "Status report" } },
-        },
-      },
-      "/api/doctor": {
-        get: {
-          summary: "Environment, stack toolchain and runtime diagnostics",
-          responses: { "200": { description: "Doctor diagnostics" } },
-        },
-      },
-      "/api/bench": {
-        get: {
-          summary: "Run native Bun micro-benchmark",
-          parameters: [
-            { name: "iterations", in: "query", schema: { type: "integer", default: 200000 } },
-          ],
-          responses: { "200": { description: "Benchmark results" } },
-        },
-      },
-      "/api/scan": {
-        post: {
-          summary: "Fast parallel directory scan (contained within workspace)",
-          requestBody: {
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    path: { type: "string" },
-                    exts: { type: "string" },
-                    parallel: { type: "number" },
-                  },
-                },
-              },
-            },
-          },
-          responses: { "200": { description: "Scan metrics" } },
-        },
-      },
-      "/api/verify": {
-        post: {
-          summary: "Run quality verification gates in parallel",
-          responses: { "200": { description: "Verification report" } },
-        },
-      },
-      "/api/tools": {
-        get: {
-          summary: "Expose MCP tool catalog and schemas",
-          responses: { "200": { description: "Tool definitions" } },
-        },
-      },
-    },
-  };
+  readonly toolContext?: ToolExecutionContext | undefined;
 }
 
 export function safeResolvePath(rootDir: string, subPath?: string): string {
-  if (!subPath) return rootDir;
-  const resolvedRoot = resolve(rootDir);
-  const candidate = resolve(rootDir, subPath);
-  if (candidate !== resolvedRoot && !candidate.startsWith(resolvedRoot + "/")) {
-    throw new Error(`Path traversal denied: path '${subPath}' is outside the repository root.`);
+  return resolveContainedPath(rootDir, subPath);
+}
+
+function loopbackOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    return (
+      ["http:", "https:"].includes(url.protocol) &&
+      ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) &&
+      !url.username &&
+      !url.password &&
+      url.origin === origin
+    );
+  } catch {
+    return false;
   }
-  return candidate;
 }
 
 export function createApiServer(options: ApiServerOptions = {}) {
-  const port = options.port ?? 8999;
-  const hostname = options.hostname ?? "127.0.0.1";
   const rootDir = options.rootDir ?? yoloHome();
+  const hostname = options.hostname ?? "127.0.0.1";
   const requiredToken = options.token ?? Bun.env.YOLO_API_TOKEN;
-
-  const jsonResponse = (
-    data: unknown,
-    status: number = 200,
-    extraHeaders: Record<string, string> = {},
-  ) => {
-    return new Response(JSON.stringify(data, null, 2), {
+  const context = options.toolContext ?? new ToolExecutionContext({ containPaths: true });
+  const jsonResponse = (data: unknown, status = 200, headers: Record<string, string> = {}) =>
+    Response.json(data, {
       status,
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        ...extraHeaders,
-      },
+      headers: { "Content-Type": "application/json; charset=utf-8", ...headers },
     });
-  };
-
   const server = Bun.serve({
-    port,
+    port: options.port ?? 8999,
     hostname,
     async fetch(req) {
-      // 1. DNS Rebinding Protection: Verify Host header
-      const hostHeader = ((req.headers.get("host") || "").split(":")[0] ?? "").toLowerCase();
-      const allowedHosts = new Set(["127.0.0.1", "localhost", "::1", hostname.toLowerCase()]);
-      if (hostHeader && !allowedHosts.has(hostHeader)) {
+      let requestHost: string;
+      try {
+        requestHost = new URL(`http://${req.headers.get("host") ?? ""}`).hostname;
+      } catch {
         return jsonResponse({ error: "Invalid Host header (DNS rebinding protection)" }, 403);
       }
-
-      // 2. Strict CORS policy: Only allow loopback origins, reject arbitrary external web pages
+      if (
+        !["127.0.0.1", "localhost", "[::1]", hostname.toLowerCase()].includes(
+          requestHost.toLowerCase(),
+        )
+      ) {
+        return jsonResponse({ error: "Invalid Host header (DNS rebinding protection)" }, 403);
+      }
       const origin = req.headers.get("origin");
-      const isLoopbackOrigin = Boolean(
-        origin &&
-        (origin.startsWith("http://127.0.0.1:") ||
-          origin.startsWith("http://localhost:") ||
-          origin.startsWith("https://127.0.0.1:") ||
-          origin.startsWith("https://localhost:")),
-      );
-
       const corsHeaders: Record<string, string> =
-        isLoopbackOrigin && origin
+        origin && loopbackOrigin(origin)
           ? {
               "Access-Control-Allow-Origin": origin,
               "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -154,32 +77,47 @@ export function createApiServer(options: ApiServerOptions = {}) {
               Vary: "Origin",
             }
           : {};
-
-      if (req.method === "OPTIONS") {
-        return new Response(null, { headers: corsHeaders });
+      if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+      if (req.method === "POST" && origin && !loopbackOrigin(origin)) {
+        return jsonResponse({ error: "Untrusted request origin" }, 403, corsHeaders);
       }
-
-      const url = new URL(req.url);
-      const path = url.pathname;
-
-      // 3. Token check for mutating / heavy POST operations
       if (req.method === "POST" && requiredToken) {
-        const authHeader = req.headers.get("authorization");
-        const tokenHeader = req.headers.get("x-yolo-token");
-        const bearer = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-        const providedToken = tokenHeader || bearer;
-
-        if (providedToken !== requiredToken) {
+        const auth = req.headers.get("authorization");
+        const provided =
+          req.headers.get("x-yolo-token") ?? (auth?.startsWith("Bearer ") ? auth.slice(7) : null);
+        if (provided !== requiredToken)
           return jsonResponse(
             { error: "Unauthorized: valid Bearer or X-YOLO-Token required" },
             401,
             corsHeaders,
           );
-        }
       }
-
+      const url = new URL(req.url);
+      const path = url.pathname;
+      const readBody = async (): Promise<Record<string, unknown>> => {
+        let value: unknown;
+        try {
+          value = await req.json();
+        } catch {
+          throw new ToolArgumentError("Request body must be valid JSON");
+        }
+        if (!isRecord(value)) throw new ToolArgumentError("Request body must be an object");
+        return value;
+      };
+      // Enforce HTTP containment even when dependencies are supplied by the caller.
+      const call = async (name: string, args: Record<string, unknown>) => {
+        validateToolArguments(name, args);
+        if (name === "yolo_scan" || name === "yolo_parse" || name === "yolo_package_sync") {
+          if (args.path !== undefined && typeof args.path !== "string")
+            throw new ToolArgumentError("path must be a string");
+          args = { ...args, path: safeResolvePath(rootDir, args.path as string | undefined) };
+        } else if (name === "yolo_host_space" && typeof args.dir === "string") {
+          args = { ...args, dir: safeResolvePath(rootDir, args.dir) };
+        }
+        return executeTool(name, args, rootDir, context, { signal: req.signal });
+      };
       try {
-        if (path === "/" || path === "/health" || path === "/api/health") {
+        if (["/", "/health", "/api/health"].includes(path) && req.method === "GET") {
           return jsonResponse(
             {
               status: "ok",
@@ -193,79 +131,60 @@ export function createApiServer(options: ApiServerOptions = {}) {
             corsHeaders,
           );
         }
-
-        if (path === "/api/openapi.json") {
+        if (path === "/api/openapi.json" && req.method === "GET")
           return jsonResponse(buildOpenApiSpec(yoloVersion(), Bun.version), 200, corsHeaders);
-        }
-
-        if (path === "/api/tools") {
+        if (path === "/api/tools" && req.method === "GET")
+          return jsonResponse({ schema: "yolo.tools/1", tools: TOOLS }, 200, corsHeaders);
+        if (path === "/api/bench" && req.method === "GET") {
           return jsonResponse(
-            {
-              schema: "yolo.tools/1",
-              tools: TOOLS,
-            },
+            await call("yolo_bench", {
+              iterations: Number(url.searchParams.get("iterations") ?? 200000),
+            }),
             200,
             corsHeaders,
           );
         }
-
-        if (path === "/api/status" && req.method === "GET") {
-          return jsonResponse(await collectStatusReport(rootDir), 200, corsHeaders);
-        }
-
-        if (path === "/api/doctor" && req.method === "GET") {
-          return jsonResponse(collectDoctorReport(), 200, corsHeaders);
-        }
-
-        if (path === "/api/bench" && req.method === "GET") {
-          const iters = parseInt(url.searchParams.get("iterations") ?? "200000", 10);
-          const result = await executeTool("yolo_bench", { iterations: iters }, rootDir);
-          return jsonResponse(result, 200, corsHeaders);
-        }
-
-        if (path === "/api/scan" && req.method === "POST") {
-          let body: { path?: string; exts?: string; parallel?: number } = {};
-          try {
-            body = (await req.json()) as typeof body;
-          } catch {
-            // empty body is fine, defaults apply
+        if (path === "/api/status" && req.method === "GET")
+          return jsonResponse(await call("yolo_status", {}), 200, corsHeaders);
+        if (path === "/api/doctor" && req.method === "GET")
+          return jsonResponse(await call("yolo_doctor", {}), 200, corsHeaders);
+        if (req.method === "POST") {
+          const routes: Record<string, string> = {
+            "/api/scan": "yolo_scan",
+            "/api/parse": "yolo_parse",
+            "/api/verify": "yolo_verify",
+          };
+          const route = routes[path];
+          if (route) return jsonResponse(await call(route, await readBody()), 200, corsHeaders);
+          if (path === "/api/tools/call") {
+            const body = await readBody();
+            if (
+              typeof body.name !== "string" ||
+              (body.arguments !== undefined && !isRecord(body.arguments))
+            )
+              throw new ToolArgumentError("Provide tool name and object arguments");
+            return jsonResponse(
+              await call(body.name, (body.arguments ?? {}) as Record<string, unknown>),
+              200,
+              corsHeaders,
+            );
           }
-          // Path traversal protected: must stay within rootDir
-          const target = safeResolvePath(rootDir, body.path);
-          const exts = body.exts ? body.exts.split(",").map((s) => s.trim()) : undefined;
-          const report = await scanDirectory(target, { exts, parallel: body.parallel });
-          return jsonResponse(report, 200, corsHeaders);
         }
-
-        if (path === "/api/verify" && req.method === "POST") {
-          let body: { only?: string; changed?: boolean; parallel?: number } = {};
-          try {
-            body = (await req.json()) as typeof body;
-          } catch {
-            // defaults apply
-          }
-          const result = await executeTool("yolo_verify", body, rootDir);
-          return jsonResponse(result, 200, corsHeaders);
-        }
-
-        if (path === "/api/parse" && req.method === "POST") {
-          const body = (await req.json()) as { path?: string };
-          if (!body.path) {
-            return jsonResponse({ error: "Missing required parameter 'path'" }, 400, corsHeaders);
-          }
-          // Path traversal protected: must stay within rootDir
-          const target = safeResolvePath(rootDir, body.path);
-          const result = await executeTool("yolo_parse", { path: target }, rootDir);
-          return jsonResponse(result, 200, corsHeaders);
-        }
-
         return jsonResponse({ error: `Not found: ${path}` }, 404, corsHeaders);
-      } catch (err) {
-        return jsonResponse({ error: (err as Error).message }, 500, corsHeaders);
+      } catch (error) {
+        return jsonResponse(
+          { error: error instanceof Error ? error.message : String(error) },
+          error instanceof ToolArgumentError ? 400 : 500,
+          corsHeaders,
+        );
       }
     },
   });
-
+  const stop = server.stop.bind(server);
+  server.stop = (closeActiveConnections?: boolean) => {
+    if (!options.toolContext) context.close();
+    return stop(closeActiveConnections);
+  };
   return server;
 }
 

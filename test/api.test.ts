@@ -88,7 +88,7 @@ describe("yolo api (Native Bun HTTP / OpenAPI Server)", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: "../../" }),
     });
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
     const data = await res.json();
     expect(data.error).toContain("Path traversal denied");
   });

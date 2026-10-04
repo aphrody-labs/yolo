@@ -1,23 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 aphrody contributors & Google DeepMind
 /**
- * Gemma 4 Engine: Pure Bun High-Performance Mathematics & KV Cache Management.
- *
- * Implements:
- * - Ultra-compact L2 normalized float32 vector embeddings (1536 dims for E2B)
- * - Zero-copy Cosine, Dot-Product, and Euclidean vector distance operations
- * - Sliding window KV cache allocation pattern matching Google DeepMind specs
+ * Float32 vector utilities and arithmetic memory estimates.
+ * This module neither executes a model nor allocates a KV cache or attention masks.
  */
-import { GEMMA4_E2B_CONFIG, type Gemma4Config } from "./models";
+import { GEMMA4_E2B_CONFIG, validateGemma4Config, type Gemma4Config } from "./models";
+
+function validateVector(vec: Float32Array): void {
+  if (!(vec instanceof Float32Array) || !vec.length || !vec.every(Number.isFinite))
+    throw new Error("Vector must contain finite Float32 values and be non-empty");
+}
 
 /** Normalizes a vector in-place to unit L2 norm. */
 export function normalizeL2(vec: Float32Array): Float32Array {
+  validateVector(vec);
   let sum = 0.0;
   for (let i = 0; i < vec.length; i++) {
     sum += vec[i]! * vec[i]!;
   }
   const norm = Math.sqrt(sum);
-  if (norm > 1e-12) {
+  if (norm > 0) {
     const inv = 1.0 / norm;
     for (let i = 0; i < vec.length; i++) {
       vec[i] = vec[i]! * inv;
@@ -28,6 +30,8 @@ export function normalizeL2(vec: Float32Array): Float32Array {
 
 /** Computes the cosine similarity between two normalized or unnormalized float32 vectors. */
 export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
+  validateVector(a);
+  validateVector(b);
   if (a.length !== b.length) {
     throw new Error(`Dimension mismatch: ${a.length} vs ${b.length}`);
   }
@@ -42,11 +46,13 @@ export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
     normB += bi * bi;
   }
   const denom = Math.sqrt(normA) * Math.sqrt(normB);
-  return denom > 1e-12 ? dot / denom : 0.0;
+  return denom > 0 ? Math.max(-1, Math.min(1, dot / denom)) : 0.0;
 }
 
 /** Computes Euclidean distance between two float32 vectors. */
 export function euclideanDistance(a: Float32Array, b: Float32Array): number {
+  validateVector(a);
+  validateVector(b);
   if (a.length !== b.length) {
     throw new Error(`Dimension mismatch: ${a.length} vs ${b.length}`);
   }
@@ -58,11 +64,15 @@ export function euclideanDistance(a: Float32Array, b: Float32Array): number {
   return Math.sqrt(sum);
 }
 
-/** Fast deterministic text embedding vector generator matching Gemma 4 E2B dimension (1536). */
+/** Synthetic deterministic hash projection, without model weights or semantic embedding guarantees. */
 export function generateDeterministicEmbedding(
   text: string,
   dim: number = GEMMA4_E2B_CONFIG.embedDim,
 ): Float32Array {
+  if (typeof text !== "string" || text.length > 1_048_576)
+    throw new Error("Synthetic projection text exceeds the budget or is not text");
+  if (!Number.isSafeInteger(dim) || dim < 1 || dim > 1_048_576)
+    throw new Error("Synthetic projection dimension must be between 1 and 1048576");
   const vec = new Float32Array(dim);
   const utf8 = new TextEncoder().encode(text);
 
@@ -86,13 +96,19 @@ export function generateDeterministicEmbedding(
   return normalizeL2(vec);
 }
 
-/** Computes KV cache memory size requirements for Gemma 4 sliding window attention. */
+/** Arithmetic KV estimate from an unverified profile; no cache is allocated. */
 export function computeKVCacheFootprintBytes(
   config: Gemma4Config,
   batchSize: number = 1,
   seqLen: number = 512,
   bytesPerElem: number = 2, // 16-bit
 ): { localBytes: number; globalBytes: number; totalBytes: number; totalMb: number } {
+  validateGemma4Config(config);
+  for (const value of [batchSize, seqLen]) {
+    if (!Number.isSafeInteger(value) || value < 1)
+      throw new Error("Batch size and sequence length must be positive safe integers");
+  }
+  if (![1, 2, 4].includes(bytesPerElem)) throw new Error("bytesPerElem must be 1, 2 or 4");
   const headDim = config.headDim;
   const numKvHeads = config.numKvHeads;
   const windowSize = Math.min(seqLen, config.slidingWindowSize);
@@ -101,18 +117,22 @@ export function computeKVCacheFootprintBytes(
   let localBytes = 0;
   let globalBytes = 0;
 
-  for (let layer = 0; layer < config.numLayers; layer++) {
-    const pattern = config.attentionPattern[layer % config.attentionPattern.length];
+  for (let layer = 0; layer < Math.min(config.numLayers, config.attentionPattern.length); layer++) {
+    const pattern = config.attentionPattern[layer];
+    const repeats =
+      Math.floor(config.numLayers / config.attentionPattern.length) +
+      (layer < config.numLayers % config.attentionPattern.length ? 1 : 0);
     if (pattern === "local_sliding") {
       // B * numKvHeads * windowSize * headDim * 2 * bytesPerElem
-      localBytes += batchSize * numKvHeads * windowSize * headDim * 2 * bytesPerElem;
+      localBytes += repeats * batchSize * numKvHeads * windowSize * headDim * 2 * bytesPerElem;
     } else {
       // Full sequence length for global attention layers
-      globalBytes += batchSize * numKvHeads * seqLen * headDim * 2 * bytesPerElem;
+      globalBytes += repeats * batchSize * numKvHeads * seqLen * headDim * 2 * bytesPerElem;
     }
   }
 
   const totalBytes = localBytes + globalBytes;
+  if (!Number.isSafeInteger(totalBytes)) throw new Error("KV estimate exceeds safe integer range");
   return {
     localBytes,
     globalBytes,

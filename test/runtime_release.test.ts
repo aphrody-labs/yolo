@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -11,9 +11,19 @@ const available = existsSync(join(packaged, "manifest.json"));
 const suite = available ? describe : describe.skip;
 
 const sandbox = mkdtempSync(join(tmpdir(), "yolo-runtime-"));
-process.env["YOLO_RUNTIME_HOME"] = join(sandbox, "home");
+let previousRuntimeHome: string | undefined;
+let environmentChanged = false;
+beforeAll(() => {
+  previousRuntimeHome = process.env["YOLO_RUNTIME_HOME"];
+  process.env["YOLO_RUNTIME_HOME"] = join(sandbox, "home");
+  environmentChanged = true;
+});
 // Windows keeps a loaded library locked until the process exits: retry, then leave it to the OS temp cleanup.
 afterAll(() => {
+  if (environmentChanged) {
+    if (previousRuntimeHome === undefined) delete process.env["YOLO_RUNTIME_HOME"];
+    else process.env["YOLO_RUNTIME_HOME"] = previousRuntimeHome;
+  }
   try {
     rmSync(sandbox, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   } catch {}

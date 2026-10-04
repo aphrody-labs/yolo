@@ -1,147 +1,191 @@
 // SPDX-License-Identifier: Apache-2.0
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { describe, expect, it } from "bun:test";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initLedgerDatabase } from "../packages/core/src/ledger/index";
 import { AgentWatcher } from "../packages/core/src/monitor/agent_watcher";
-import { NativeRedisClient } from "../packages/core/src/redis/client";
-import { indexCodebaseToRedis } from "../packages/core/src/redis/indexer";
-import { findRepoRoot } from "../packages/core/src/vfs/index";
+import { AutoSyncEngine } from "../packages/core/src/monitor/auto_sync";
 
-describe("Native Bun Redis Client & Incremental Indexer", () => {
-  let redis: NativeRedisClient;
-  let redisAvailable = false;
+async function until(check: () => boolean, timeout = 1500): Promise<void> {
+  const deadline = Date.now() + timeout;
+  while (!check()) {
+    if (Date.now() > deadline) throw new Error("Fixture timed out");
+    await Bun.sleep(10);
+  }
+}
 
-  beforeAll(async () => {
-    redis = new NativeRedisClient({ hostname: "127.0.0.1", port: 6379 });
-    try {
-      await redis.connect();
-      const pong = await redis.ping();
-      redisAvailable = pong === "PONG";
-    } catch {
-      redisAvailable = false;
-    }
-  });
-
-  afterAll(() => {
-    if (redis && redis.isConnected) {
-      redis.close();
-    }
-  });
-
-  it("handles basic Redis commands over RESP2 socket when Redis is running", async () => {
-    if (!redisAvailable) {
-      console.warn("Redis not running on 127.0.0.1:6379, skipping live socket test");
-      return;
-    }
-
-    const testKey = "yolo:test:client_ping";
-    await redis.set(testKey, "hello_bun");
-    const val = await redis.get(testKey);
-    expect(val).toBe("hello_bun");
-
-    await redis.hset("yolo:test:hash", { alpha: "1", beta: "2" });
-    const hash = await redis.hgetall("yolo:test:hash");
-    expect(hash.alpha).toBe("1");
-    expect(hash.beta).toBe("2");
-
-    await redis.sadd("yolo:test:set", "memberA", "memberB");
-    const members = await redis.smembers("yolo:test:set");
-    expect(members).toContain("memberA");
-    expect(members).toContain("memberB");
-
-    await redis.del(testKey, "yolo:test:hash", "yolo:test:set");
-  });
-
-  it("indexes source directory to Redis incrementally", async () => {
-    if (!redisAvailable) {
-      console.warn("Redis not running on 127.0.0.1:6379, skipping index test");
-      return;
-    }
-
-    const root = findRepoRoot();
-    const testDir = join(root, "packages", "core", "src", "redis");
-    const result = await indexCodebaseToRedis(testDir, "test_branch", redis);
-
-    expect(result.branch).toBe("test_branch");
-    expect(result.totalFiles).toBeGreaterThan(0);
-    expect(result.treeFingerprint.length).toBeGreaterThan(0);
-
-    // Second run should skip unchanged files
-    const rerun = await indexCodebaseToRedis(testDir, "test_branch", redis);
-    expect(rerun.skippedFiles).toBe(result.totalFiles);
-  });
+it("reads complete Git state and reports invalid repositories explicitly", async () => {
+  const root = mkdtempSync(join(tmpdir(), "yolo-monitor-git-"));
+  const engine = new AutoSyncEngine({ trackedRepos: [root], beaconPaths: [] });
+  try {
+    Bun.spawnSync(["git", "init", "-q", root]);
+    Bun.spawnSync([
+      "git",
+      "-C",
+      root,
+      "-c",
+      "user.name=aphrody-dev",
+      "-c",
+      "user.email=contact@aphrody.com",
+      "commit",
+      "--allow-empty",
+      "-qm",
+      "fixture",
+    ]);
+    const state = await engine.getGitState(root);
+    expect(state.commit).toMatch(/^[a-f0-9]{40}$/);
+    expect(state.dirty).toBe(false);
+    writeFileSync(join(root, "changed.txt"), "changed");
+    expect((await engine.getGitState(root)).uncommittedCount).toBe(1);
+    expect((await engine.getGitState(join(root, "missing"))).error).toContain("failed");
+  } finally {
+    await engine.stop();
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
-describe("Multi-Agent Watcher & Interceptor", () => {
-  const root = findRepoRoot();
-  const tmpWatchDir = join(root, "var", "test-agent-watch");
-  const testDbPath = join(root, "var", "test-watcher-db.sqlite");
-  const db = initLedgerDatabase(testDbPath);
-
-  beforeAll(() => {
-    mkdirSync(tmpWatchDir, { recursive: true });
+it("honors the sync interval, serializes cycles, and drains before stop returns", async () => {
+  const engine = new AutoSyncEngine({
+    trackedRepos: [tmpdir()],
+    beaconPaths: [],
+    syncIntervalMs: 5,
   });
+  let active = 0;
+  let maxActive = 0;
+  let completed = 0;
+  engine.getGitState = async () => {
+    active++;
+    maxActive = Math.max(active, maxActive);
+    await Bun.sleep(30);
+    active--;
+    completed++;
+    return {
+      repo: "fixture",
+      branch: "main",
+      commit: "a".repeat(40),
+      dirty: false,
+      uncommittedCount: 0,
+    };
+  };
+  try {
+    engine.startPeriodic();
+    engine.startPeriodic();
+    await until(() => completed >= 2);
+    await engine.stop();
+    expect(maxActive).toBe(1);
+    expect(active).toBe(0);
+    const before = completed;
+    await Bun.sleep(40);
+    expect(completed).toBe(before);
+  } finally {
+    await engine.stop();
+  }
+});
 
-  afterAll(() => {
+it("writes beacons only to explicit fixture paths and caches empty docs offline", async () => {
+  const root = mkdtempSync(join(tmpdir(), "yolo-monitor-beacon-"));
+  const target = join(root, "private", "beacon.json");
+  const engine = new AutoSyncEngine({
+    trackedRepos: [],
+    beaconPaths: [target],
+    docCacheTtlMs: 25,
+    docCacheMaxEntries: 2,
+  });
+  let calls = 0;
+  const fetcher = async () => {
+    calls++;
+    await Bun.sleep(5);
+    return "";
+  };
+  try {
+    expect((await engine.runSyncCycle()).beaconWritten).toBe(true);
+    expect((await Bun.file(target).json()).repositories).toEqual({});
+    expect(
+      await Promise.all([
+        engine.cachedDocQuery("docs", fetcher),
+        engine.cachedDocQuery(" DOCS ", fetcher),
+      ]),
+    ).toEqual(["", ""]);
+    expect(await engine.cachedDocQuery("docs", fetcher)).toBe("");
+    expect(calls).toBe(1);
+    await Bun.sleep(30);
+    await engine.cachedDocQuery("docs", fetcher);
+    expect(calls).toBe(2);
+  } finally {
+    await engine.stop();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+describe("isolated agent watcher", () => {
+  it("records actual filesystem events without reading session content", async () => {
+    const root = mkdtempSync(join(tmpdir(), "yolo-watch-"));
+    const db = initLedgerDatabase(":memory:");
+    const watcher = new AgentWatcher({
+      customDirs: [root],
+      sqliteDb: db,
+      endpoints: [],
+      maxSessions: 2,
+    });
+    const sessionId = "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d";
     try {
+      watcher.start();
+      watcher.start();
+      mkdirSync(join(root, sessionId));
+      writeFileSync(join(root, sessionId, "event.jsonl"), "fixture");
+      await until(() =>
+        watcher.getActiveSessions().some((session) => session.sessionId === sessionId),
+      );
+      await watcher.stop();
+      expect(
+        (db.query("SELECT COUNT(*) as count FROM agent_telemetry").get() as { count: number })
+          .count,
+      ).toBeGreaterThan(0);
+      const snapshot = watcher.getActiveSessions();
+      snapshot[0]!.path = "changed";
+      expect(watcher.getActiveSessions()[0]!.path).not.toBe("changed");
+    } finally {
+      await watcher.stop();
       db.close();
-      rmSync(tmpWatchDir, { recursive: true, force: true });
-      rmSync(testDbPath, { force: true });
-    } catch {
-      // Ignore
+      rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it("initializes AgentWatcher, intercepts FS writes, and records sessions", async () => {
+  it("reports 404 as offline, avoids overlapping probes and cancels on stop", async () => {
+    let requests = 0;
+    let active = 0;
+    let maxActive = 0;
+    const server = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      async fetch() {
+        requests++;
+        active++;
+        maxActive = Math.max(active, maxActive);
+        await Bun.sleep(30);
+        active--;
+        return new Response("missing", { status: 404 });
+      },
+    });
     const watcher = new AgentWatcher({
-      customDirs: [tmpWatchDir],
-      sqliteDb: db,
+      customDirs: [],
+      endpoints: [{ name: "fixture", url: `http://127.0.0.1:${server.port}` }],
+      pollEndpointsIntervalMs: 5,
     });
-
-    watcher.start();
-
-    // Simulate session write
-    const testSessionId = "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d";
-    const sessionDir = join(tmpWatchDir, testSessionId);
-    mkdirSync(sessionDir, { recursive: true });
-    const logFile = join(sessionDir, "transcript.jsonl");
-    writeFileSync(logFile, JSON.stringify({ step: 1, action: "test" }));
-
-    // Allow FS event loop to process
-    await new Promise((r) => setTimeout(r, 200));
-
-    watcher.stop();
-
-    // Verify DB received events or sessions
-    const telemCount = (
-      db.query("SELECT COUNT(*) as count FROM agent_telemetry").get() as { count: number }
-    ).count;
-    expect(telemCount).toBeGreaterThanOrEqual(0);
-  });
-
-  it("AutoSyncEngine inspects Git state, writes context beacon and caches docs queries", async () => {
-    const { AutoSyncEngine } = await import("../packages/core/src/monitor/auto_sync");
-    const engine = new AutoSyncEngine({
-      sqliteDb: db,
-      trackedRepos: [findRepoRoot()],
-    });
-
-    const gitState = await engine.getGitState(findRepoRoot());
-    expect(gitState.repo).toBeDefined();
-    expect(gitState.branch).toBeDefined();
-
-    const cycleResult = await engine.runSyncCycle();
-    expect(cycleResult.timestamp).toBeDefined();
-    expect(cycleResult.repos[gitState.repo]).toBeDefined();
-    expect(cycleResult.beaconWritten).toBe(true);
-
-    const docResult = await engine.cachedDocQuery(
-      "bun ffi",
-      async () => "bun ffi native fast bindings",
-    );
-    expect(docResult).toBe("bun ffi native fast bindings");
-
-    engine.stop();
+    try {
+      watcher.start();
+      watcher.start();
+      await until(() => requests >= 2);
+      expect(watcher.getEndpointStatuses()[0]?.online).toBe(false);
+      await watcher.stop();
+      expect(maxActive).toBe(1);
+      const before = requests;
+      await Bun.sleep(40);
+      expect(requests).toBe(before);
+    } finally {
+      await watcher.stop();
+      await server.stop(true);
+    }
   });
 });

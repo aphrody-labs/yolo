@@ -35,6 +35,17 @@ export * as ledger from "./ledger";
 export * as redis from "./redis";
 export * as monitor from "./monitor";
 export * as gemma4 from "./gemma4";
+export * as host from "./host";
+export * as units from "./units";
+export * as pm from "./pm";
+export {
+  planPackageSync,
+  syncPackages,
+  type PackageSyncPlan,
+  type PackageSyncResult,
+  type PackageSyncOptions,
+  type PackageManager,
+} from "./pm";
 
 // Direct flat exports of core capabilities
 export {
@@ -130,6 +141,11 @@ export {
   SERVER_VERSION,
   TOOLS,
   executeTool,
+  ToolExecutionContext,
+  ToolArgumentError,
+  validateToolArguments,
+  type ToolExecutionContextOptions,
+  type ToolCallOptions,
   handleMcpMessage,
   type ToolDefinition,
 } from "./mcp";

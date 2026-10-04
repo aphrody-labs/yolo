@@ -6,9 +6,9 @@
  * and Multi-Agent active consumer coordination under Bun & systemd.
  */
 import type { Database } from "bun:sqlite";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, renameSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, basename, resolve } from "node:path";
 import { recordTrainingSample } from "../ledger/index";
 import type { NativeRedisClient } from "../redis/client";
 import { indexCodebaseToRedis } from "../redis/indexer";
@@ -20,6 +20,7 @@ export interface GitRepoState {
   commit: string;
   dirty: boolean;
   uncommittedCount: number;
+  error?: string;
 }
 
 export interface SyncCycleResult {
@@ -35,6 +36,10 @@ export interface AutoSyncOptions {
   sqliteDb?: Database | undefined;
   syncIntervalMs?: number | undefined;
   trackedRepos?: string[] | undefined;
+  beaconPaths?: string[] | undefined;
+  gitTimeoutMs?: number | undefined;
+  docCacheTtlMs?: number | undefined;
+  docCacheMaxEntries?: number | undefined;
 }
 
 export class AutoSyncEngine {
@@ -44,11 +49,34 @@ export class AutoSyncEngine {
   #lastCommits = new Map<string, string>();
   #trackedRepos: string[];
   #docCacheHits = 0;
+  #intervalMs: number;
+  #gitTimeoutMs: number;
+  #beaconPaths: string[];
+  #cycle: Promise<SyncCycleResult> | null = null;
+  #cache = new Map<string, { value: string; expires: number }>();
+  #docRequests = new Map<string, Promise<string>>();
+  #cacheTtlMs: number;
+  #cacheMaxEntries: number;
 
   constructor(options: AutoSyncOptions = {}) {
     this.#redis = options.redisClient ?? null;
     this.#db = options.sqliteDb ?? null;
 
+    const positive = (value: number | undefined, fallback: number) => {
+      const result = value ?? fallback;
+      if (!Number.isSafeInteger(result) || result < 1)
+        throw new RangeError("Monitor limits must be positive integers");
+      return result;
+    };
+    this.#intervalMs = positive(options.syncIntervalMs, 60000);
+    this.#gitTimeoutMs = positive(options.gitTimeoutMs, 10000);
+    this.#cacheTtlMs = positive(options.docCacheTtlMs, 3600000);
+    this.#cacheMaxEntries = positive(options.docCacheMaxEntries, 128);
+    this.#beaconPaths = options.beaconPaths ?? [
+      join(homedir(), "aphrody", ".coord", "shared", "YOLO-DAEMON-SYNC.json"),
+      join(homedir(), ".aphrody", "ai", "yolo-sync.json"),
+      join(findRepoRoot(), "var", "yolo-sync.json"),
+    ];
     const yoloRoot = findRepoRoot();
     const aphrodyRoot = join(homedir(), "aphrody");
     this.#trackedRepos = options.trackedRepos ?? [
@@ -58,59 +86,71 @@ export class AutoSyncEngine {
   }
 
   async getGitState(repoPath: string): Promise<GitRepoState> {
-    const repoName = repoPath.split("/").pop() || "unknown";
+    const canonical = resolve(repoPath);
+    const name = basename(canonical);
+    const repoName =
+      this.#trackedRepos.filter((path) => basename(resolve(path)) === name).length > 1
+        ? canonical
+        : name;
+    const run = async (args: string[]) => {
+      const proc = Bun.spawn(["git", "-C", canonical, ...args], {
+        env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+        stdout: "pipe",
+        stderr: "ignore",
+      });
+      const timer = setTimeout(() => proc.kill(), this.#gitTimeoutMs);
+      try {
+        const [output, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+        if (code !== 0) throw new Error(`git ${args[0]} failed (${code})`);
+        return output.trim();
+      } finally {
+        clearTimeout(timer);
+      }
+    };
     try {
-      const branchProc = Bun.spawn(["git", "-C", repoPath, "branch", "--show-current"], {
-        stdout: "pipe",
-        stderr: "ignore",
-      });
-      const branch = (await new Response(branchProc.stdout).text()).trim() || "unknown";
-
-      const commitProc = Bun.spawn(["git", "-C", repoPath, "rev-parse", "HEAD"], {
-        stdout: "pipe",
-        stderr: "ignore",
-      });
-      const commit = (await new Response(commitProc.stdout).text()).trim().slice(0, 10);
-
-      const statusProc = Bun.spawn(["git", "-C", repoPath, "status", "--porcelain"], {
-        stdout: "pipe",
-        stderr: "ignore",
-      });
-      const statusText = (await new Response(statusProc.stdout).text()).trim();
+      const branch = await run(["branch", "--show-current"]);
+      const commit = await run(["rev-parse", "HEAD"]);
+      const statusText = await run(["status", "--porcelain"]);
       const lines = statusText ? statusText.split("\n") : [];
-
       return {
         repo: repoName,
-        branch,
+        branch: branch || "(detached)",
         commit,
         dirty: lines.length > 0,
         uncommittedCount: lines.length,
       };
-    } catch {
+    } catch (error) {
       return {
         repo: repoName,
         branch: "unknown",
         commit: "unknown",
         dirty: false,
         uncommittedCount: 0,
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
 
-  async runSyncCycle(forceIndex = false): Promise<SyncCycleResult> {
+  runSyncCycle(forceIndex = false): Promise<SyncCycleResult> {
+    if (this.#cycle) return this.#cycle;
+    this.#cycle = this.#runCycle(forceIndex).finally(() => {
+      this.#cycle = null;
+    });
+    return this.#cycle;
+  }
+
+  async #runCycle(forceIndex: boolean): Promise<SyncCycleResult> {
     const now = new Date().toISOString();
     const reposState: Record<string, GitRepoState> = {};
     let totalIndexed = 0;
 
     // 1. Inspect Git state across tracked repositories
     for (const repoPath of this.#trackedRepos) {
-      if (!existsSync(repoPath)) continue;
       const state = await this.getGitState(repoPath);
       reposState[state.repo] = state;
 
-      const prevCommit = this.#lastCommits.get(state.repo);
-      const commitChanged = prevCommit && prevCommit !== state.commit;
-      this.#lastCommits.set(state.repo, state.commit);
+      const prevCommit = this.#lastCommits.get(resolve(repoPath));
+      const commitChanged = prevCommit !== state.commit;
 
       // Stream to Redis
       if (this.#redis?.isConnected) {
@@ -126,10 +166,11 @@ export class AutoSyncEngine {
       }
 
       // 2. Incremental codebase indexer if commit changed or forced
-      if ((commitChanged || forceIndex) && this.#redis?.isConnected) {
+      if (!state.error && (commitChanged || forceIndex) && this.#redis?.isConnected) {
         try {
           const indexRes = await indexCodebaseToRedis(repoPath, state.commit, this.#redis);
           totalIndexed += indexRes.updatedFiles;
+          this.#lastCommits.set(resolve(repoPath), state.commit);
         } catch {
           // Continue on indexing warning
         }
@@ -175,30 +216,29 @@ export class AutoSyncEngine {
     const beacon = {
       schema: "yolo.sync.beacon/1",
       generated_at: timestamp,
-      active_plugins: ["yolo", "aphrody", "aphrody-google", "aphrody-web"],
       repositories: repos,
       context_optimizations: {
         max_context_tokens: 4000,
         mcp_servers: ["yolo", "aphrody"],
-        caching_layer: "redis+sqlite",
+        caching_layer: this.#redis?.isConnected ? "redis+memory" : "memory",
         doc_routing: "bun-docs-router+context7",
       },
     };
 
-    const targets = [
-      join(homedir(), "aphrody", ".coord", "shared", "YOLO-DAEMON-SYNC.json"),
-      join(homedir(), ".aphrody", "ai", "yolo-sync.json"),
-      join(findRepoRoot(), "var", "yolo-sync.json"),
-    ];
-
     let written = false;
-    for (const target of targets) {
+    for (const target of this.#beaconPaths) {
       try {
         const dir = target.substring(0, target.lastIndexOf("/"));
         if (!existsSync(dir)) {
           mkdirSync(dir, { recursive: true, mode: 0o700 });
         }
-        writeFileSync(target, JSON.stringify(beacon, null, 2), { mode: 0o600 });
+        const temporary = `${target}.${crypto.randomUUID()}.tmp`;
+        try {
+          writeFileSync(temporary, JSON.stringify(beacon, null, 2), { mode: 0o600 });
+          renameSync(temporary, target);
+        } finally {
+          rmSync(temporary, { force: true });
+        }
         written = true;
       } catch {
         // Best-effort write
@@ -207,45 +247,63 @@ export class AutoSyncEngine {
     return written;
   }
 
-  async cachedDocQuery(query: string, fetcher: () => Promise<string>): Promise<string> {
+  cachedDocQuery(query: string, fetcher: () => Promise<string>): Promise<string> {
     const cacheKey = `yolo:cache:docs:${query.trim().toLowerCase()}`;
-    if (this.#redis?.isConnected) {
-      try {
-        const cached = await this.#redis.get(cacheKey);
-        if (cached) {
-          this.#docCacheHits++;
-          return cached;
-        }
-      } catch {
-        // Fall back
-      }
+    const existing = this.#cache.get(cacheKey);
+    if (existing && existing.expires > Date.now()) {
+      this.#docCacheHits++;
+      return Promise.resolve(existing.value);
     }
-
-    const fetched = await fetcher();
-
-    if (this.#redis?.isConnected && fetched) {
-      try {
-        await this.#redis.set(cacheKey, fetched);
-      } catch {
-        // Ignore cache write error
-      }
-    }
-
-    return fetched;
+    if (this.#docRequests.has(cacheKey)) return this.#docRequests.get(cacheKey)!;
+    const request = this.#fetchDoc(cacheKey, fetcher).finally(() =>
+      this.#docRequests.delete(cacheKey),
+    );
+    this.#docRequests.set(cacheKey, request);
+    return request;
   }
 
-  startPeriodic(intervalMs = 60_000) {
+  async #fetchDoc(cacheKey: string, fetcher: () => Promise<string>): Promise<string> {
+    let value: string | null = null;
+    if (this.#redis?.isConnected) {
+      try {
+        value = await this.#redis.get(cacheKey);
+        if (value !== null) this.#docCacheHits++;
+      } catch {
+        /* Fetch from the source when Redis is unavailable. */
+      }
+    }
+    if (value === null) {
+      value = await fetcher();
+      if (this.#redis?.isConnected) {
+        try {
+          await this.#redis.set(cacheKey, value, Math.ceil(this.#cacheTtlMs / 1000));
+        } catch {
+          /* Retain the bounded memory cache. */
+        }
+      }
+    }
+    this.#cache.delete(cacheKey);
+    while (this.#cache.size >= this.#cacheMaxEntries)
+      this.#cache.delete(this.#cache.keys().next().value!);
+    this.#cache.set(cacheKey, { value, expires: Date.now() + this.#cacheTtlMs });
+    return value;
+  }
+
+  startPeriodic(intervalMs = this.#intervalMs): void {
+    if (!Number.isSafeInteger(intervalMs) || intervalMs < 1)
+      throw new RangeError("Invalid sync interval");
     if (this.#timer) return;
-    this.runSyncCycle().catch(() => {});
+    void this.runSyncCycle().catch(() => {});
     this.#timer = setInterval(() => {
-      this.runSyncCycle().catch(() => {});
+      void this.runSyncCycle().catch(() => {});
     }, intervalMs);
   }
 
-  stop() {
+  async stop(): Promise<void> {
     if (this.#timer) {
       clearInterval(this.#timer);
       this.#timer = null;
     }
+    await this.#cycle;
   }
 }

@@ -40,6 +40,44 @@ export async function resolveGitDir(worktree: string): Promise<string> {
   return resolve(worktree, pointer);
 }
 
+/** Resolve full HEAD through loose/packed refs and the common directory of a linked worktree. */
+export async function readGitHead(worktree: string): Promise<string | undefined> {
+  const gitDir = await resolveGitDir(worktree);
+  const commonFile = Bun.file(join(gitDir, "commondir"));
+  const commonDir = (await commonFile.exists())
+    ? resolve(gitDir, (await commonFile.text()).trim())
+    : gitDir;
+  const oid = (text: string): string | undefined =>
+    /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(text) ? text.toLowerCase() : undefined;
+  const resolveRef = async (value: string, depth: number): Promise<string | undefined> => {
+    const direct = oid(value);
+    if (direct) return direct;
+    if (depth > 8 || !value.startsWith("ref:")) return undefined;
+    const ref = value.slice(4).trim();
+    if (
+      !ref.startsWith("refs/") ||
+      ref.includes("\\") ||
+      ref.split("/").some((part) => !part || part === "." || part === "..")
+    )
+      return undefined;
+    for (const dir of new Set([gitDir, commonDir])) {
+      const loose = Bun.file(join(dir, ref));
+      if (await loose.exists()) return resolveRef((await loose.text()).trim(), depth + 1);
+    }
+    for (const dir of new Set([commonDir, gitDir])) {
+      const packed = Bun.file(join(dir, "packed-refs"));
+      if (!(await packed.exists())) continue;
+      for (const line of (await packed.text()).split("\n")) {
+        const split = line.trim().split(/\s+/);
+        if (split[1] === ref && split[0]) return oid(split[0]);
+      }
+    }
+    return undefined;
+  };
+  const head = Bun.file(join(gitDir, "HEAD"));
+  return (await head.exists()) ? resolveRef((await head.text()).trim(), 0) : undefined;
+}
+
 /**
  * Regular files below `dir`, dot entries skipped, counted until `limit` is exceeded (the result is then `limit + 1`).
  * Replaces a recursive `Bun.Glob` scan that took 55 ms on `vendor/next` to find the first 250 files. Throws when `dir`
@@ -95,17 +133,7 @@ export async function inspectPackages(vendorDir?: string): Promise<readonly Subm
 
     let headCommit: string | undefined;
     try {
-      const gitDir = await resolveGitDir(pkgPath);
-      const headFile = resolve(gitDir, "HEAD");
-      if (existsSync(headFile)) {
-        const headContent = (await Bun.file(headFile).text()).trim();
-        if (headContent.startsWith("ref:")) {
-          const refFile = Bun.file(resolve(gitDir, headContent.replace("ref:", "").trim()));
-          if (await refFile.exists()) headCommit = (await refFile.text()).trim();
-        } else {
-          headCommit = headContent;
-        }
-      }
+      headCommit = await readGitHead(pkgPath);
     } catch {
       // Fallback if git dir is not reachable
     }
@@ -121,7 +149,7 @@ export async function inspectPackages(vendorDir?: string): Promise<readonly Subm
       name,
       path: pkgPath,
       exists: true,
-      headCommit: headCommit?.slice(0, 10),
+      headCommit,
       filesCount,
     });
   }
@@ -152,7 +180,7 @@ export async function readVendorStatus(
         name: source.name,
         lockedSha: source.sha,
         headSha,
-        inSync: headSha !== undefined && source.sha.startsWith(headSha),
+        inSync: headSha !== undefined && source.sha.toLowerCase() === headSha,
       };
     }),
   };

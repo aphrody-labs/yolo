@@ -18,6 +18,10 @@ export interface AgentWatcherOptions {
   sqliteDb?: Database | undefined;
   customDirs?: string[] | undefined;
   pollEndpointsIntervalMs?: number | undefined;
+  endpoints?: Array<{ name: string; url: string }> | undefined;
+  endpointTimeoutMs?: number | undefined;
+  maxSessions?: number | undefined;
+  sessionRetentionMs?: number | undefined;
 }
 
 export interface InterceptedEvent {
@@ -47,7 +51,17 @@ export class AgentWatcher {
   >();
 
   readonly monitoredDirs: string[];
-  readonly endpoints = [
+  #running = false;
+  #intervalMs: number;
+  #timeoutMs: number;
+  #maxSessions: number;
+  #retentionMs: number;
+  #poll: Promise<void> | null = null;
+  #abort: AbortController | null = null;
+  #pending = new Set<Promise<unknown>>();
+  #statuses = new Map<string, EndpointStatus>();
+  readonly endpoints: Array<{ name: string; url: string }>;
+  static readonly defaultEndpoints = [
     { name: "aphrody_a2a", url: "http://127.0.0.1:8788/ping" },
     { name: "aphrody_gateway", url: "http://127.0.0.1:8795/health" },
     { name: "llama_server", url: "http://127.0.0.1:8080/health" },
@@ -58,6 +72,19 @@ export class AgentWatcher {
     this.#redis = options.redisClient ?? null;
     this.#db = options.sqliteDb ?? null;
 
+    const positive = (value: number | undefined, fallback: number) => {
+      const result = value ?? fallback;
+      if (!Number.isSafeInteger(result) || result < 1)
+        throw new RangeError("Watcher limits must be positive integers");
+      return result;
+    };
+    this.#intervalMs = positive(options.pollEndpointsIntervalMs, 10000);
+    this.#timeoutMs = positive(options.endpointTimeoutMs, 1500);
+    this.#maxSessions = positive(options.maxSessions, 1024);
+    this.#retentionMs = positive(options.sessionRetentionMs, 86400000);
+    this.endpoints = (options.endpoints ?? AgentWatcher.defaultEndpoints).map((endpoint) => ({
+      ...endpoint,
+    }));
     const home = homedir();
     this.monitoredDirs = options.customDirs ?? [
       join(home, ".gemini", "antigravity-cli", "brain"),
@@ -67,6 +94,8 @@ export class AgentWatcher {
   }
 
   start() {
+    if (this.#running) return;
+    this.#running = true;
     this.#startWatchers();
     this.#startEndpointPolling();
   }
@@ -77,7 +106,7 @@ export class AgentWatcher {
 
       try {
         const watcher = watch(dir, { recursive: true }, (eventType, filename) => {
-          if (!filename) return;
+          if (!this.#running || !filename) return;
           this.#handleFsEvent(dir, filename.toString(), eventType);
         });
         this.#watchers.push(watcher);
@@ -119,6 +148,10 @@ export class AgentWatcher {
 
     // Update internal cache
     const sessionKey = `${agent}:${sessionId}`;
+    this.#expireSessions();
+    this.#activeSessions.delete(sessionKey);
+    while (this.#activeSessions.size >= this.#maxSessions)
+      this.#activeSessions.delete(this.#activeSessions.keys().next().value!);
     this.#activeSessions.set(sessionKey, {
       agent,
       sessionId,
@@ -128,9 +161,9 @@ export class AgentWatcher {
 
     // Stream to Redis
     if (this.#redis?.isConnected) {
-      this.#redis.publish("yolo:agents:events", JSON.stringify(event)).catch(() => {});
-      this.#redis
-        .hset(
+      this.#track(this.#redis.publish("yolo:agents:events", JSON.stringify(event)));
+      this.#track(
+        this.#redis.hset(
           "yolo:agents:active_sessions",
           sessionKey,
           JSON.stringify({
@@ -139,8 +172,8 @@ export class AgentWatcher {
             lastSeen: now,
             path: fullPath,
           }),
-        )
-        .catch(() => {});
+        ),
+      );
     }
 
     // Persist to SQLite
@@ -159,46 +192,78 @@ export class AgentWatcher {
     }
   }
 
-  #startEndpointPolling() {
-    const poll = async () => {
-      for (const ep of this.endpoints) {
-        const start = performance.now();
-        let online = false;
-        try {
-          const resp = await fetch(ep.url, {
-            signal: AbortSignal.timeout(1500),
-          });
-          online = resp.status < 500;
-        } catch {
-          online = false;
-        }
-        const latencyMs = Math.round(performance.now() - start);
-        const status: EndpointStatus = {
-          name: ep.name,
-          url: ep.url,
-          online,
-          latencyMs,
-          lastChecked: new Date().toISOString(),
-        };
+  #track(request: Promise<unknown>): void {
+    const pending = request.catch(() => {}).finally(() => this.#pending.delete(pending));
+    this.#pending.add(pending);
+  }
 
-        if (this.#redis?.isConnected) {
-          this.#redis
-            .hset("yolo:agents:endpoints", ep.name, JSON.stringify(status))
-            .catch(() => {});
+  #startEndpointPolling(): void {
+    const poll = () => {
+      if (!this.#running || this.#poll) return;
+      const abort = new AbortController();
+      this.#abort = abort;
+      this.#poll = (async () => {
+        for (const endpoint of this.endpoints) {
+          if (abort.signal.aborted) break;
+          const started = performance.now();
+          let online = false;
+          try {
+            const response = await fetch(endpoint.url, {
+              signal: AbortSignal.any([abort.signal, AbortSignal.timeout(this.#timeoutMs)]),
+            });
+            online = response.ok;
+            await response.body?.cancel();
+          } catch {
+            /* A failed probe is recorded as offline. */
+          }
+          if (abort.signal.aborted) break;
+          const status: EndpointStatus = {
+            ...endpoint,
+            online,
+            latencyMs: Math.round(performance.now() - started),
+            lastChecked: new Date().toISOString(),
+          };
+          this.#statuses.set(endpoint.name, status);
+          if (this.#redis?.isConnected) {
+            try {
+              await this.#redis.hset(
+                "yolo:agents:endpoints",
+                endpoint.name,
+                JSON.stringify(status),
+              );
+            } catch {
+              /* The status remains available through getEndpointStatuses. */
+            }
+          }
         }
-      }
+      })().finally(() => {
+        this.#poll = null;
+        this.#abort = null;
+      });
     };
-
-    // Initial probe
     poll();
-    this.#pollTimer = setInterval(poll, 10_000);
+    this.#pollTimer = setInterval(poll, this.#intervalMs);
+  }
+
+  #expireSessions(): void {
+    const cutoff = Date.now() - this.#retentionMs;
+    for (const [key, value] of this.#activeSessions) {
+      if (Date.parse(value.lastSeen) < cutoff) this.#activeSessions.delete(key);
+    }
+  }
+
+  getEndpointStatuses(): EndpointStatus[] {
+    return [...this.#statuses.values()].map((status) => ({ ...status }));
   }
 
   getActiveSessions(): Array<{ agent: string; sessionId: string; lastSeen: string; path: string }> {
-    return Array.from(this.#activeSessions.values());
+    this.#expireSessions();
+    return Array.from(this.#activeSessions.values(), (session) => ({ ...session }));
   }
 
-  stop() {
+  async stop(): Promise<void> {
+    this.#running = false;
+    this.#abort?.abort();
     for (const w of this.#watchers) {
       try {
         w.close();
@@ -212,5 +277,7 @@ export class AgentWatcher {
       clearInterval(this.#pollTimer);
       this.#pollTimer = null;
     }
+    await this.#poll;
+    await Promise.allSettled(this.#pending);
   }
 }

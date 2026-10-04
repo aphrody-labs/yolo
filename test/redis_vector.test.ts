@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from "bun:test";
-import { generateDeterministicEmbedding } from "../packages/core/src/gemma4/index";
 import { NativeRedisClient } from "../packages/core/src/redis/client";
 import { RedisTrainDb } from "../packages/core/src/redis/traindb";
 import { RedisVectorStore } from "../packages/core/src/redis/vector";
@@ -19,12 +18,12 @@ describe("Native Bun Redis Vector & Train DB", () => {
   });
 
   it("performs vector indexing and similarity search in RedisVectorStore", async () => {
-    const client = new NativeRedisClient({ hostname: "127.0.0.1", port: 6379 });
+    const client = new NativeRedisClient({ offline: true });
     const store = new RedisVectorStore(client, "test_codebase");
 
-    const vec1 = generateDeterministicEmbedding("Gemma 4 architecture and transformer layers");
-    const vec2 = generateDeterministicEmbedding("DeepMind Gemma 4 attention mechanism");
-    const vec3 = generateDeterministicEmbedding("SQLite ledger and audit logging in Rust");
+    const vec1 = new Float32Array([1, 0, 0]);
+    const vec2 = new Float32Array([0.8, 0.6, 0]);
+    const vec3 = new Float32Array([0, 0, 1]);
 
     await store.upsert("doc1", vec1, { category: "ml", title: "Gemma4 Architecture" });
     await store.upsert("doc2", vec2, { category: "ml", title: "Attention Mechanism" });
@@ -55,7 +54,7 @@ describe("Native Bun Redis Vector & Train DB", () => {
   });
 
   it("stores and manages instruction and triple records in RedisTrainDb", async () => {
-    const client = new NativeRedisClient({ hostname: "127.0.0.1", port: 6379 });
+    const client = new NativeRedisClient({ offline: true });
     const trainDb = new RedisTrainDb(client, "gemma4_finetune");
 
     // Add instruction tuning sample

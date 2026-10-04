@@ -7,10 +7,10 @@
  * benchmarks, and codebase fingerprints.
  */
 import { Database } from "bun:sqlite";
-import { chmodSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
-import { wyhash } from "../sys/index";
+import { dirname, join, relative, resolve } from "node:path";
+import { wyhash } from "../sys/hash";
 import { findRepoRoot } from "../vfs/index";
 
 /**
@@ -154,18 +154,16 @@ export function initLedgerDatabase(customPath?: string): Database {
   }
 
   const dbDir = dirname(dbPath);
-  if (!existsSync(dbDir)) {
+  const inMemory = dbPath === ":memory:";
+  if (!inMemory && !existsSync(dbDir)) {
     mkdirSync(dbDir, { recursive: true, mode: 0o700 });
   }
-  try {
-    chmodSync(dbDir, 0o700);
-  } catch {}
 
   const db = new Database(dbPath, { create: true });
 
   // Enforce 0600 permissions on the database file
   try {
-    chmodSync(dbPath, 0o600);
+    if (!inMemory) chmodSync(dbPath, 0o600);
   } catch {}
 
   // High performance WAL mode
@@ -174,6 +172,7 @@ export function initLedgerDatabase(customPath?: string): Database {
 
   // Ensure WAL and SHM journal files also have 0600 permissions
   for (const ext of ["-wal", "-shm"]) {
+    if (inMemory) break;
     const journalPath = `${dbPath}${ext}`;
     if (existsSync(journalPath)) {
       try {
@@ -449,6 +448,7 @@ export function recordRemediation(db: Database, rem: RemediationRecord): void {
  * Enforces strict permissions (0700 on directories, 0600 on SQLite/journal files).
  */
 export function enforceLedgerPermissions(customPath?: string): void {
+  if (customPath === ":memory:") return;
   const root = findRepoRoot();
   const userStateDir = process.env.XDG_STATE_HOME
     ? join(process.env.XDG_STATE_HOME, "yolo")
@@ -464,10 +464,6 @@ export function enforceLedgerPermissions(customPath?: string): void {
 
   for (const dbPath of candidates) {
     if (!existsSync(dbPath)) continue;
-    const dbDir = dirname(dbPath);
-    try {
-      chmodSync(dbDir, 0o700);
-    } catch {}
     try {
       chmodSync(dbPath, 0o600);
     } catch {}
@@ -487,6 +483,7 @@ export function enforceLedgerPermissions(customPath?: string): void {
  * Skips target/, node_modules/, .git/, vendor/, .venv/, etc.
  */
 export function indexCodebaseFingerprints(db: Database, rootDir: string): number {
+  const root = resolve(rootDir);
   const IGNORE = new Set([
     ".git",
     "node_modules",
@@ -517,11 +514,11 @@ export function indexCodebaseFingerprints(db: Database, rootDir: string): number
       } else if (entry.isFile()) {
         try {
           const ext = entry.name.includes(".") ? entry.name.split(".").pop() || "" : "";
-          const stat = statSync(fullPath);
-          const hash = wyhash(entry.name + ":" + stat.size);
-          const relPath = fullPath.replace(rootDir, "").replace(/^[/\\]/, "");
+          const content = readFileSync(fullPath);
+          const hash = wyhash(content);
+          const relPath = relative(root, fullPath).replaceAll("\\", "/");
 
-          insertStmt.run(relPath, ext, stat.size, hash, now);
+          insertStmt.run(relPath, ext, content.byteLength, hash, now);
           count++;
         } catch {
           // Ignore unreadable or locked files
@@ -531,7 +528,7 @@ export function indexCodebaseFingerprints(db: Database, rootDir: string): number
   }
 
   db.transaction(() => {
-    scan(rootDir);
+    scan(root);
   })();
 
   return count;

@@ -5,7 +5,7 @@
  * Agent-First: Outputs structured JSON (schema `yolo.scan/1`) or Markdown tables with --json / --md.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { extname, relative, resolve } from "node:path";
 import { limiter } from "../sys/limiter";
 
@@ -59,10 +59,19 @@ export async function scanDirectory(
   if (!existsSync(absTarget)) {
     throw new Error(`Target path does not exist: ${absTarget}`);
   }
+  if (!statSync(absTarget).isDirectory())
+    throw new Error(`Target is not a directory: ${absTarget}`);
+  const parallel = options.parallel ?? 16;
+  if (!Number.isSafeInteger(parallel) || parallel < 1)
+    throw new Error("parallel must be a positive integer");
+  if (
+    options.maxFiles !== undefined &&
+    (!Number.isSafeInteger(options.maxFiles) || options.maxFiles < 1)
+  )
+    throw new Error("maxFiles must be a positive integer");
 
   const extsFilter = options.exts?.map((e) => (e.startsWith(".") ? e : `.${e}`).toLowerCase());
   const excludes = new Set(options.exclude ?? DEFAULT_EXCLUDES);
-  const parallel = options.parallel ?? 16;
   const limit = limiter(parallel);
 
   const glob = new Bun.Glob("**/*");
@@ -78,11 +87,12 @@ export async function scanDirectory(
     }
 
     candidates.push(relPath);
-    if (options.maxFiles && candidates.length >= options.maxFiles) break;
   }
 
   // Sort candidates for deterministic tree fingerprint
   candidates.sort();
+  if (options.maxFiles !== undefined)
+    candidates.length = Math.min(candidates.length, options.maxFiles);
 
   const entries: FileEntry[] = [];
   const extMap = new Map<string, { count: number; bytes: number; lines: number }>();
@@ -91,10 +101,11 @@ export async function scanDirectory(
     try {
       const fullPath = resolve(absTarget, relPath);
       const file = Bun.file(fullPath);
-      const text = await file.text();
-      const bytes = file.size;
+      const content = new Uint8Array(await file.arrayBuffer());
+      const text = new TextDecoder().decode(content);
+      const bytes = content.byteLength;
       const lines = text.length === 0 ? 0 : text.split("\n").length;
-      const hash = Bun.hash.wyhash(text).toString(16);
+      const hash = Bun.hash.wyhash(content).toString(16);
 
       return { path: relPath, bytes, lines, hash };
     } catch {
@@ -118,6 +129,9 @@ export async function scanDirectory(
   );
 
   await Promise.all(tasks);
+  const comparePaths = (a: FileEntry, b: FileEntry): number =>
+    a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
+  entries.sort(comparePaths);
 
   // Compute composite tree fingerprint using wyhash over sorted file hashes
   const treeHasher = new Bun.CryptoHasher("sha256");
@@ -138,9 +152,11 @@ export async function scanDirectory(
       bytes: stat.bytes,
       lines: stat.lines,
     }))
-    .sort((a, b) => b.bytes - a.bytes);
+    .sort((a, b) => b.bytes - a.bytes || (a.ext < b.ext ? -1 : a.ext > b.ext ? 1 : 0));
 
-  const largestFiles = [...entries].sort((a, b) => b.bytes - a.bytes).slice(0, 10);
+  const largestFiles = [...entries]
+    .sort((a, b) => b.bytes - a.bytes || comparePaths(a, b))
+    .slice(0, 10);
   const elapsedMs = Math.round((Bun.nanoseconds() - t0) / 1_000_000);
 
   return {
