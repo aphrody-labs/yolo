@@ -24,7 +24,7 @@ COMMANDS:
   runtime install|list|verify|rollback|info  Manage installed runtime artifacts
   upgrade [--check]     Install the latest release; uninstall [--yes] removes ~/.yolo
   create <dir> [--with web,desktop] Scaffold an Aphrody stack project (Bun + runtime SDK + Tauri) from templates/
-  awesome [stats|list|search|github|check] Browse aphrody-labs/awesome-bun (README cached, no clone)
+  awesome [stats|list|search|github|check] Browse oven-sh/awesome-bun (README cached, no clone)
   import [--apply|--check] Vendor the fork crates into crates/aphrody-* (see vendor.toml)
   rename [opts] [dir..] Mass boundary-aware rename (--preset aphrody | --from X --to Y, --apply, --paths)
   infra|ops|workspace|workflow|git|ssh ... Aphrody control plane (aphrody-infra / aphrody-ops), same workflow
@@ -90,7 +90,7 @@ yolo create <dir> — scaffold an Aphrody stack project
 ## yolo awesome -h
 
 ```
-yolo awesome — browse aphrody-labs/awesome-bun
+yolo awesome — browse oven-sh/awesome-bun
 
   awesome [stats]            Sections and entry counts
   awesome sections           Section titles
@@ -103,7 +103,7 @@ yolo awesome — browse aphrody-labs/awesome-bun
   awesome curate [--out f]   audit + templates/awesome.curated.json + cleaned README (default
                              templates/AWESOME.md); --since YYYY-MM-DD (default 2026-05-14)
 
-Options: --repo owner/name  --ref branch (default yolo)  --refresh  --offline
+Options: --repo owner/name  --ref branch (default main)  --refresh  --offline
          --file README.md   --json
 ```
 

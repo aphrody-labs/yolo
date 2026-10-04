@@ -100,7 +100,7 @@ ${header}
   \x1b[32mruntime install|list|verify|rollback|info\x1b[0m  Manage installed runtime artifacts
   \x1b[32mupgrade [--check]\x1b[0m     Install the latest release; \x1b[32muninstall [--yes]\x1b[0m removes ~/.yolo
   \x1b[32mcreate <dir> [--with web,desktop]\x1b[0m Scaffold an Aphrody stack project (Bun + runtime SDK + Tauri) from templates/
-  \x1b[32mawesome [stats|list|search|github|check]\x1b[0m Browse aphrody-labs/awesome-bun (README cached, no clone)
+  \x1b[32mawesome [stats|list|search|github|check]\x1b[0m Browse oven-sh/awesome-bun (README cached, no clone)
   \x1b[32mimport [--apply|--check]\x1b[0m Vendor the fork crates into crates/aphrody-* (see vendor.toml)
   \x1b[32mrename [opts] [dir..]\x1b[0m Mass boundary-aware rename (--preset aphrody | --from X --to Y, --apply, --paths)
   \x1b[32minfra|ops|workspace|workflow|git|ssh ...\x1b[0m Aphrody control plane (aphrody-infra / aphrody-ops), same workflow

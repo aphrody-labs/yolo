@@ -120,7 +120,7 @@ runtime-sdk-pack:
 runtime-list:
     bun run scripts/release/runtime_release.ts list
 
-# Browse aphrody-labs/awesome-bun (README cached in .cache/awesome): just awesome search react
+# Browse oven-sh/awesome-bun (README cached in .cache/awesome): just awesome search react
 awesome *args:
     bun run apps/cli/src/index.ts awesome {{args}}
 

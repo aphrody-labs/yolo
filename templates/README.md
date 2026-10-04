@@ -7,7 +7,7 @@ Rust-based Bun of `vendor/bun`.
 | :--- | :--- |
 | [`stack.toml`](stack.toml) | Layers (host, runtime, SDK, server, web, desktop, headless, tooling), their plan phase and status, pinned versions, templates and framework variants |
 | [`base/`](base), [`web/`](web), [`react/`](react), [`desktop/`](desktop), [`hono/`](hono), [`elysia/`](elysia) | Versioned project templates used by `yolo create` (`web` or `react` for the frontend, `hono` or `elysia` for the HTTP variant) |
-| [`AWESOME.md`](AWESOME.md) | `aphrody-labs/awesome-bun` curated for the Rust-based Bun (14 of 87 entries) |
+| [`AWESOME.md`](AWESOME.md) | awesome-bun curated for the Rust-based Bun (14 of 87 entries; audit of the former `aphrody-labs/awesome-bun@yolo`, recorded in `awesome-audit.json`) |
 | [`awesome.curated.json`](awesome.curated.json) / [`awesome-audit.json`](awesome-audit.json) | Kept entries / the verdict and reason for every entry |
 
 ## Scaffold
@@ -29,4 +29,5 @@ Bun was rewritten in Rust (commit `23427dbc12`, 2026-05-14). `yolo awesome curat
 repository exists, is not archived and was pushed after that date, is not a Zig project and, when the link points inside
 a repository, still answers; external pages are kept only for the official Bun site; undated articles and videos are
 dropped. This is activity evidence, not proof of compatibility: an entry that is active may still need testing on
-Bun 1.4. The same rules rewrote the README of the fork `aphrody-labs/awesome-bun` (branch `yolo`).
+Bun 1.4. The same rules once rewrote the README of the fork `aphrody-labs/awesome-bun` (branch `yolo`, since
+deleted); `AWESOME.md` is that curated list, and `yolo awesome` now reads the upstream `oven-sh/awesome-bun`.

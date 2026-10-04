@@ -1,5 +1,6 @@
 /**
- * `yolo awesome`: browse the Aphrody fork of awesome-bun (aphrody-labs/awesome-bun) from the CLI.
+ * `yolo awesome`: browse awesome-bun (oven-sh/awesome-bun, the upstream list; the former Aphrody fork was
+ * deleted) from the CLI. `--repo`/`--ref` select another copy of the list.
  *
  * The README is read from GitHub raw (no clone, no token) and cached under `.cache/awesome/`;
  * `--offline` uses the cache only and `--file` reads a local README (tests, drafts).
@@ -8,8 +9,8 @@
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-export const DEFAULT_REPO = "aphrody-labs/awesome-bun";
-export const DEFAULT_REF = "yolo";
+export const DEFAULT_REPO = "oven-sh/awesome-bun";
+export const DEFAULT_REF = "main";
 
 export interface AwesomeEntry {
   readonly name: string;
