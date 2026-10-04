@@ -9,7 +9,7 @@ les implémentations nécessaires ; le périmètre de maintenance hors sources d
 
 ## Lot actif — fork Bun desktop et build natif (2026-10-05)
 
-- [ ] Corriger et qualifier la propagation des bibliothèques natives Rust au linker du fork Bun.
+- [x] Corriger et qualifier le build-driver qui transmet les bibliothèques Rust au linker Linux du fork Bun ; compilation du moteur encore ouverte.
 - [ ] Préparer uniquement la fermeture des sources nécessaires au build, sous les verrous existants.
 - [ ] Raccorder réellement JSC/V8, le fournisseur headless et le plugin desktop ; conserver JSC/WebKit.
 - [ ] Qualifier React/Next 16, WebView embarquée et application desktop en un fichier Bun.
@@ -21,7 +21,7 @@ les implémentations nécessaires ; le périmètre de maintenance hors sources d
 - [x] Séparer les recettes et gates cœur, desktop, browser, Python et compilateur.
 - [x] Corriger les préalables de validation : aide verify et compilation du CLI autonome.
 - [x] Vérifier les consommateurs Aphrody et identifier le blocage de préparation M3.
-- [ ] Qualifier les changements, livrer les seuls lots possédés et consigner les dépendances restantes.
+- [x] Qualifier les changements, livrer les seuls lots possédés et consigner les dépendances restantes.
 
 ## Lot précédent — arbitrage crates, vendors et modules Bun
 

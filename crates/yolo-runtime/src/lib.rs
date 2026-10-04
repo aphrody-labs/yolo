@@ -50,6 +50,8 @@ pub enum YoloStatus {
 }
 
 /// Buffer owned by the library. Release it with [`yolo_buffer_free`].
+/// Only `len` bytes may be read; `cap` is allocator metadata and may exceed `len`.
+/// Keep all three fields unchanged until release, including for an empty buffer.
 #[repr(C)]
 #[derive(Debug)]
 pub struct YoloBuffer {
@@ -106,17 +108,9 @@ pub(crate) fn write_buffer(out: *mut YoloBuffer, bytes: Vec<u8>) -> YoloStatus {
   if out.is_null() {
     return set_error(YoloStatus::InvalidArgument, "null output buffer");
   }
-  let boxed = bytes.into_boxed_slice();
-  let len = boxed.len();
-  let data = Box::into_raw(boxed) as *mut u8;
+  let (data, len, cap) = bytes.into_raw_parts();
   // SAFETY: `out` is non-null and the caller guarantees it points to a writable `YoloBuffer`.
-  unsafe {
-    out.write(YoloBuffer {
-      data,
-      len,
-      cap: len,
-    })
-  };
+  unsafe { out.write(YoloBuffer { data, len, cap }) };
   YoloStatus::Ok
 }
 
@@ -133,7 +127,8 @@ pub(crate) fn write_json(out: *mut YoloBuffer, value: &impl serde::Serialize) ->
 /// Releases a buffer returned by this library and zeroes it. A zeroed buffer is a no-op.
 ///
 /// # Safety
-/// `buffer` must be null or point to a `YoloBuffer` produced by this library.
+/// `buffer` must be null or point to a zeroed or live `YoloBuffer` produced by this library.
+/// The caller must preserve its `data`, `len` and `cap` fields and must not release a copy.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn yolo_buffer_free(buffer: *mut YoloBuffer) {
   if buffer.is_null() {
@@ -142,8 +137,9 @@ pub unsafe extern "C" fn yolo_buffer_free(buffer: *mut YoloBuffer) {
   // SAFETY: guaranteed by the caller, see above.
   let b = unsafe { &mut *buffer };
   if !b.data.is_null() {
-    // SAFETY: the buffer was created from a `Box<[u8]>` of exactly `len` bytes.
-    drop(unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(b.data, b.len)) });
+    // SAFETY: these unchanged parts came from `Vec::into_raw_parts` in this library.
+    // Reclaim the original capacity with the same allocator, including when len is zero.
+    drop(unsafe { Vec::from_raw_parts(b.data, b.len, b.cap) });
   }
   *b = YoloBuffer {
     data: ptr::null_mut(),

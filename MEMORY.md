@@ -146,3 +146,26 @@ Le linker natif du fork et la sélection des sources de fabrique sont les lots
 suivants. Le 4 octobre à 22:21 UTC, la préparation SSH distincte attend toujours
 un fetch M3 sous verrou ; l’ancien job watcher est en échec. Le nightly Bun
 requis manque au VPS, aucun nouveau binaire fork n’a été produit ou installé.
+
+La fondation est livrée dans `d26eee678144` ; `origin/dev` et `origin/main`
+vérifiés à ce SHA. Aphrody livre l’aide ciblée et les contrats JSC/V8 dans
+`adec4dd67`, poussé sur son remote `workspace`.
+
+Le fork Bun porte maintenant `cf4e249669` : les directives natives Linux
+des `build.rs` atteignent son linker Clang final, avec dépendances Ninja,
+exclusion des proc-macros hôte et absence de double liaison des archives déjà
+embarquées dans les rlibs. Cinquante-trois tests/128 assertions passent ; une
+petite bibliothèque partagée est réellement compilée, liée et exécutée via
+la réponse produite. Types du build-driver et lint strict passent. Cinq fichiers
+passent le format ; la divergence antérieure de `timings.ts` reste identique.
+Le test porte sur le build-driver TS, pas un moteur Bun reconstruit.
+[Preuve et hashes](docs/bun-native-link-2026-10-05.json).
+
+Le chemin commun des buffers ABI transmet désormais le `Vec` d’origine, sans
+le convertir en slice réallouée. Son pointeur, sa longueur utile et sa capacité
+restent ceux de l’allocateur propriétaire jusqu’à `yolo_buffer_free`. Les cinq
+nouveaux tests couvrent transfert, capacité excédentaire, buffers vides et
+libération ; 42 tests cœur/runtime et check/Clippy strict/format passent avec
+Cargo sérialisé. Le SDK Bun copie encore les octets avant libération et la
+capacité inutilisée reste allouée jusque-là : aucun gain RAM global ni artefact
+installé n’est revendiqué. [Preuve native](docs/native-buffers-2026-10-05.json).

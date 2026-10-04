@@ -39,6 +39,86 @@ fn last_error() -> String {
 }
 
 #[test]
+fn buffer_transfer_preserves_allocation_and_initialized_length() {
+  let mut bytes = Vec::with_capacity(64);
+  bytes.extend_from_slice(b"abc");
+  let data = bytes.as_mut_ptr();
+  let capacity = bytes.capacity();
+  let mut out = empty();
+  assert_eq!(write_buffer(&mut out, bytes), YoloStatus::Ok);
+  assert_eq!(out.data, data);
+  assert_eq!(out.cap, capacity);
+  assert!(out.cap > out.len);
+  assert_eq!(out.len, 3);
+  // SAFETY: the buffer is live; only the initialized prefix is exposed by len.
+  assert_eq!(
+    unsafe { std::slice::from_raw_parts(out.data, out.len) },
+    b"abc"
+  );
+  unsafe { yolo_buffer_free(&mut out) };
+  assert!(out.data.is_null());
+  assert_eq!((out.len, out.cap), (0, 0));
+}
+
+#[test]
+fn buffer_transfer_preserves_empty_reserved_allocation() {
+  let mut bytes = Vec::with_capacity(64);
+  let data = bytes.as_mut_ptr();
+  let capacity = bytes.capacity();
+  let mut out = empty();
+  assert_eq!(write_buffer(&mut out, bytes), YoloStatus::Ok);
+  assert_eq!(out.data, data);
+  assert_eq!(out.len, 0);
+  assert_eq!(out.cap, capacity);
+  assert!(out.cap > 0);
+  unsafe { yolo_buffer_free(&mut out) };
+  assert!(out.data.is_null());
+  assert_eq!((out.len, out.cap), (0, 0));
+}
+
+#[test]
+fn buffer_transfer_preserves_empty_unallocated_parts() {
+  let mut bytes = Vec::new();
+  let data = bytes.as_mut_ptr();
+  let mut out = empty();
+  assert_eq!(write_buffer(&mut out, bytes), YoloStatus::Ok);
+  assert_eq!(out.data, data);
+  assert_eq!((out.len, out.cap), (0, 0));
+  unsafe { yolo_buffer_free(&mut out) };
+  assert!(out.data.is_null());
+  assert_eq!((out.len, out.cap), (0, 0));
+}
+
+#[test]
+fn buffer_free_zeroes_owned_parts_and_accepts_repeated_or_null_release() {
+  let mut out = empty();
+  assert_eq!(write_buffer(&mut out, vec![1, 2, 3]), YoloStatus::Ok);
+  for _ in 0..2 {
+    unsafe { yolo_buffer_free(&mut out) };
+    assert!(out.data.is_null());
+    assert_eq!((out.len, out.cap), (0, 0));
+  }
+  let mut zeroed = empty();
+  unsafe {
+    yolo_buffer_free(&mut zeroed);
+    yolo_buffer_free(ptr::null_mut());
+  }
+  assert!(zeroed.data.is_null());
+  assert_eq!((zeroed.len, zeroed.cap), (0, 0));
+}
+
+#[test]
+fn buffer_transfer_rejects_null_output() {
+  let mut bytes = Vec::with_capacity(64);
+  bytes.extend_from_slice(b"abc");
+  assert_eq!(
+    write_buffer(ptr::null_mut(), bytes),
+    YoloStatus::InvalidArgument
+  );
+  assert_eq!(last_error(), "null output buffer");
+}
+
+#[test]
 fn abi_version_is_major_minor() {
   assert_eq!(yolo_abi_version(), (ABI_MAJOR << 16) | ABI_MINOR);
 }

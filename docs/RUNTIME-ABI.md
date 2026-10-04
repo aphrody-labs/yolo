@@ -46,7 +46,11 @@ by the preload plugin of `packages/runtime`.
   recycled handle is rejected with `INVALID_HANDLE`; a runtime handle is not valid where an
   operation handle is expected. No raw pointer to library state leaves the library.
 - **Buffers.** Returned buffers (`YoloBuffer`: data, len, cap) belong to the library. The caller
-  copies and then calls `yolo_buffer_free`, which also zeroes the struct (a second call is a no-op).
+  reads only `len` initialized bytes and preserves all three fields until `yolo_buffer_free`,
+  which uses the library's allocator and zeroes the struct (a second call is a no-op).
+  The native transfer retains the original allocation without shrinking or copying; `cap` may
+  exceed `len`, and that capacity remains allocated until release, even when `len` is zero.
+  The Bun SDK still copies bytes before freeing them; this does not make JS reads zero-copy.
   The library never frees caller memory and never keeps a pointer to it.
 - **Errors.** Every function returns a `YoloStatus`. Details of the last failure of the calling
   thread are available as JSON through `yolo_last_error`. Structured control data (build info,
