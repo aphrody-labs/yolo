@@ -92,6 +92,8 @@ export interface NativeLibraryOptions<S extends Record<string, FFIFunction>> {
   /** Exact file name (or per-platform file names) overriding `lib<name>.<suffix>`, e.g. .NET NativeAOT `IECODE.Ffi.so`. */
   fileNames?: readonly string[];
   symbols: S;
+  /** Explicit library file, checked before environment variables. */
+  path?: string;
   /** Environment variables naming an explicit library file, checked first, in order. */
   envPaths?: readonly string[];
   /** Extra directories searched after the executable dir and `~/.local/bin`. */
@@ -123,6 +125,7 @@ export function nativeLibrary<S extends Record<string, FFIFunction>>(
   let path: string | null = null;
 
   const resolvePath = (): string | null => {
+    if (options.path && existsSync(options.path)) return options.path;
     for (const env of options.envPaths ?? []) {
       const value = process.env[env];
       if (value && existsSync(value)) return value;

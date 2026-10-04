@@ -24,6 +24,11 @@ describe("runtime SDK ffi helpers", () => {
     expect(readOwnedBytes(new Uint8Array(24), () => {})).toBeNull();
   });
 
+  it("nativeLibrary resolves an explicit path", () => {
+    const lib = nativeLibrary({ name: "x", path: import.meta.path, symbols: {} });
+    expect(lib.resolvePath()).toBe(import.meta.path);
+  });
+
   it("nativeLibrary reports a diagnostic and honours fileNames", () => {
     const lib = nativeLibrary({ name: "nope", fileNames: ["Nope.Ffi.so"], symbols: {} });
     expect(lib.isAvailable()).toBe(false);
