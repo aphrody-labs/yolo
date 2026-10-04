@@ -195,3 +195,12 @@ depuis environ 1 h 50 ; aucun nouveau build n’est lancé en concurrence. Le
 checkout Bun du VPS reste ancien et son nightly requis absent. Ni addon
 Turbopack complet, ni fork Bun reconstruit, ni réduction globale de RAM,
 ni fusion de tous les moteurs/dépendances ne sont qualifiés par ces lots.
+
+## AI vector owner 2026-10-05
+
+Redis et Gemma utilisent le même module pur `packages/core/src/math/vectors.ts` ;
+les exports Gemma restent compatibles. Le bundle Redis vérifié ne contient plus
+le graphe Gemma. 38 tests/452 assertions passent, ainsi que TypeScript core,
+oxlint strict et oxfmt ciblés. Aucun changement numérique ni gain runtime mesuré.
+[Preuve et limites](docs/ai/vector-owner-2026-10-05.md). Aucun build Rust ni
+modification des chemins desktop/runtime concurrents dans ce lot.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { cosineSimilarity } from "../gemma4/engine";
+import { cosineSimilarity } from "../math/vectors";
 import { NativeRedisClient } from "./client";
 import {
   CHECK_INDEX,
