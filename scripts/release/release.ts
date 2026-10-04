@@ -24,6 +24,7 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { hostTarget, verifyArtifact } from "../../packages/runtime/src/artifact";
+import { COMPILE_FLAGS } from "./compile-flags";
 
 const root = resolve(import.meta.dir, "../..");
 const outIndex = Bun.argv.indexOf("--out");
@@ -65,6 +66,7 @@ await run([
   "bun",
   "build",
   "--compile",
+  ...COMPILE_FLAGS,
   "--define",
   `YOLO_VERSION=${JSON.stringify(version)}`,
   "apps/cli/src/index.ts",

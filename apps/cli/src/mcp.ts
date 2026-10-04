@@ -5,5 +5,5 @@ export * from "../../../packages/core/src/mcp/server";
 import { runMcpServer } from "../../../packages/core/src/mcp/server";
 
 if (import.meta.main) {
-  await runMcpServer();
+  void runMcpServer();
 }

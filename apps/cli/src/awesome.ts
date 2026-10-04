@@ -5,5 +5,7 @@ export * from "../../../packages/core/src/curation/awesome";
 import { runAwesomeCommand } from "../../../packages/core/src/curation/awesome";
 
 if (import.meta.main) {
-  process.exitCode = await runAwesomeCommand(process.argv.slice(2), process.cwd());
+  void runAwesomeCommand(process.argv.slice(2), process.cwd()).then((code) => {
+    process.exitCode = code;
+  });
 }

@@ -5,5 +5,7 @@ export * from "../../../packages/core/src/verify/engine";
 import { runVerifyCommand } from "../../../packages/core/src/verify/engine";
 
 if (import.meta.main) {
-  process.exitCode = await runVerifyCommand(process.argv.slice(2), process.cwd());
+  void runVerifyCommand(process.argv.slice(2), process.cwd()).then((code) => {
+    process.exitCode = code;
+  });
 }

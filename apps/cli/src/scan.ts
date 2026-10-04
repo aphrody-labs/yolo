@@ -68,5 +68,7 @@ export async function runScanCommand(
 }
 
 if (import.meta.main) {
-  process.exitCode = await runScanCommand(process.argv.slice(2), process.cwd());
+  void runScanCommand(process.argv.slice(2), process.cwd()).then((code) => {
+    process.exitCode = code;
+  });
 }

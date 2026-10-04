@@ -14,46 +14,16 @@
 
 import { existsSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { runAwesomeCommand } from "./awesome";
-import { runCreateCommand } from "./create";
-import { runDoctor, runRuntimeCommand, runUninstall, runUpgrade, runVersion } from "./distribution";
-import { runAphrodyCommand } from "./aphrody";
-import { runHostCommand } from "./host";
-import { runVerifyCommand } from "./verify";
 import { findCheckout, isCompiled, yoloHome } from "./home";
-import { runImportCommand } from "./import";
-import { runPluginCommand } from "./plugin";
-import { runRenameCommand } from "./rename";
-import { runScanCommand } from "./scan";
-import { runMcpServer } from "./mcp";
-import { runApiCommand } from "./api";
-import { runPythonCommand } from "./python";
-import { yoloVersion } from "./home";
-import { hostTarget } from "../../../packages/runtime/src/artifact";
-
-const ROOT_DIR = yoloHome();
-const VENDOR_DIR = resolve(ROOT_DIR, "vendor");
-
-import {
-  inspectPackages as coreInspectPackages,
-  parseTsSource as coreParseTsSource,
-  readWorkspaceCargo as coreReadWorkspaceCargo,
-  generateBunCatalog as coreGenerateBunCatalog,
-  readVendorStatus as coreReadVendorStatus,
-  collectStatusReport as coreCollectStatusReport,
-  renderStatusMarkdown as coreRenderStatusMarkdown,
-  renderParseMarkdown as coreRenderParseMarkdown,
-  runBenchMetrics as coreRunBenchMetrics,
-  renderBenchMarkdown as coreRenderBenchMarkdown,
-  resolveGitDir as coreResolveGitDir,
-  type SubmoduleStatus,
-  type TsParseResult,
-  type WorkspaceCargoSummary,
-  type BunApiDomain,
-  type AutonomousGenerationReport,
-  type VendorSourceStatus,
-  type StatusReport,
-  type BenchMetrics,
+import type {
+  AutonomousGenerationReport,
+  BenchMetrics,
+  BunApiDomain,
+  StatusReport,
+  SubmoduleStatus,
+  TsParseResult,
+  VendorSourceStatus,
+  WorkspaceCargoSummary,
 } from "../../../packages/core/src/index";
 
 export type {
@@ -67,17 +37,47 @@ export type {
   BenchMetrics,
 };
 
-export const inspectPackages = coreInspectPackages;
-export const parseTsSource = coreParseTsSource;
-export const readWorkspaceCargo = coreReadWorkspaceCargo;
-export const generateBunCatalog = coreGenerateBunCatalog;
-export const readVendorStatus = coreReadVendorStatus;
-export const collectStatusReport = coreCollectStatusReport;
-export const renderStatusMarkdown = coreRenderStatusMarkdown;
-export const renderParseMarkdown = coreRenderParseMarkdown;
-export const runBenchMetrics = coreRunBenchMetrics;
-export const renderBenchMarkdown = coreRenderBenchMarkdown;
-export const resolveGitDir = coreResolveGitDir;
+// Startup cost: `yolo version` is a preflight that wrappers run before every task, so this file loads nothing but the
+// home resolver. Every command module is imported by its `case` below, and the programmatic API below forwards to the
+// core module that defines it on first call (the core barrel alone costs ~11 ms to evaluate).
+const vendorStatus = () => import("../../../packages/core/src/vendor/status");
+const vendorCargo = () => import("../../../packages/core/src/vendor/cargo");
+const vendorCatalog = () => import("../../../packages/core/src/vendor/catalog");
+const vfsParse = () => import("../../../packages/core/src/vfs/parse");
+const sysBench = () => import("../../../packages/core/src/sys/benchmark");
+type Status = Awaited<ReturnType<typeof vendorStatus>>;
+type Cargo = Awaited<ReturnType<typeof vendorCargo>>;
+type Catalog = Awaited<ReturnType<typeof vendorCatalog>>;
+type Parse = Awaited<ReturnType<typeof vfsParse>>;
+type Bench = Awaited<ReturnType<typeof sysBench>>;
+
+export const inspectPackages: Status["inspectPackages"] = async (...args) =>
+  (await vendorStatus()).inspectPackages(...args);
+export const readVendorStatus: Status["readVendorStatus"] = async (...args) =>
+  (await vendorStatus()).readVendorStatus(...args);
+export const collectStatusReport: Status["collectStatusReport"] = async (...args) =>
+  (await vendorStatus()).collectStatusReport(...args);
+export const resolveGitDir: Status["resolveGitDir"] = async (...args) =>
+  (await vendorStatus()).resolveGitDir(...args);
+export const readWorkspaceCargo: Cargo["readWorkspaceCargo"] = async (...args) =>
+  (await vendorCargo()).readWorkspaceCargo(...args);
+export const generateBunCatalog: Catalog["generateBunCatalog"] = async (...args) =>
+  (await vendorCatalog()).generateBunCatalog(...args);
+export const parseTsSource: Parse["parseTsSource"] = async (...args) =>
+  (await vfsParse()).parseTsSource(...args);
+// The pure renderers are synchronous in the core API, so they load their module with a lazy `require`.
+export const renderStatusMarkdown: Status["renderStatusMarkdown"] = (...args) =>
+  (require("../../../packages/core/src/vendor/status") as Status).renderStatusMarkdown(...args);
+export const renderParseMarkdown: Parse["renderParseMarkdown"] = (...args) =>
+  (require("../../../packages/core/src/vfs/parse") as Parse).renderParseMarkdown(...args);
+export const runBenchMetrics: Bench["runBenchMetrics"] = (...args) =>
+  (require("../../../packages/core/src/sys/benchmark") as Bench).runBenchMetrics(...args);
+export const renderBenchMarkdown: Bench["renderBenchMarkdown"] = (...args) =>
+  (require("../../../packages/core/src/sys/benchmark") as Bench).renderBenchMarkdown(...args);
+
+let cachedRoot: string | undefined;
+/** The yolo home, resolved on first use (it walks parent directories, which `version` and `help` do not need). */
+const rootDir = (): string => (cachedRoot ??= yoloHome());
 
 export function printHelp(): void {
   const header = "\x1b[1m\x1b[36mYOLO Industrial Engine CLI\x1b[0m (100% Native Bun Powered)";
@@ -224,7 +224,7 @@ async function main(): Promise<void> {
       );
       const report = await generateBunCatalog();
       console.log(`  \x1b[32m[SUCCESS]\x1b[0m Generated code catalog in ${report.elapsedMs} ms`);
-      console.log(`  Target:   ${relative(ROOT_DIR, report.targetCatalogPath)}`);
+      console.log(`  Target:   ${relative(rootDir(), report.targetCatalogPath)}`);
       console.log(
         `  Indexed:  ${report.totalDocFilesIndexed} docs, ${report.totalTypeFilesIndexed} type declarations`,
       );
@@ -257,7 +257,7 @@ async function main(): Promise<void> {
         console.log(renderParseMarkdown(result));
         break;
       }
-      console.log(`\x1b[1m\x1b[36m=== Parsed Source: ${relative(ROOT_DIR, absPath)} ===\x1b[0m`);
+      console.log(`\x1b[1m\x1b[36m=== Parsed Source: ${relative(rootDir(), absPath)} ===\x1b[0m`);
       console.log(`  Lines:    ${result.lines}`);
       console.log(`  Bytes:    ${result.bytes} B`);
       console.log(`  Checksum: wyhash:0x${result.checksum}`);
@@ -299,7 +299,7 @@ async function main(): Promise<void> {
     case "desktop":
     case "tauri": {
       const sub = args[1] || "build";
-      const webDir = resolve(ROOT_DIR, "apps/web");
+      const webDir = resolve(rootDir(), "apps/web");
       if (!existsSync(webDir)) {
         console.error(`\x1b[31mError:\x1b[0m web app not found at ${webDir}`);
         process.exit(1);
@@ -325,7 +325,7 @@ async function main(): Promise<void> {
     }
 
     case "docs": {
-      const docsDir = resolve(VENDOR_DIR, "bun/docs");
+      const docsDir = resolve(rootDir(), "vendor", "bun/docs");
       const query = args.find((a) => !a.startsWith("-") && a !== "docs")?.toLowerCase();
       let matches: string[] = [];
       if (existsSync(docsDir)) {
@@ -390,87 +390,89 @@ async function main(): Promise<void> {
     case "version":
     case "--version":
     case "-v": {
-      if (args.includes("--json")) {
-        console.log(
-          JSON.stringify(
-            {
-              schema: "yolo.version/1",
-              version: yoloVersion(),
-              target: hostTarget(),
-              bunVersion: Bun.version,
-            },
-            null,
-            2,
-          ),
-        );
-        process.exitCode = 0;
-      } else {
-        process.exitCode = runVersion();
-      }
+      const { runVersion } = await import("./version");
+      process.exitCode = runVersion(args);
       break;
     }
 
-    case "doctor":
+    case "doctor": {
+      const { runDoctor } = await import("./distribution");
       process.exitCode = runDoctor(args.slice(1));
       break;
+    }
 
     case "scan": {
-      process.exitCode = await runScanCommand(args.slice(1), ROOT_DIR);
+      const { runScanCommand } = await import("./scan");
+      process.exitCode = await runScanCommand(args.slice(1), rootDir());
       break;
     }
 
     case "mcp": {
-      await runMcpServer(ROOT_DIR);
+      const { runMcpServer } = await import("./mcp");
+      await runMcpServer(rootDir());
       break;
     }
 
     case "api":
     case "serve": {
-      process.exitCode = await runApiCommand(args.slice(1), ROOT_DIR);
+      const { runApiCommand } = await import("./api");
+      process.exitCode = await runApiCommand(args.slice(1), rootDir());
       break;
     }
 
-    case "runtime":
+    case "runtime": {
+      const { runRuntimeCommand } = await import("./distribution");
       process.exitCode = await runRuntimeCommand(args.slice(1));
       break;
+    }
 
-    case "upgrade":
+    case "upgrade": {
+      const { runUpgrade } = await import("./distribution");
       process.exitCode = await runUpgrade(args.slice(1));
       break;
+    }
 
-    case "uninstall":
+    case "uninstall": {
+      const { runUninstall } = await import("./distribution");
       process.exitCode = runUninstall(args.slice(1));
       break;
+    }
 
     case "create": {
-      process.exitCode = await runCreateCommand(args.slice(1), ROOT_DIR);
+      const { runCreateCommand } = await import("./create");
+      process.exitCode = await runCreateCommand(args.slice(1), rootDir());
       break;
     }
 
     case "awesome": {
-      process.exitCode = await runAwesomeCommand(args.slice(1), ROOT_DIR);
+      const { runAwesomeCommand } = await import("./awesome");
+      process.exitCode = await runAwesomeCommand(args.slice(1), rootDir());
       break;
     }
 
     case "import": {
-      process.exitCode = await runImportCommand(args.slice(1), ROOT_DIR);
+      const { runImportCommand } = await import("./import");
+      process.exitCode = await runImportCommand(args.slice(1), rootDir());
       break;
     }
 
     case "rename": {
-      process.exitCode = await runRenameCommand(args.slice(1), ROOT_DIR);
+      const { runRenameCommand } = await import("./rename");
+      process.exitCode = await runRenameCommand(args.slice(1), rootDir());
       break;
     }
 
     case "plugin": {
-      process.exitCode = await runPluginCommand(args.slice(1), ROOT_DIR);
+      const { runPluginCommand } = await import("./plugin");
+      process.exitCode = await runPluginCommand(args.slice(1), rootDir());
       break;
     }
 
     case "py":
     case "python":
     case "uv": {
-      process.exitCode = await runPythonCommand(args.slice(1), ROOT_DIR);
+      const { runPythonCommand } = await import("./python");
+      process.exitCode = await runPythonCommand(args.slice(1), rootDir());
       break;
     }
 
@@ -482,17 +484,20 @@ async function main(): Promise<void> {
     case "ssh":
     case "ship":
     case "hooks": {
-      process.exitCode = await runAphrodyCommand(command, args.slice(1), ROOT_DIR);
+      const { runAphrodyCommand } = await import("./aphrody");
+      process.exitCode = await runAphrodyCommand(command, args.slice(1), rootDir());
       break;
     }
 
     case "host": {
-      process.exitCode = await runHostCommand(args.slice(1), ROOT_DIR);
+      const { runHostCommand } = await import("./host");
+      process.exitCode = await runHostCommand(args.slice(1), rootDir());
       break;
     }
 
     case "verify": {
-      process.exitCode = await runVerifyCommand(args.slice(1), ROOT_DIR);
+      const { runVerifyCommand } = await import("./verify");
+      process.exitCode = await runVerifyCommand(args.slice(1), rootDir());
       break;
     }
 
@@ -510,5 +515,7 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-  await main();
+  // No top-level await: the entry then loads as CommonJS, which `bun build --compile --bytecode` needs. A rejection
+  // still ends the process with the error printed and exit code 1, as before.
+  void main();
 }

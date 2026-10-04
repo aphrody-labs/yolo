@@ -6,5 +6,7 @@ import { runAphrodyCommand } from "../../../packages/core/src/coord/aphrody";
 
 if (import.meta.main) {
   const [command = "", ...args] = process.argv.slice(2);
-  process.exitCode = await runAphrodyCommand(command, args, process.cwd());
+  void runAphrodyCommand(command, args, process.cwd()).then((code) => {
+    process.exitCode = code;
+  });
 }

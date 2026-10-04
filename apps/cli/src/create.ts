@@ -5,5 +5,7 @@ export * from "../../../packages/core/src/scaffold/create";
 import { runCreateCommand } from "../../../packages/core/src/scaffold/create";
 
 if (import.meta.main) {
-  process.exitCode = await runCreateCommand(process.argv.slice(2), process.cwd());
+  void runCreateCommand(process.argv.slice(2), process.cwd()).then((code) => {
+    process.exitCode = code;
+  });
 }

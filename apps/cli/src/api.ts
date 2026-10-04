@@ -5,5 +5,7 @@ export * from "../../../packages/core/src/server/http";
 import { runApiCommand } from "../../../packages/core/src/server/http";
 
 if (import.meta.main) {
-  process.exitCode = await runApiCommand(process.argv.slice(2), process.cwd());
+  void runApiCommand(process.argv.slice(2), process.cwd()).then((code) => {
+    process.exitCode = code;
+  });
 }

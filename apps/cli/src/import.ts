@@ -5,5 +5,7 @@ export * from "../../../packages/core/src/vendor/import";
 import { runImportCommand } from "../../../packages/core/src/vendor/import";
 
 if (import.meta.main) {
-  process.exitCode = await runImportCommand(process.argv.slice(2), process.cwd());
+  void runImportCommand(process.argv.slice(2), process.cwd()).then((code) => {
+    process.exitCode = code;
+  });
 }

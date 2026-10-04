@@ -9,26 +9,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { Runtime, EXPECTED_ABI_MAJOR, RuntimeError, Status, type LoadOptions } from "./index";
+import { SUPPORTED_TARGETS, hostTarget } from "./target";
 
-/** Supported targets: Bun platform/arch → Rust target triple. */
-export const SUPPORTED_TARGETS: Readonly<Record<string, string>> = {
-  "linux-x64": "x86_64-unknown-linux-gnu",
-  "linux-arm64": "aarch64-unknown-linux-gnu",
-  "darwin-x64": "x86_64-apple-darwin",
-  "darwin-arm64": "aarch64-apple-darwin",
-  "win32-x64": "x86_64-pc-windows-msvc",
-};
-
-export function hostTarget(): string {
-  const key = `${process.platform}-${process.arch}`;
-  const target = SUPPORTED_TARGETS[key];
-  if (target === undefined) {
-    throw new Error(
-      `Unsupported platform ${key}; supported: ${Object.keys(SUPPORTED_TARGETS).join(", ")}`,
-    );
-  }
-  return target;
-}
+export { SUPPORTED_TARGETS, hostTarget };
 
 export function runtimeHome(): string {
   const fromEnv = process.env["YOLO_RUNTIME_HOME"];

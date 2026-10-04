@@ -8,8 +8,13 @@ import { dirname, join, resolve } from "node:path";
 /** Replaced at compile time (`--define YOLO_VERSION='"x.y.z"'`). */
 declare const YOLO_VERSION: string | undefined;
 
+/**
+ * True inside the standalone executable. A `--bytecode` build reports the build-time source path as `import.meta.dir`,
+ * so the entry module's path (`/$bunfs/root/...`, `B:/~BUN/root/...`) is checked as well.
+ */
 export function isCompiled(): boolean {
-  return import.meta.dir.includes("$bunfs") || import.meta.dir.includes("~BUN");
+  const embedded = (path: string): boolean => path.includes("$bunfs") || path.includes("~BUN");
+  return embedded(import.meta.dir) || embedded(Bun.main);
 }
 
 export function findRepoRoot(start: string = process.cwd()): string {

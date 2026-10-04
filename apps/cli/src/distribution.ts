@@ -21,10 +21,7 @@ const ok = (text: string): void => console.log(`  \x1b[32m✔\x1b[0m ${text}`);
 const warn = (text: string): void => console.log(`  \x1b[33m!\x1b[0m ${text}`);
 const bad = (text: string): void => console.log(`  \x1b[31m✘\x1b[0m ${text}`);
 
-export function runVersion(): number {
-  console.log(`yolo ${yoloVersion()} (${hostTarget()}, Bun ${Bun.version})`);
-  return 0;
-}
+export { runVersion } from "./version";
 
 export {
   collectDoctorReport,
