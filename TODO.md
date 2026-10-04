@@ -12,7 +12,7 @@ les implémentations nécessaires ; le périmètre de maintenance hors sources d
 - [x] Exposer un plan natif pour les manifestes et locks Bun, uv et Cargo.
 - [x] Exécuter la synchronisation réelle avec les binaires globaux, locks conservés et Cargo sérialisé.
 - [x] Qualifier des projets temporaires hors ligne, les échecs et l’annulation.
-- [ ] Livrer les sources et preuves de cette tranche sans fermer le gestionnaire complet.
+- [x] Livrer les sources et preuves de cette tranche sans fermer le gestionnaire complet.
 
 ## Lot précédent — consolidation du cœur
 
@@ -21,7 +21,7 @@ les implémentations nécessaires ; le périmètre de maintenance hors sources d
 - [x] Rendre Redis/vectoriel/datasets persistants et cohérents hors ligne.
 - [x] Consolider MCP/API, exports publics et durée de vie des dépendances.
 - [x] Corriger supervision des moniteurs et les autres contrats incomplets démontrés.
-- [ ] Exécuter les gates applicables, livrer les seuls chemins possédés et garder les limites factuelles.
+- [x] Exécuter les gates applicables, livrer les seuls chemins possédés et garder les limites factuelles.
 
 ## Lot précédent — autonomie et release courante
 

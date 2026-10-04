@@ -107,3 +107,17 @@ Les [vérifications factuelles](docs/FACT-CHECK-2026-10-04.md) corrigent la mém
 La fabrique configurée route encore vers `vps`, pourtant réservé à l'exécution :
 un hôte compatible doit être désigné avant build/release. Les archives locales
 ABI 1.3 ont des hashes conformes mais ne qualifient pas la release courante ABI 1.4.
+
+
+## Gestionnaire de paquets — acquisition verrouillée (2026-10-04)
+
+Première tranche du GOAL §3 : `@aphrody/yolo-core/pm` et l’outil MCP
+`yolo_package_sync` planifient puis synchronisent les dépendances Bun/uv/Cargo
+avec les binaires globaux et les locks existants. Sept tests exécutent les trois
+outils sur des projets temporaires Linux x64 avec supervision native ABI 1.4,
+Cargo sérialisé et annulation d’un téléchargement réel.
+[Qualification](docs/package-manager-2026-10-04.json).
+
+Le gestionnaire complet reste ouvert : add/remove/update, installation des outils,
+sélection des moteurs et autres cibles. Cette tranche ne ferme aucun jalon de
+release, desktop, headless ou fabrique.

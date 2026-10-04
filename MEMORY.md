@@ -87,3 +87,6 @@ sélection des moteurs et autres cibles n'ont pas été qualifiés. Redis conser
 une mémoire hors ligne volatile et KNN exact O(N) ; Gemma qualifie des transports
 HTTP locaux, pas des poids, un tokenizer numérique ou un entraînement.
 Preuves : [gestionnaire et lot core](docs/package-manager-2026-10-04.json).
+
+Sources livrées dans `1494e008d1aa` et poussées normalement sur `origin/dev`.
+`origin/main` vérifié au même commit par le suivi natif ; fabrique encore en préparation/file, aucun résultat de build déduit.

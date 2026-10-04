@@ -16,6 +16,7 @@ the existing native runtime supervisor. Cargo uses Aphrody's serialization wrapp
 ```ts
 import { planPackageSync, syncPackages } from "@aphrody/yolo-core/pm";
 
+const controller = new AbortController();
 const plan = await planPackageSync({ root: "/path/to/project", offline: true });
 const result = await syncPackages({
   root: plan.root,

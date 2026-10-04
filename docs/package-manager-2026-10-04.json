@@ -85,7 +85,10 @@
       "result": {
         "ok": true,
         "applied": false,
-        "managers": ["bun", "cargo"]
+        "managers": [
+          "bun",
+          "cargo"
+        ]
       }
     },
     {
@@ -113,6 +116,32 @@
           "status": "pass"
         }
       ]
+    },
+    {
+      "command": "/home/aphro/yolo/bin/yolo verify --only whitespace,typecheck,lint,fmt-check,docs --json",
+      "status": "pass",
+      "gates": [
+        {
+          "id": "whitespace",
+          "status": "pass"
+        },
+        {
+          "id": "typecheck",
+          "status": "pass"
+        },
+        {
+          "id": "lint",
+          "status": "pass"
+        },
+        {
+          "id": "fmt-check",
+          "status": "pass"
+        },
+        {
+          "id": "docs",
+          "status": "pass"
+        }
+      ]
     }
   ],
   "supportingCoreChanges": [
@@ -133,5 +162,13 @@
     "Gemma architecture profiles unverified; tests prove local HTTP transport, not weights/numeric tokenizer/model quality/training",
     "new MCP source tools require starting the source server; the session configured MCP catalog is not automatically hot-reloaded",
     "no engine build, registry publication, full native release or SSH build success asserted"
-  ]
+  ],
+  "delivery": {
+    "sourceCommit": "1494e008d1aae3e7be5992e88584d75fa3a43012",
+    "branch": "dev",
+    "remote": "origin",
+    "sourcePush": "passed",
+    "remoteMain": "verified at source commit 1494e008d1aae3e7be5992e88584d75fa3a43012 by git ls-remote and native repo-sync status",
+    "factory": "source commit queued behind preserved running preparation; build completion not asserted"
+  }
 }
