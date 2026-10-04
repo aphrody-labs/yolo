@@ -30,3 +30,7 @@
 	path = vendor/next
 	url = git@github-dev:aphrody-labs/next.js.git
 	branch = yolo
+[submodule "plugins"]
+	path = plugins
+	url = ../plugins.git
+	branch = main

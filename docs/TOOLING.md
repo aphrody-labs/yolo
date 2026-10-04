@@ -106,3 +106,14 @@ hard-coded in `apps/cli/src/host-safety.ts`. Policy lives in `host-policy.toml`.
 feature map and the verification status are in [SERVER.md](SERVER.md); the decision is D26 in
 [DECISIONS.md](DECISIONS.md). Tests: `bun test test/host.test.ts` (no network, no remote access; the
 `--apply` paths run on `local` in temporary directories).
+
+
+## Agent plugins
+
+The private plugin store is the pinned `plugins` Git submodule. Each bundle keeps its private Git history and generated Claude/Codex/agy compatibility manifests. `~/plugins` is a compatibility alias; Workspace uses the physical store via `APHRODY_PLUGINS_ROOT`.
+
+The canonical `yolo` plugin merges Bun/TypeScript and Yolo guidance, with both predecessor histories retained. `aphrody-web` routes to Rust Web/Obscura, and `aphrody-google` to Aphrody Google/M3 owners and selected official Google sources. There is no separate Bun/TS7 registration or legacy Web runtime fallback. Detailed documentation is loaded on demand.
+
+Use `aphrody-workspace plugins status`, `facts` and `validate` for actual registrations and evidence. In the store, `bun scripts/sync.ts refresh --name yolo` updates source snapshots without staging or publishing concurrent edits; `once` and `watch` publish and require an owned, validated batch. Current upstream branches and installed versions remain separate evidence.
+
+`yolo plugin status` inspects the bundle. The existing template generator lacks an overwrite guard; do not run `generate/create` against the curated submodule. Use an explicit temporary output for templates. This maintenance did not change excluded runtime source or qualify engine builds.
