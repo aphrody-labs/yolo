@@ -127,4 +127,4 @@ Packages are prefixed with `aphrody-`; library and binary names are unchanged.
 - `wry`: `cab3eace9830`
 - `tao`: `d19f4c12a0d8`
 - `create-tauri-app`: `c7692bb0dbd9`
-- `next`: `2d5a45a578af`
+- `next`: `d2f222004293`
