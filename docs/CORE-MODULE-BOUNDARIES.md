@@ -156,6 +156,20 @@ Les déclarations `bun-types/tauri.d.ts` ne prouvent pas un builtin Tauri exécu
 
 ## Déduplication Yolo / Aphrody
 
+Directive complémentaire du 2026-10-05 : retirer les doublons d’exécution,
+partager les allocations transférables et les quotas chez le propriétaire du
+pool. Une interface supplémentaire du même pool ne doit ni recharger un moteur
+ni recréer un budget de workers. Les ressources immuables peuvent être communes ;
+les heaps JSC/V8 et les contextes ayant des droits différents ne deviennent pas
+interchangeables. Le partage de pages de bibliothèque par l’OS ne se mesure pas
+en additionnant simplement les RSS : distinguer mémoire privée et proportionnelle.
+
+La première correction du compilateur vise ce cas précis : Turbopack partageait
+son état de workers par répertoire/point d’entrée, mais chaque interface recréait
+ses sémaphores. Les quotas doivent appartenir à cet état unique ; une demande
+de limite incompatible est refusée explicitement. Les builds et mesures de
+l’addon complet restent nécessaires pour qualifier l’effet applicatif.
+
 Les deux workspaces ont encore des graphes Obscura : dépendances Rust locales
 dans Aphrody et `vendor/obscura` dans Yolo. Les fichiers du moteur JS comparés ont
 des hashes différents (voir recensement). Tauri suit aussi deux lignes : imports

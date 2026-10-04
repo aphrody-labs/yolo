@@ -10,7 +10,8 @@ One workspace, one set of commands (`just --list`).
 | Rust tests (cargo-nextest, default members) | `just test-crates` |
 | Minimal native core, strict Clippy | `just check-core`, `just clippy` |
 | Optional provider gates | `just qualify-desktop`, `just qualify-browser`, `just qualify-python`, `just qualify-compiler`, `just qualify-upstream` |
-| Pinned provider build through Workspace | `just factory core\|desktop\|browser\|python\|compiler\|upstream <full-sha>` |
+| Pinned provider build through Workspace | `just factory core\|bun\|desktop\|browser\|python\|compiler\|upstream <full-sha>` |
+| Native Bun fork release, inside the declared factory | `just qualify-bun` |
 | Everything | `just test-all` |
 | The repository gates as one parallel, measured report (JSON or Markdown) | `yolo verify [--only a,b] [--changed] [--json|--md]`, `--list`, `--last` |
 | Licenses / advisories / sources | `just deny` |
@@ -52,10 +53,10 @@ Measured on this repository: 13.1 s serial against 4.2 s with 16 in parallel, sa
 - `default-members` contains only `yolo-core` and `yolo-runtime`. All 117 members
   remain available through explicit provider/upstream recipes. Core commands use
   `--locked --no-default-features`; they do not enable desktop, browser or Python.
-- Compiling recipes use `YOLO_CARGO_WRAPPER`, defaulting to Aphrody's installed
+- Root Cargo recipes use `YOLO_CARGO_WRAPPER`, defaulting to Aphrody's installed
   `scripts/build/rust/cargo-serial.sh`. The wrapper keeps its shared lock, sccache
   and resource guard. `just factory <profile> <full-sha>` routes through the native
-  Workspace owner; it does not acquire missing toolchains or qualify an artifact
+  Workspace owner; routing alone does not acquire missing toolchains or qualify an artifact
   merely by dispatching a job.
 - `rust-toolchain.toml`: stable with rustfmt and clippy. `rustfmt.toml` is the Tauri style and applies
   to our crates; every vendored crate carries the `rustfmt.toml` of its upstream repository.
@@ -74,6 +75,22 @@ compiler recipes require their producer sources and toolchains; GitHub workflow
 definitions are not evidence that those jobs ran. The current Aphrody consumer
 already verifies a pinned ABI 1.4 SDK/runtime without building the workspace.
 Its desktop/browser replacement still requires qualified provider artifacts.
+
+`just factory bun <full-sha>` selects `--submodules vendor/bun` through the native
+Workspace owner. Prepare that same committed source separately with
+`./bin/yolo ops build-factory prepare --repo yolo --revision <full-sha> --submodules vendor/bun --apply`.
+The owner checks parent files/index, the selected gitlink and its recursive
+descendants under the existing locks; unrelated gitlinks retain their state.
+This selected scope does not qualify the entire repository.
+
+`qualify-bun` refuses execution outside the factory contract before running Bun.
+It checks the source toolchain pin, requires the installed `nightly-2026-09-15`
+with `rustup run` without `--install`, then runs the fork's own
+`bun scripts/build.ts --profile=release -j2` in `vendor/bun`, with that toolchain
+selected explicitly. The two-job limit applies to the top-level Ninja invocation.
+The Bun build driver owns its C++/Rust graph and may acquire its pinned dependencies
+or compiler components during configure. Tests of this recipe use recorded commands;
+they do not establish that the engine was built or that desktop is functional.
 
 ## Layout
 

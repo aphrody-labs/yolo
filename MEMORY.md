@@ -169,3 +169,29 @@ libération ; 42 tests cœur/runtime et check/Clippy strict/format passent avec
 Cargo sérialisé. Le SDK Bun copie encore les octets avant libération et la
 capacité inutilisée reste allouée jusque-là : aucun gain RAM global ni artefact
 installé n’est revendiqué. [Preuve native](docs/native-buffers-2026-10-05.json).
+
+## Doublon de budget Turbopack et sources de fabrique (2026-10-05)
+
+Le fork Next `d2f222004293` place les sémaphores de concurrence/démarrage dans
+l’état partagé du pool de workers. Deux interfaces de même répertoire/point
+d’entrée réutilisent ce propriétaire ; une limite incompatible échoue sans
+allouer un deuxième budget. Le module de production exact a cinq tests exécutés,
+compilation et Clippy strict avec rustc/Tokio précompilés compatibles, sous le
+verrou commun ; aucune copie ni moteur factice. Les deux tests du registre et
+check/test/Clippy du crate entier restent à exécuter en fabrique. Le générateur
+importe ce patch dans `vendor` (`cb27145`), fusionné dans `dev`, et `vendor.lock`
+est cohérent avec le gitlink Next. [Preuve et limites](docs/turbopack-worker-pool-2026-10-05.json).
+
+Aphrody `62a8934c4` ajoute `build-factory prepare|plan|run --submodules` et propage
+le périmètre aux jobs durables. La sélection vérifie le commit parent et la
+fermeture récursive choisie, conserve les autres sous-modules et les verrous,
+et ne prétend pas qualifier tout le dépôt. Quarante-deux tests/402 assertions,
+types/lint/format passent. Yolo propose `just factory bun <sha>` avec
+`vendor/bun`, préflight du nightly épinglé et vrai build release `-j2` ; neuf
+tests/100 assertions qualifient le routage, pas la compilation du moteur.
+
+À 22:38 UTC le 4 octobre, l’ancienne préparation M3 conserve le verrou lourd
+depuis environ 1 h 50 ; aucun nouveau build n’est lancé en concurrence. Le
+checkout Bun du VPS reste ancien et son nightly requis absent. Ni addon
+Turbopack complet, ni fork Bun reconstruit, ni réduction globale de RAM,
+ni fusion de tous les moteurs/dépendances ne sont qualifiés par ces lots.

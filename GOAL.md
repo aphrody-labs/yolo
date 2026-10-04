@@ -26,6 +26,13 @@ et qualifier. Obscura fournit le headless ; sa présence ne prouve pas une
 implémentation Chromium complète. La cible de packaging est une application
 desktop en un fichier Bun, sans qualifier par avance sa réalisation ni ses gains.
 
+La consolidation doit retirer les dépendances et moteurs redondants et empêcher
+les pools concurrents de multiplier les workers et les allocations. Partager
+le code, les ressources immuables et les quotas chez leur propriétaire natif ;
+mesurer allocations, concurrence et mémoire privée/proportionnelle avant de
+revendiquer un gain. Les contextes JS, cookies et droits restent isolés selon
+leur domaine, même quand le moteur et ses ressources sont communs.
+
 Yolo est la **bibliothèque partagée native d'Aphrody**, dans cet ordre de priorité :
 
 1. **Unix et POSIX d'abord** ; Windows (MSVC) reste une cible de compilation croisée.

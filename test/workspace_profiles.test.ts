@@ -85,9 +85,116 @@ async function calls(log: string): Promise<string[][]> {
     .map((line) => JSON.parse(line) as string[]);
 }
 
+async function bunFixture(setup: Awaited<ReturnType<typeof fixture>>) {
+  await Bun.write(join(setup.dir, "justfile"), Bun.file(join(root, "justfile")));
+  const source = join(setup.dir, "vendor/bun");
+  await mkdir(join(source, "scripts"), { recursive: true });
+  const pinFile = Bun.file(join(root, "vendor/bun/rust-toolchain.toml"));
+  const toolchain = (await pinFile.exists())
+    ? (Bun.TOML.parse(await pinFile.text()) as { toolchain: { channel: string } }).toolchain.channel
+    : "nightly-2026-09-15";
+  await Bun.write(join(source, "rust-toolchain.toml"), `[toolchain]\nchannel = "${toolchain}"\n`);
+  await Bun.write(
+    join(source, "scripts/build.ts"),
+    'throw new Error("Engine fixture must not execute");\n',
+  );
+  const log = join(setup.dir, "bun.jsonl");
+  const bun = join(setup.bin, "bun");
+  await Bun.write(
+    bun,
+    `#!${process.execPath}
+import { appendFileSync } from "node:fs";
+const args = process.argv.slice(2);
+appendFileSync(${JSON.stringify(log)}, JSON.stringify({args, cwd: process.cwd(), toolchain: process.env.RUSTUP_TOOLCHAIN, wrapper: process.env.RUSTC_WRAPPER}) + "\\n");
+// Only the source-pin parser executes. The engine command is recorded without running the driver.
+if (args[0] === "-e") {
+  const result = Bun.spawnSync([process.execPath, ...args], {stdout: "inherit", stderr: "inherit"});
+  process.exit(result.exitCode);
+}
+`,
+  );
+  await chmod(bun, 0o700);
+  return { source, toolchain, log };
+}
+
 function packages(args: string[]): string[] {
   return args.flatMap((value, index) => (value === "-p" ? [args[index + 1]!] : []));
 }
+
+profileTest(
+  "Bun engine recipes refuse a local contract before any source probe or build",
+  async () => {
+    const setup = await fixture();
+    const bun = await bunFixture(setup);
+    const result = await runRecipes(setup, ["qualify-bun"], setup.dir, {
+      APHRODY_BUILD_HOST: "",
+      APHRODY_LOCAL_CARGO: "1",
+    });
+    expect(result.exitCode, result.stderr).not.toBe(0);
+    expect(result.stderr).toContain("Bun engine builds require the declared factory");
+    expect(await Bun.file(bun.log).exists()).toBe(false);
+    expect(await Bun.file(setup.preflightLog).exists()).toBe(false);
+  },
+);
+
+profileTest(
+  "Bun engine recipes reject source pin drift before probing or acquiring a toolchain",
+  async () => {
+    const setup = await fixture();
+    const bun = await bunFixture(setup);
+    await Bun.write(join(bun.source, "rust-toolchain.toml"), '[toolchain]\nchannel = "stable"\n');
+    const result = await runRecipes(setup, ["qualify-bun"], setup.dir, {
+      APHRODY_BUILD_HOST: "vps",
+    });
+    expect(result.exitCode, result.stderr).not.toBe(0);
+    expect(result.stderr).toContain("Bun source toolchain differs from the qualified recipe pin");
+    expect(await Bun.file(setup.preflightLog).exists()).toBe(false);
+    const probes = (await Bun.file(bun.log).text()).trim().split("\n");
+    expect(probes).toHaveLength(1);
+    expect(JSON.parse(probes[0]!).args[0]).toBe("-e");
+  },
+);
+
+profileTest("an absent Bun nightly stops before the engine driver", async () => {
+  const setup = await fixture();
+  const bun = await bunFixture(setup);
+  const result = await runRecipes(setup, ["qualify-bun"], setup.dir, {
+    APHRODY_BUILD_HOST: "vps",
+    YOLO_PROFILE_MISSING_NIGHTLY: "1",
+  });
+  expect(result.exitCode, result.stderr).not.toBe(0);
+  expect(await calls(setup.preflightLog)).toEqual([["run", bun.toolchain, "rustc", "--version"]]);
+  const probes = (await Bun.file(bun.log).text()).trim().split("\n");
+  expect(probes).toHaveLength(1);
+  expect(JSON.parse(probes[0]!).args[0]).toBe("-e");
+});
+
+profileTest(
+  "the Bun recipe uses its native owner, source toolchain and bounded Ninja jobs",
+  async () => {
+    const setup = await fixture();
+    const bun = await bunFixture(setup);
+    const result = await runRecipes(setup, ["qualify-bun"], setup.dir, {
+      APHRODY_BUILD_HOST: "vps",
+      RUSTUP_TOOLCHAIN: "inherited-override",
+      RUSTC_WRAPPER: "preserved-cache-wrapper",
+    });
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(await calls(setup.preflightLog)).toEqual([["run", bun.toolchain, "rustc", "--version"]]);
+    const probes = (await Bun.file(bun.log).text())
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(probes).toHaveLength(2);
+    expect(probes[1]).toEqual({
+      args: ["scripts/build.ts", "--profile=release", "-j2"],
+      cwd: bun.source,
+      toolchain: bun.toolchain,
+      wrapper: "preserved-cache-wrapper",
+    });
+    expect(await Bun.file(setup.log).exists()).toBe(false);
+  },
+);
 
 profileTest("an absent pinned compiler toolchain stops before any Cargo command", async () => {
   const setup = await fixture();
@@ -266,6 +373,22 @@ profileTest(
         "qualify-compiler",
       ],
     ]);
+    const bun = await runRecipes(setup, ["factory", "bun", revision], setup.dir);
+    expect(bun.exitCode, bun.stderr).toBe(0);
+    expect((await calls(setup.log))[1]).toEqual([
+      "ops",
+      "build-factory",
+      "run",
+      "--repo",
+      "yolo",
+      "--revision",
+      revision,
+      "--submodules",
+      "vendor/bun",
+      "--",
+      "just",
+      "qualify-bun",
+    ]);
     for (const args of [
       ["invalid", revision],
       ["browser", "main"],
@@ -273,6 +396,6 @@ profileTest(
       const rejected = await runRecipes(setup, ["factory", ...args], setup.dir);
       expect(rejected.exitCode).not.toBe(0);
     }
-    expect(await calls(setup.log)).toHaveLength(1);
+    expect(await calls(setup.log)).toHaveLength(2);
   },
 );

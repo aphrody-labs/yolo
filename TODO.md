@@ -10,7 +10,10 @@ les implémentations nécessaires ; le périmètre de maintenance hors sources d
 ## Lot actif — fork Bun desktop et build natif (2026-10-05)
 
 - [x] Corriger et qualifier le build-driver qui transmet les bibliothèques Rust au linker Linux du fork Bun ; compilation du moteur encore ouverte.
-- [ ] Préparer uniquement la fermeture des sources nécessaires au build, sous les verrous existants.
+- [x] Implémenter et tester la sélection de la fermeture des sources en fabrique ; application VPS après libération du verrou existant.
+- [x] Retirer le budget de workers recréé par chaque interface Turbopack ; cinq tests du module exact passent.
+- [ ] Exécuter check/test/Clippy du crate Turbopack complet et ses deux tests de registre en fabrique.
+- [x] Transférer les buffers ABI avec leur allocation native d’origine ; 42 tests cœur/runtime passent.
 - [ ] Raccorder réellement JSC/V8, le fournisseur headless et le plugin desktop ; conserver JSC/WebKit.
 - [ ] Qualifier React/Next 16, WebView embarquée et application desktop en un fichier Bun.
 - [ ] Compiler le fork épinglé et mesurer les parcours comparables, dont le premier usage moteur.

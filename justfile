@@ -8,6 +8,8 @@ set shell := ["bash", "-l", "-c"]
 cargo_owner := env("YOLO_CARGO_WRAPPER", env("HOME") / "aphrody/scripts/build/rust/cargo-serial.sh")
 # Keep in sync with the pinned vendor/next/rust-toolchain.toml; core stays stable.
 compiler_toolchain := "nightly-2026-08-20"
+# The Bun fork has its own toolchain and build graph.
+bun_toolchain := "nightly-2026-09-15"
 
 default: status
 
@@ -164,18 +166,33 @@ qualify-compiler: _compiler-ready rust-fmt-upstream-check check-compiler test-co
 
 qualify-upstream: rust-fmt-upstream-check check-upstream test-upstream
 
+# Source preparation and its gitlink verification belong to the native factory owner.
+# Guard before running Bun: configure can acquire compiler components and dependencies.
+qualify-bun:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    test "${APHRODY_BUILD_HOST:-}" = vps || { echo 'Bun engine builds require the declared factory; use just factory bun <sha>.' >&2; exit 64; }
+    test -f vendor/bun/scripts/build.ts -a -f vendor/bun/rust-toolchain.toml || { echo 'Prepare the pinned vendor/bun source through build-factory prepare --submodules vendor/bun first.' >&2; exit 64; }
+    cd vendor/bun
+    bun -e 'const pin = Bun.TOML.parse(await Bun.file("rust-toolchain.toml").text()).toolchain?.channel; if (pin !== process.argv[1]) { console.error("Bun source toolchain differs from the qualified recipe pin"); process.exit(64); }' "{{bun_toolchain}}"
+    rustup run "{{bun_toolchain}}" rustc --version
+    export RUSTUP_TOOLCHAIN="{{bun_toolchain}}"
+    exec bun scripts/build.ts --profile=release -j2
+
 # Native Workspace owner pins the source revision and serializes heavy provider builds.
 [positional-arguments]
 factory profile revision:
     #!/usr/bin/env bash
     set -euo pipefail
+    source_scope=()
     case "$1" in
       core) recipe=ci ;;
+      bun) recipe=qualify-bun; source_scope=(--submodules vendor/bun) ;;
       desktop|browser|python|compiler|upstream) recipe="qualify-$1" ;;
-      *) echo 'Unknown profile: expected core, desktop, browser, python, compiler or upstream.' >&2; exit 64 ;;
+      *) echo 'Unknown profile: expected core, bun, desktop, browser, python, compiler or upstream.' >&2; exit 64 ;;
     esac
     [[ "$2" =~ ^[0-9a-f]{40}$ ]] || { echo 'Factory revision must be a full Git SHA.' >&2; exit 64; }
-    exec ./bin/yolo ops build-factory run --repo yolo --revision "$2" -- just "$recipe"
+    exec ./bin/yolo ops build-factory run --repo yolo --revision "$2" "${source_scope[@]}" -- just "$recipe"
 
 # Install the forked Tauri CLI (`cargo tauri`) from crates/aphrody-tauri-cli
 install-cli:
