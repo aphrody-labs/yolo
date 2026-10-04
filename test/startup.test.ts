@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { resolve } from "node:path";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { inspectPackages } from "../packages/core/src/vendor/status";
 import { isCompiled } from "../packages/core/src/vfs/home";
 import { SUPPORTED_TARGETS, hostTarget } from "../packages/runtime/src/artifact";
 import { hostTarget as leafHostTarget } from "../packages/runtime/src/target";
@@ -41,5 +44,26 @@ describe("CLI start-up", () => {
       "--no-compile-autoload-dotenv",
       "--no-compile-autoload-bunfig",
     ]);
+  });
+});
+
+describe("status file counts", () => {
+  it("counts regular files, skips dot entries and stops past 250", async () => {
+    const vendor = mkdtempSync(join(tmpdir(), "yolo-vendor-"));
+    try {
+      mkdirSync(join(vendor, "tao/src/deep"), { recursive: true });
+      mkdirSync(join(vendor, "tao/.git"), { recursive: true });
+      for (const file of ["a.rs", "src/b.rs", "src/deep/c.rs", ".hidden", ".git/HEAD"]) {
+        writeFileSync(join(vendor, "tao", file), "x");
+      }
+      mkdirSync(join(vendor, "wry/src"), { recursive: true });
+      for (let i = 0; i < 300; i++) writeFileSync(join(vendor, "wry/src", `f${i}.rs`), "x");
+      const byName = new Map((await inspectPackages(vendor)).map((p) => [p.name, p]));
+      expect(byName.get("tao")?.filesCount).toBe(3);
+      expect(byName.get("wry")?.filesCount).toBe(251);
+      expect(byName.get("bun")?.exists).toBe(false);
+    } finally {
+      rmSync(vendor, { recursive: true, force: true });
+    }
   });
 });
