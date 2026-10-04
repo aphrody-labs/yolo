@@ -99,9 +99,6 @@ function findStaleArtifacts(pluginsDir: string): string[] {
     if (entry.name.startsWith("relocation-") && entry.name.endsWith(".json")) {
       stale.push(join(pluginsDir, entry.name));
     }
-    if (entry.name === "bun-ts7" || entry.name === "bxc" || entry.name === "google-gemini") {
-      stale.push(join(pluginsDir, entry.name));
-    }
   }
 
   return stale;
