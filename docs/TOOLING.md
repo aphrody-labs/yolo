@@ -71,9 +71,39 @@ docs/        mdBook (this documentation)
 
 ## Building and releasing (`yolo ship`)
 
-**Current prerequisite (2026-10-04):** the configured `vps` factory is retired for builds.
-Designate a qualified factory before invoking the build workflow below. The following
-describes the intended mechanics, not an available build host.
+**Observed on 2026-10-04:** native SSH probes find Bun 1.4.2, Rust 1.98.1,
+sccache 0.18.0 and uv 0.12.23 on `vps`. Workspace now declares the Yolo source
+checkout at `/srv/aphrody-build/workspaces/yolo`. Preparation and a scoped Cargo
+check were dispatched under the shared heavy lock; completion is still pending.
+
+The active committed-history workflow is `aphrody-ops repo-sync`: exactly Yolo
+(`dev` to remote `main`), Aphrody and aphrody-py (`main` to remote `main`).
+It watches Git refs with a 250 ms debounce and a 60 s fallback, fetches and checks
+ancestry before a normal push, then prepares the exact synchronized SHA over
+native Infra SSH. Pending builds retain the newest SHA per repository while a
+live job keeps its handle. Dirty source files are never staged or committed.
+
+```sh
+aphrody-ops repo-sync plan --build --json
+aphrody-ops repo-sync watch --apply --build --json
+systemctl --user status aphrody-source-sync.service
+```
+
+The installed user service runs the owner CLI directly. `KillMode=process`
+lets a stopped watcher release its lock while preserving active factory workers;
+the next watcher adopts their handles. Private state and logs live in
+`~/.aphrody/state/commit-sync/`, outside Git. Configuration and build profiles
+belong to [Aphrody commit-sync](../../aphrody/config/commit-sync.json).
+
+Yolo's bounded profile is `bash scripts/release/factory-current.sh`: scoped native
+check/test/strict Clippy, runtime build, artifact/SDK packaging, compiled CLI,
+and install/deploy smoke. Cargo uses the declared serialization wrapper and
+sccache. A queued build is not a successful build; current status belongs to the
+live job receipt. Rollback acceptance additionally requires a previous compatible
+artifact. See [the synchronization receipt](commit-sync-2026-10-04.json).
+
+The following describes the older full-engine `ship` pipeline. Its unlimited
+job count and resource settings still require separate qualification before use.
 
 `yolo ship [--apply] [--sha X] [--force] [--wait]` (refuses below the free-space floor of the build host, 20 % by default and variable, see [SERVER.md](SERVER.md)) is this repository's CI and release host: GitHub
 Actions is not available to it (billing), so the Aphrody build factory runs the gates of

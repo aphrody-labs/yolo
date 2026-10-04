@@ -34,6 +34,20 @@ Les preuves antérieures D0/D2 et leurs révisions sont dans
 [DISTRIBUTION](docs/DISTRIBUTION.md), pas une qualification de la release courante.
 Consommateur : [mémoire Aphrody](../aphrody/MEMORY.md).
 
+Autonomie CLI (2026-10-04) : `e65a36d59c9c` embarque scan, parse, MCP et API ;
+six tests compilent le binaire bytecode et l'exécutent sans Bun dans le PATH.
+Upgrade hors réseau vérifie les hashes avant l'installateur. Onze gates locaux
+passent sur `f7855a572b90` avec les corrections Python et les commandes du lot
+`4fe098e` présentes dans l'arbre. Ce résultat ne compile pas le runtime courant.
+
+Synchronisation (2026-10-04) : service utilisateur `aphrody-source-sync` actif,
+trois dépôts seulement, push normal des commits vers main et file de builds SSH
+par SHA. Le watcher a poussé les commits Python en attente et de nouveaux commits
+Yolo/Aphrody ; son redémarrage conserve le même worker Yolo. Le VPS possède de
+nouveau les toolchains sondées ; préparation récursive des sous-modules et
+contrôle Cargo restent en cours derrière le verrou partagé. Aucun build courant
+achevé n'est déduit de la file. Reçu : [commit-sync](docs/commit-sync-2026-10-04.json).
+
 Hôte `vps` (2026-10-03, décision propriétaire) : exécution seulement. `/` = `sda1`
 (290 Gio, 30 Gio utilisés, réserve root 1 %) ; `/srv` = `sdb1` (305 Gio ext4 `data`,
 une seule partition, montée par UUID). Conservés : `/etc` (nginx, letsencrypt, secrets),
