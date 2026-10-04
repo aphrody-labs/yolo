@@ -22,6 +22,7 @@
     "bun:track": "bun run scripts/vendor/bun_upstream_tracker.ts",
     "cli": "bun run apps/cli/src/index.ts",
     "cli:help": "bun scripts/tools/cli-help-sync.ts",
+    "registry:audit": "bun scripts/tools/registry-audit.ts",
     "test": "bun test test/",
     "test:cli": "bun test test/cli_app.test.ts",
     "test:py": "uv run --directory packages/python pytest",
