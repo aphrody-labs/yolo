@@ -7,10 +7,50 @@
  * benchmarks, and codebase fingerprints.
  */
 import { Database } from "bun:sqlite";
-import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { chmodSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 import { wyhash } from "../sys/index";
 import { findRepoRoot } from "../vfs/index";
+
+/**
+ * Strict secret redaction utility.
+ * Sanitizes OpenAI keys, Google AIza keys, GitHub tokens, Slack tokens,
+ * passwords, JWTs, and bearer tokens.
+ */
+export function redactSecrets(text: string | null | undefined): string {
+  if (!text || typeof text !== "string") return "";
+
+  return text
+    // 1. OpenAI API Keys (sk-..., sk-proj-..., sk-admin-..., ctx7sk-...)
+    .replace(/(?:[a-zA-Z0-9_\-]*?)sk-(?:proj-|admin-|org-)?[a-zA-Z0-9_\-]{20,}/g, "[REDACTED_OPENAI_KEY]")
+    // 2. Google API Keys (AIza...)
+    .replace(/\bAIza[0-9A-Za-z\-_]{30,45}\b/g, "[REDACTED_GOOGLE_KEY]")
+    // 3. GitHub Tokens (ghp_..., gho_..., github_pat_...)
+    .replace(/\bgh[pousr]_[A-Za-z0-9_]{36,255}\b/g, "[REDACTED_GITHUB_TOKEN]")
+    .replace(/\bgithub_pat_[a-zA-Z0-9_]{82}\b/g, "[REDACTED_GITHUB_TOKEN]")
+    // 4. Slack tokens (xoxb-..., xoxp-...)
+    .replace(/\bxox[baprs]-[0-9a-zA-Z]{10,48}\b/g, "[REDACTED_SLACK_TOKEN]")
+    // 5. Bearer tokens in headers
+    .replace(/\bBearer\s+[a-zA-Z0-9_\-\.]{20,}\b/gi, "Bearer [REDACTED_TOKEN]")
+    // 6. Generic password / secret assignments in key-value format
+    .replace(
+      /([?&"'`\s]|^)(?:password|passwd|pwd|client_secret|api_key|apikey|secret_key|private_key)\s*[:=]\s*(['"]?)([^'"\s\\,;&]+)\2/gi,
+      '$1password: "[REDACTED_PASSWORD]"',
+    )
+    // 7. JSON secret fields: "password": "...", "apiKey": "...", etc.
+    .replace(
+      /"(?:password|passwd|pwd|secret|apiKey|api_key|apiSecret|api_secret|auth_token|access_token|private_key)"\s*:\s*"[^"]*"/gi,
+      (match) => {
+        const key = match.split(":")[0];
+        return `${key}: "[REDACTED_SECRET]"`;
+      },
+    )
+    // 8. CLI flags --password=..., --token=...
+    .replace(/--(?:password|passwd|token|secret)[=\s]+[^\s]+/gi, "--password=[REDACTED_SECRET]")
+    // 9. JWT tokens (header.payload.signature)
+    .replace(/\bey[A-Za-z0-9_-]{10,}\.ey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9-_]{10,}\b/g, "[REDACTED_JWT]");
+}
 
 export interface SessionRecord {
   sessionId: string;
@@ -75,17 +115,64 @@ export interface CodebaseFingerprintRecord {
  */
 export function initLedgerDatabase(customPath?: string): Database {
   const root = findRepoRoot();
-  const dbDir = join(root, "var");
-  if (!existsSync(dbDir)) {
-    mkdirSync(dbDir, { recursive: true });
+
+  let dbPath: string;
+  if (customPath) {
+    dbPath = customPath;
+  } else if (process.env.YOLO_LEDGER_DB) {
+    dbPath = process.env.YOLO_LEDGER_DB;
+  } else {
+    // Canonical path priority:
+    // 1. /var/log/yolo/yolo-train.sqlite if /var/log/yolo exists
+    // 2. ~/.local/state/yolo/yolo-train.sqlite (user state dir)
+    // 3. <root>/var/yolo-train.sqlite (repo state fallback)
+    const userStateDir = process.env.XDG_STATE_HOME
+      ? join(process.env.XDG_STATE_HOME, "yolo")
+      : join(homedir(), ".local", "state", "yolo");
+
+    if (existsSync("/var/log/yolo")) {
+      dbPath = "/var/log/yolo/yolo-train.sqlite";
+    } else {
+      try {
+        if (!existsSync(userStateDir)) {
+          mkdirSync(userStateDir, { recursive: true, mode: 0o700 });
+          chmodSync(userStateDir, 0o700);
+        }
+      } catch {}
+      dbPath = existsSync(userStateDir)
+        ? join(userStateDir, "yolo-train.sqlite")
+        : join(root, "var", "yolo-train.sqlite");
+    }
   }
 
-  const dbPath = customPath ?? join(dbDir, "yolo-train.sqlite");
+  const dbDir = dirname(dbPath);
+  if (!existsSync(dbDir)) {
+    mkdirSync(dbDir, { recursive: true, mode: 0o700 });
+  }
+  try {
+    chmodSync(dbDir, 0o700);
+  } catch {}
+
   const db = new Database(dbPath, { create: true });
+
+  // Enforce 0600 permissions on the database file
+  try {
+    chmodSync(dbPath, 0o600);
+  } catch {}
 
   // High performance WAL mode
   db.run("PRAGMA journal_mode = WAL;");
   db.run("PRAGMA synchronous = NORMAL;");
+
+  // Ensure WAL and SHM journal files also have 0600 permissions
+  for (const ext of ["-wal", "-shm"]) {
+    const journalPath = `${dbPath}${ext}`;
+    if (existsSync(journalPath)) {
+      try {
+        chmodSync(journalPath, 0o600);
+      } catch {}
+    }
+  }
 
   // Create tables if not existing
   db.run(`
@@ -181,6 +268,7 @@ export function initLedgerDatabase(customPath?: string): Database {
     CREATE TABLE IF NOT EXISTS training_samples (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       sample_id TEXT UNIQUE NOT NULL,
+      profile TEXT NOT NULL DEFAULT 'yolo',
       domain TEXT NOT NULL,
       instruction TEXT NOT NULL,
       input_context TEXT NOT NULL,
@@ -190,6 +278,13 @@ export function initLedgerDatabase(customPath?: string): Database {
       created_at TEXT NOT NULL
     );
   `);
+
+  // Migrate existing table if 'profile' column is missing
+  try {
+    db.run("ALTER TABLE training_samples ADD COLUMN profile TEXT NOT NULL DEFAULT 'yolo';");
+  } catch {
+    // Column already exists
+  }
 
   return db;
 }
@@ -204,6 +299,7 @@ export interface AgentTelemetryRecord {
 
 export interface TrainingSampleRecord {
   sampleId: string;
+  profile?: string;
   domain: string;
   instruction: string;
   inputContext: string;
@@ -218,21 +314,29 @@ export function recordAgentTelemetry(db: Database, event: AgentTelemetryRecord):
     INSERT INTO agent_telemetry (agent, session_id, event_type, target_path, timestamp)
     VALUES (?, ?, ?, ?, ?)
   `);
-  stmt.run(event.agent, event.sessionId, event.eventType, event.targetPath, event.timestamp);
+  stmt.run(
+    event.agent,
+    event.sessionId,
+    event.eventType,
+    redactSecrets(event.targetPath),
+    event.timestamp,
+  );
 }
 
 export function recordTrainingSample(db: Database, sample: TrainingSampleRecord): void {
+  const profile = sample.profile ?? "yolo";
   const stmt = db.prepare(`
-    INSERT OR REPLACE INTO training_samples (sample_id, domain, instruction, input_context, action, outcome, reward_score, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR REPLACE INTO training_samples (sample_id, profile, domain, instruction, input_context, action, outcome, reward_score, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   stmt.run(
     sample.sampleId,
+    profile,
     sample.domain,
-    sample.instruction,
-    sample.inputContext,
-    sample.action,
-    sample.outcome,
+    redactSecrets(sample.instruction),
+    redactSecrets(sample.inputContext),
+    redactSecrets(sample.action),
+    redactSecrets(sample.outcome),
     sample.rewardScore,
     sample.createdAt,
   );
@@ -253,7 +357,7 @@ export function recordSession(db: Database, session: SessionRecord): void {
     session.os,
     session.kernel,
     session.platform,
-    JSON.stringify(session.metadata ?? {}),
+    redactSecrets(JSON.stringify(session.metadata ?? {})),
   );
 }
 
@@ -270,8 +374,8 @@ export function recordAuditReport(db: Database, audit: AuditReportRecord): void 
     audit.domain,
     audit.auditor,
     audit.verdict,
-    audit.summary,
-    JSON.stringify(audit.details),
+    redactSecrets(audit.summary),
+    redactSecrets(JSON.stringify(audit.details)),
     audit.recordedAt,
   );
 }
@@ -307,10 +411,10 @@ export function recordQualityGate(db: Database, gate: QualityGateRecord): void {
   stmt.run(
     gate.sessionId,
     gate.gateName,
-    gate.command,
+    redactSecrets(gate.command),
     gate.exitCode,
     gate.passed ? 1 : 0,
-    gate.proofDetails,
+    redactSecrets(gate.proofDetails),
     gate.recordedAt,
   );
 }
@@ -326,11 +430,48 @@ export function recordRemediation(db: Database, rem: RemediationRecord): void {
   stmt.run(
     rem.issueCode,
     rem.component,
-    rem.description,
+    redactSecrets(rem.description),
     rem.status,
     rem.patchCommit,
     rem.resolvedAt,
   );
+}
+
+/**
+ * Enforces strict permissions (0700 on directories, 0600 on SQLite/journal files).
+ */
+export function enforceLedgerPermissions(customPath?: string): void {
+  const root = findRepoRoot();
+  const userStateDir = process.env.XDG_STATE_HOME
+    ? join(process.env.XDG_STATE_HOME, "yolo")
+    : join(homedir(), ".local", "state", "yolo");
+
+  const candidates = customPath
+    ? [customPath]
+    : [
+        "/var/log/yolo/yolo-train.sqlite",
+        join(userStateDir, "yolo-train.sqlite"),
+        join(root, "var", "yolo-train.sqlite"),
+      ];
+
+  for (const dbPath of candidates) {
+    if (!existsSync(dbPath)) continue;
+    const dbDir = dirname(dbPath);
+    try {
+      chmodSync(dbDir, 0o700);
+    } catch {}
+    try {
+      chmodSync(dbPath, 0o600);
+    } catch {}
+    for (const ext of ["-wal", "-shm"]) {
+      const jPath = `${dbPath}${ext}`;
+      if (existsSync(jPath)) {
+        try {
+          chmodSync(jPath, 0o600);
+        } catch {}
+      }
+    }
+  }
 }
 
 /**

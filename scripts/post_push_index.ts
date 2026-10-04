@@ -54,11 +54,16 @@ async function main() {
     `[Redis Indexer] Indexing repositories across branches: ${uniqueBranches.join(", ")}`,
   );
 
-  const repos = [
-    { name: "yolo", path: root },
-    { name: "aphrody", path: "/home/aphro/aphrody" },
-    { name: "aphrody-py", path: "/home/aphro/aphrody-py" },
-  ];
+  // By default, only index yolo repository to prevent unintended cross-repo pollution.
+  // Multi-repository indexing (aphrody, aphrody-py) requires explicit --all or YOLO_INDEX_ALL=1.
+  const includeAllRepos = process.argv.includes("--all") || process.env.YOLO_INDEX_ALL === "1";
+  const repos = includeAllRepos
+    ? [
+        { name: "yolo", path: root },
+        { name: "aphrody", path: "/home/aphro/aphrody" },
+        { name: "aphrody-py", path: "/home/aphro/aphrody-py" },
+      ]
+    : [{ name: "yolo", path: root }];
 
   for (const repo of repos) {
     if (!existsSync(repo.path)) continue;

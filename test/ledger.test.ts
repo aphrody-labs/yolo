@@ -120,6 +120,7 @@ describe("Native Bun SQLite Audit & Training Ledger", () => {
 
     recordTrainingSample(db, {
       sampleId: "sample-001",
+      profile: "yolo",
       domain: "bun_typescript7",
       instruction: "Ensure strict TS without errors",
       inputContext: "tsc --noEmit",
@@ -131,8 +132,52 @@ describe("Native Bun SQLite Audit & Training Ledger", () => {
 
     const sample = db
       .query("SELECT * FROM training_samples WHERE sample_id = 'sample-001'")
-      .get() as { domain: string; reward_score: number };
+      .get() as { domain: string; profile: string; reward_score: number };
     expect(sample.domain).toBe("bun_typescript7");
+    expect(sample.profile).toBe("yolo");
     expect(sample.reward_score).toBe(1.0);
+  });
+
+  it("strictly redacts secrets (OpenAI sk-*, Google AIza*, passwords, tokens) across all ledger records", () => {
+    const now = new Date().toISOString();
+
+    recordTrainingSample(db, {
+      sampleId: "sample-secret-test",
+      profile: "yolo",
+      domain: "privacy_audit",
+      instruction: "Use sk-proj-1234567890abcdef1234567890 to authenticate and AIzaSyD1234567890abcdefghijklmnopqrstuvw for Google",
+      inputContext: '{"password": "plain_password_12345", "token": "ghp_1234567890abcdefghijklmnopqrstuvwxyz12"}',
+      action: "Run command with --password=supersecret and Bearer 1234567890abcdef1234567890",
+      outcome: "Success with password: secret_pass_987",
+      rewardScore: 1.0,
+      createdAt: now,
+    });
+
+    const row = db
+      .query("SELECT * FROM training_samples WHERE sample_id = 'sample-secret-test'")
+      .get() as { instruction: string; input_context: string; action: string; outcome: string };
+
+    // OpenAI key redacted
+    expect(row.instruction).not.toContain("sk-proj-1234567890abcdef1234567890");
+    expect(row.instruction).toContain("[REDACTED_OPENAI_KEY]");
+
+    // Google AIza key redacted
+    expect(row.instruction).not.toContain("AIzaSyD1234567890abcdefghijklmnopqrstuvw");
+    expect(row.instruction).toContain("[REDACTED_GOOGLE_KEY]");
+
+    // GitHub token & password in JSON redacted
+    expect(row.input_context).not.toContain("plain_password_12345");
+    expect(row.input_context).not.toContain("ghp_1234567890abcdefghijklmnopqrstuvwxyz12");
+    expect(row.input_context).toContain("[REDACTED_SECRET]");
+
+    // Password flag & Bearer token redacted
+    expect(row.action).not.toContain("supersecret");
+    expect(row.action).not.toContain("1234567890abcdef1234567890");
+    expect(row.action).toContain("[REDACTED_SECRET]");
+    expect(row.action).toContain("[REDACTED_TOKEN]");
+
+    // Password assignment redacted
+    expect(row.outcome).not.toContain("secret_pass_987");
+    expect(row.outcome).toContain("[REDACTED_PASSWORD]");
   });
 });

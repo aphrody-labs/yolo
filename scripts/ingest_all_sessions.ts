@@ -9,10 +9,11 @@
  * - Agent telemetry records
  * - Codebase fingerprints
  */
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
+  enforceLedgerPermissions,
   indexCodebaseFingerprints,
   initLedgerDatabase,
   recordAgentTelemetry,
@@ -22,6 +23,7 @@ import {
   recordRemediation,
   recordSession,
   recordTrainingSample,
+  redactSecrets,
   summarizeLedger,
   type TrainingSampleRecord,
 } from "../packages/core/src/ledger/index";
@@ -32,11 +34,40 @@ const root = findRepoRoot();
 const home = homedir();
 const now = new Date().toISOString();
 
+/**
+ * Detects the project profile of an AGY or agent session.
+ * Enforces strict profile isolation: only 'yolo' samples enter yolo-train.sqlite.
+ */
+function detectSessionProfile(content: string): "yolo" | "aphrody" | "iecode" | "dbfr" | "unknown" {
+  const yoloMatches = (content.match(/\/home\/aphro\/yolo/g) || []).length;
+  const aphrodyMatches = (content.match(/\/home\/aphro\/aphrody(?!\-py)/g) || []).length;
+  const iecodeMatches = (content.match(/iecode/gi) || []).length;
+  const dbfrMatches = (content.match(/dbfr/gi) || []).length;
+
+  if (yoloMatches > 0 && yoloMatches >= aphrodyMatches && yoloMatches >= iecodeMatches && yoloMatches >= dbfrMatches) {
+    return "yolo";
+  }
+  if (aphrodyMatches > 0 && aphrodyMatches >= iecodeMatches && aphrodyMatches >= dbfrMatches) {
+    return "aphrody";
+  }
+  if (iecodeMatches > 0 && iecodeMatches >= dbfrMatches) {
+    return "iecode";
+  }
+  if (dbfrMatches > 0) {
+    return "dbfr";
+  }
+  if (content.includes("yolo") && !content.includes("aphrody")) {
+    return "yolo";
+  }
+  return "unknown";
+}
+
 // Prepare target database locations
 const varLogDir = "/var/log/yolo";
 if (!existsSync(varLogDir)) {
   try {
-    mkdirSync(varLogDir, { recursive: true });
+    mkdirSync(varLogDir, { recursive: true, mode: 0o700 });
+    chmodSync(varLogDir, 0o700);
   } catch {
     // If permission denied without root, fall back gracefully
   }
@@ -48,6 +79,11 @@ const targetDbPath = existsSync(varLogDir)
 
 console.log(`[Ingest] Ingesting multi-agent sessions into native Bun SQLite: ${targetDbPath}`);
 const db = initLedgerDatabase(targetDbPath);
+
+// Purge any previous foreign profile contamination or mixed profile records
+try {
+  db.run("DELETE FROM training_samples WHERE profile != 'yolo' OR instruction LIKE '%dbfr%' OR instruction LIKE '%iecode%' OR action LIKE '%dbfr%' OR action LIKE '%iecode%' OR input_context LIKE '%dbfr%' OR input_context LIKE '%iecode%';");
+} catch {}
 
 let totalSamples = 0;
 let totalTelemetry = 0;
@@ -71,18 +107,28 @@ if (existsSync(geminiBrainDir)) {
 
     if (!existsSync(transcriptPath)) continue;
 
-    recordSession(db, {
-      sessionId: `agy-${sessionId}`,
-      recordedAt: now,
-      host: "APHRODY",
-      os: "Ubuntu 24.04.5 LTS",
-      kernel: "Linux 6.18.33.2-microsoft-standard-WSL2",
-      platform: "linux",
-      metadata: { source: "agy", brainDir: join(geminiBrainDir, sessionId) },
-    });
-
     try {
       const content = readFileSync(transcriptPath, "utf-8");
+      const profile = detectSessionProfile(content);
+
+      // Record session metadata across all profiles (per MEMORY sync contract)
+      recordSession(db, {
+        sessionId: `agy-${sessionId}`,
+        recordedAt: now,
+        host: "APHRODY",
+        os: "Ubuntu 24.04.5 LTS",
+        kernel: "Linux 6.18.33.2-microsoft-standard-WSL2",
+        platform: "linux",
+        metadata: { source: "agy", profile, brainDir: join(geminiBrainDir, sessionId) },
+      });
+
+      // Strict Profile Isolation:
+      // Keep aphrody/dbfr/ie profiles separate (metadata only across profiles, per MEMORY native sync contract).
+      // Only ingest training_samples into yolo-train.sqlite if profile is strictly 'yolo'.
+      if (profile !== "yolo") {
+        continue;
+      }
+
       const lines = content.trim().split("\n");
 
       let currentInstruction = "";
@@ -90,23 +136,30 @@ if (existsSync(geminiBrainDir)) {
         if (!line.trim()) continue;
         try {
           const step = JSON.parse(line);
+          const stepStr = JSON.stringify(step);
+          if (/dbfr|iecode/i.test(stepStr)) {
+            continue;
+          }
           if (step.type === "USER_INPUT") {
             currentInstruction =
-              typeof step.content === "string" ? step.content.slice(0, 1000) : "";
+              typeof step.content === "string" ? redactSecrets(step.content.slice(0, 1000)) : "";
           } else if (step.type === "PLANNER_RESPONSE" && step.content) {
             const sampleId = wyhash(`${sessionId}:${step.step_index}:${step.created_at}`);
-            const actionText = typeof step.content === "string" ? step.content.slice(0, 2000) : "";
+            const actionText = typeof step.content === "string" ? redactSecrets(step.content.slice(0, 2000)) : "";
             const sample: TrainingSampleRecord = {
               sampleId: `sample-agy-${sampleId}`,
+              profile: "yolo",
               domain: "agy_autonomous_coding",
               instruction: currentInstruction || "Autonomous session execution",
-              inputContext: JSON.stringify({
-                sessionId,
-                stepIndex: step.step_index,
-                toolCalls: step.tool_calls
-                  ? step.tool_calls.map((t: any) => t.toolAction || t.name)
-                  : [],
-              }),
+              inputContext: redactSecrets(
+                JSON.stringify({
+                  sessionId,
+                  stepIndex: step.step_index,
+                  toolCalls: step.tool_calls
+                    ? step.tool_calls.map((t: any) => t.toolAction || t.name)
+                    : [],
+                }),
+              ),
               action: actionText,
               outcome: step.status || "DONE",
               rewardScore: step.status === "ERROR" ? 0.0 : 1.0,
@@ -146,13 +199,20 @@ if (existsSync(codexHistoryPath)) {
       if (!line.trim()) continue;
       try {
         const item = JSON.parse(line);
+        const itemStr = JSON.stringify(item);
+        // Exclude foreign profile contamination
+        if (/dbfr|iecode|\/home\/aphro\/aphrody(?!\-py)/i.test(itemStr)) {
+          continue;
+        }
+
         const sampleId = wyhash(`codex:${idx}:${item.timestamp || idx}`);
         recordTrainingSample(db, {
           sampleId: `sample-codex-${sampleId}`,
+          profile: "yolo",
           domain: "codex_cli",
-          instruction: item.prompt || item.text || item.query || "Codex instruction",
-          inputContext: JSON.stringify({ source: "codex", ...item }),
-          action: item.command || item.action || "Executed tool command",
+          instruction: redactSecrets((item.prompt || item.text || item.query || "Codex instruction").slice(0, 1000)),
+          inputContext: redactSecrets(JSON.stringify({ source: "codex", ...item })),
+          action: redactSecrets((item.command || item.action || "Executed tool command").slice(0, 2000)),
           outcome: item.success !== false ? "SUCCESS" : "FAILED",
           rewardScore: item.success !== false ? 1.0 : 0.0,
           createdAt: item.timestamp || now,
@@ -187,13 +247,20 @@ if (existsSync(claudeHistoryPath)) {
       if (!line.trim()) continue;
       try {
         const item = JSON.parse(line);
+        const itemStr = JSON.stringify(item);
+        // Exclude foreign profile contamination
+        if (/dbfr|iecode|\/home\/aphro\/aphrody(?!\-py)/i.test(itemStr)) {
+          continue;
+        }
+
         const sampleId = wyhash(`claude:${idx}:${item.timestamp || idx}`);
         recordTrainingSample(db, {
           sampleId: `sample-claude-${sampleId}`,
+          profile: "yolo",
           domain: "claude_code",
-          instruction: item.prompt || item.display || "Claude instruction",
-          inputContext: JSON.stringify({ source: "claude", ...item }),
-          action: item.action || item.command || "Claude action",
+          instruction: redactSecrets((item.prompt || item.display || "Claude instruction").slice(0, 1000)),
+          inputContext: redactSecrets(JSON.stringify({ source: "claude", ...item })),
+          action: redactSecrets((item.action || item.command || "Claude action").slice(0, 2000)),
           outcome: item.error ? "ERROR" : "DONE",
           rewardScore: item.error ? 0.0 : 1.0,
           createdAt: item.timestamp || now,
@@ -356,3 +423,17 @@ if (targetDbPath !== repoDbPath) {
     console.warn(`[Ingest] Could not sync to repo var/: ${(err as Error).message}`);
   }
 }
+
+// 7. Enforce strict permissions across all database locations, WAL files, and directories (0700 dir, 0600 file)
+enforceLedgerPermissions();
+try {
+  chmodSync(join(root, "var"), 0o700);
+  if (existsSync(repoDbPath)) chmodSync(repoDbPath, 0o600);
+  if (existsSync("/var/log/yolo")) chmodSync("/var/log/yolo", 0o700);
+  for (const ext of ["", "-wal", "-shm"]) {
+    const f1 = `/var/log/yolo/yolo-train.sqlite${ext}`;
+    if (existsSync(f1)) chmodSync(f1, 0o600);
+    const f2 = `${repoDbPath}${ext}`;
+    if (existsSync(f2)) chmodSync(f2, 0o600);
+  }
+} catch {}
