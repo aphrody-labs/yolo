@@ -7,7 +7,17 @@ plans [Yolo](GOAL.md) / [Aphrody](../aphrody/GOAL.md). La demande actuelle autor
 les implémentations nécessaires ; le périmètre de maintenance hors sources du
 2026-10-04 ne ferme aucun jalon et ne remplace pas cet objectif.
 
-## Lot actif — gestionnaire unifié Bun/uv/Cargo (GOAL §3)
+## Lot actif — arbitrage crates, vendors et modules Bun
+
+- [x] Recenser les 117 crates et les huit vendors, avec provenance et défauts Cargo.
+- [x] Trancher cœur, fournisseurs optionnels, outils et propriété produit Aphrody.
+- [x] Valider et livrer la décision et son recensement exhaustif.
+
+Suite d’implémentation : réduire les racines Cargo par défaut dans le lot
+intégrateur, qualifier R3/R4, puis migrer les consommateurs et le compilateur.
+Décision : [frontières du cœur et des modules](docs/CORE-MODULE-BOUNDARIES.md).
+
+## Lot précédent — gestionnaire unifié Bun/uv/Cargo (GOAL §3)
 
 - [x] Exposer un plan natif pour les manifestes et locks Bun, uv et Cargo.
 - [x] Exécuter la synchronisation réelle avec les binaires globaux, locks conservés et Cargo sérialisé.

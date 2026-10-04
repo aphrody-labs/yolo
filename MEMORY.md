@@ -90,3 +90,24 @@ Preuves : [gestionnaire et lot core](docs/package-manager-2026-10-04.json).
 
 Sources livrées dans `1494e008d1aa` et poussées normalement sur `origin/dev`.
 `origin/main` vérifié au même commit par le suivi natif ; fabrique encore en préparation/file, aucun résultat de build déduit.
+
+## Arbitrage crates et vendors (2026-10-04)
+
+L’audit des manifestes recense 117 crates directes : deux cœur, deux adaptateurs
+propres optionnels, 54 imports desktop et 59 imports compilateur. Les huit vendors
+restent épinglés. Décision : absorber les contrats communs dans le cœur Yolo,
+produire les moteurs comme fournisseurs optionnels et garder le produit Aphrody.
+Les quatre modules Bun `runtime:*` existent ; VFS/GPU et l’adaptateur compilateur
+restent proposés. Les 48 racines Cargo par défaut restent à réduire ; aucune
+modification du manifeste concurrent ni qualification R3/R4 n’est déduite.
+
+Deux graphes Obscura avec patches différents existent encore dans Yolo/Aphrody.
+Leur déduplication exige réconciliation et qualification des consommateurs.
+[Décision détaillée](docs/CORE-MODULE-BOUNDARIES.md) et
+[recensement avec provenance](docs/core-module-boundaries-2026-10-04.json).
+
+Validation : 117 hashes de manifestes, 18 fichiers de preuve et 71 liens locaux
+conformes ; gates natifs `whitespace,docs` réussis. L’appel CLI `verify --help`
+a déclenché toute la suite (option non traitée) : deux tests et `rust-fmt` échouent
+dans le checkout concurrent. Ce lot documentaire ne les corrige pas et ne
+revendique aucune qualification globale ni compilation moteur.

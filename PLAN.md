@@ -89,6 +89,12 @@ Dépôts privés ; source, tests, artefact, installation et activation sont dist
 
 ## Références
 
+Arbitrage propriétaire du 2026-10-04 : [cœur et fournisseurs optionnels](docs/CORE-MODULE-BOUNDARIES.md).
+Le cœur natif cible `yolo-core` + `yolo-runtime` ; desktop, browser, Python et
+compilateur ont des distributions/sélections explicites. Les 48 racines Cargo
+par défaut restent à réduire dans le lot intégrateur. Les imports reproductibles
+sont conservés ; Aphrody reste propriétaire de l’UI et du comportement produit.
+
 - [Contrat ABI](docs/RUNTIME-ABI.md)
 - [Packaging et consommateurs SDK](docs/CONSUMERS.md)
 - [Décisions détaillées](docs/DECISIONS.md)

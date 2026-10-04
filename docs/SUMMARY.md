@@ -9,6 +9,7 @@
 - [Imported crates](CRATES.md)
 - [Runtime C ABI (R0 slice)](RUNTIME-ABI.md)
 - [Runtime decisions](DECISIONS.md)
+- [Core, Bun modules and native providers](CORE-MODULE-BOUNDARIES.md)
 - [Consumers (R2)](CONSUMERS.md)
 - [Distribution](DISTRIBUTION.md)
 - [Fact-check: October 2026](FACT-CHECK-2026-10-04.md)

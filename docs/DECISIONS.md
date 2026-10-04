@@ -8,6 +8,11 @@ mechanically from the decision and is not claimed. None of this qualifies a phas
 
 ## Contract
 
+Arbitrage du 2026-10-04 : [cœur, modules Bun et fournisseurs natifs](CORE-MODULE-BOUNDARIES.md).
+Il précise D5/D6 et remplace le périmètre historique D15 : 117 crates locales,
+dont 113 imports (54 desktop, 59 compilateur). Le cœur retenu contient
+`yolo-core` et `yolo-runtime` ; les migrations et qualifications restent ouvertes.
+
 | #   | Decision                                                                                                                                                                                                                                                                                                             | Status                                                                              |
 | :-- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------- |
 | D1  | **ABI freeze.** `yolo_runtime` ABI `1.x` is additive only: existing functions, struct layouts and status codes never change; new functions bump the minor; a breaking change is a new major shipped as a separate library name and negotiated by `yolo_abi_version`. Structures carry `struct_size`.                 | Implemented (1.0 core, 1.1 process/http, 1.2 output capture, 1.3 asynchronous stop) |
