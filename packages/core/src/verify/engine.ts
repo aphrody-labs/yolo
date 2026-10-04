@@ -99,20 +99,59 @@ export const GATES: readonly Gate[] = [
   },
   {
     id: "python-lint",
-    title: "ruff check",
-    command: ["ruff", "check", "."],
-    surfaces: ["**/*.py", "pyproject.toml"],
+    title: "ruff check (owned Python package)",
+    command: ["ruff", "check", "packages/python"],
+    surfaces: ["packages/python/**", "pyproject.toml"],
     precondition: () => (Bun.which("ruff") ? null : "ruff is not installed on PATH"),
+  },
+  {
+    id: "python-native",
+    title: "installed PyO3 extension import (workspace environment)",
+    command: [
+      "uv",
+      "run",
+      "--package",
+      "yolo",
+      "--no-sync",
+      "--",
+      "python",
+      "-c",
+      "import yolo._yolo_native",
+    ],
+    surfaces: [
+      "packages/python/**",
+      "crates/yolo-pyo3/**",
+      "crates/yolo-core/**",
+      "pyproject.toml",
+      "uv.lock",
+    ],
+    precondition: () => (Bun.which("uv") ? null : "uv is not installed on PATH"),
   },
   {
     id: "python-test",
     title: "Python pytest (packages/python)",
-    command: ["uv", "run", "--directory", "packages/python", "pytest"],
-    surfaces: ["packages/python/**", "crates/yolo-pyo3/**"],
-    precondition: (root) =>
-      existsSync(join(root, "packages/python/.venv")) && Bun.which("uv")
-        ? null
-        : "Python venv or uv is missing in packages/python",
+    command: [
+      "uv",
+      "run",
+      "--package",
+      "yolo",
+      "--extra",
+      "dev",
+      "--no-sync",
+      "--",
+      "python",
+      "-m",
+      "pytest",
+      "packages/python/tests",
+    ],
+    needs: ["python-native"],
+    surfaces: [
+      "packages/python/**",
+      "crates/yolo-pyo3/**",
+      "crates/yolo-core/**",
+      "pyproject.toml",
+      "uv.lock",
+    ],
   },
 ];
 
@@ -138,6 +177,12 @@ export const NOT_RUN_HEAVY: readonly NotRun[] = [
     id: "runtime-test",
     title: "native runtime build and tests",
     reason: "heavy: runs through yolo ship",
+  },
+  {
+    id: "python-build",
+    title: "current-source PyO3 wheel build and acquisition",
+    reason:
+      "build yolo-pyo3 with Maturin through the serialized factory, install the verified wheel and sync the dev extra before python-native/python-test; local gates use the installed extension without rebuilding Cargo",
   },
 ];
 
@@ -435,6 +480,18 @@ export async function runVerifyCommand(
     selected = selectChanged(catalog, changedFiles(root));
     selection = "changed";
   }
+  const selectedIds = new Set(selected.map((gate) => gate.id));
+  for (const gate of selected) {
+    for (const id of gate.needs ?? []) {
+      if (selectedIds.has(id)) continue;
+      const dependency = catalog.find((entry) => entry.id === id);
+      if (dependency) {
+        selectedIds.add(id);
+        selected.push(dependency);
+      }
+    }
+  }
+  selected = catalog.filter((gate) => selectedIds.has(gate.id));
   const parallel = Math.max(
     1,
     Number(flag("--parallel") ?? deps.cpus ?? navigator.hardwareConcurrency ?? 4),
