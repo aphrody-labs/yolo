@@ -34,3 +34,7 @@
 	path = plugins
 	url = ../plugins.git
 	branch = main
+[submodule "design/aphrody-m3"]
+	path = design/aphrody-m3
+	url = git@github-dev:aphrody-labs/aphrody-m3.git
+	branch = main
