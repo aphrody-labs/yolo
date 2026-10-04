@@ -53,9 +53,27 @@ try {
   }
   $Extract = Join-Path $Tmp "main"; New-Item -ItemType Directory -Path $Extract | Out-Null
   tar -xzf $Archive -C $Extract; Assert-Success "extracting $Name"
+  if ($CratesName) {
+    $CratesExtract = Join-Path $Tmp "crates"; New-Item -ItemType Directory -Path $CratesExtract | Out-Null
+    tar -xzf $CratesArchive -C $CratesExtract; Assert-Success "extracting $CratesName"
+    if (-not (Test-Path (Join-Path $CratesExtract "crates") -PathType Container)) { throw "missing crates directory in $CratesName" }
+  }
+  $Candidate = Join-Path $Extract "bin\yolo.exe"
+  if (-not (Test-Path $Candidate -PathType Leaf)) { throw "release is missing bin/yolo.exe" }
+  # Validate with the release's standalone CLI in an isolated store before replacing any installed
+  # files. The archive hash alone does not prove its native runtime is compatible or loadable.
+  $SavedYoloHome = $env:YOLO_HOME; $SavedRuntimeHome = $env:YOLO_RUNTIME_HOME
+  try {
+    $env:YOLO_HOME = $Extract; $env:YOLO_RUNTIME_HOME = Join-Path $Tmp "runtime-probe"
+    & $Candidate version; Assert-Success "candidate yolo version"
+    & $Candidate runtime install (Join-Path $Extract "artifact"); Assert-Success "candidate yolo runtime install"
+    & $Candidate runtime info | Out-Null; Assert-Success "candidate yolo runtime info"
+  } finally {
+    $env:YOLO_HOME = $SavedYoloHome; $env:YOLO_RUNTIME_HOME = $SavedRuntimeHome
+  }
   New-Item -ItemType Directory -Force -Path $HomeDir | Out-Null
-  # code and data are replaced through a .new + rename (same as install.sh), so a reinstall never leaves $Part
-  # missing partway through; runtime artifact history (current/previous) is kept by `yolo runtime install`.
+  # Stage each code/data replacement as .new before removing the previous path (same as install.sh).
+  # Runtime artifact history (current/previous) is kept by `yolo runtime install`.
   # Known limitation: `yolo upgrade` runs this script from the very yolo.exe it is about to replace, and Windows
   # locks an executable file while it runs, so `Rename-Item $New $Part` can still fail for "bin" in that path (the
   # plain `irm ... | iex` / manual install.ps1 flow is unaffected, since nothing there is already running).
@@ -68,8 +86,6 @@ try {
   }
   foreach ($Old in "sdk", "stack") { $OldPath = Join-Path $HomeDir $Old; if (Test-Path $OldPath) { Remove-Item -Recurse -Force $OldPath } }
   if ($CratesName) {
-    $CratesExtract = Join-Path $Tmp "crates"; New-Item -ItemType Directory -Path $CratesExtract | Out-Null
-    tar -xzf (Join-Path $Tmp $CratesName) -C $CratesExtract; Assert-Success "extracting $CratesName"
     $CratesDst = Join-Path $HomeDir "crates"; New-Item -ItemType Directory -Force -Path $CratesDst | Out-Null
     Copy-Item -Recurse -Force (Join-Path $CratesExtract "crates\*") $CratesDst
   }

@@ -92,23 +92,35 @@ verify() {
 verify "$main_asset"
 [ -z "$crates_asset" ] || verify "$crates_asset"
 
-# --- install -----------------------------------------------------------------------------------
-mkdir -p "$HOME_DIR"
+# --- validate the extracted release before replacing an existing installation -------------------
 mkdir -p "$TMP/main"
 tar -xzf "$TMP/$main_asset" -C "$TMP/main"
+if [ -n "$crates_asset" ]; then
+  mkdir -p "$TMP/crates"
+  tar -xzf "$TMP/$crates_asset" -C "$TMP/crates"
+  [ -d "$TMP/crates/crates" ] || die "missing crates directory in $crates_asset"
+fi
+[ -f "$TMP/main/bin/yolo" ] || die "release is missing bin/yolo"
+chmod +x "$TMP/main/bin/yolo"
+# Use the release's own standalone CLI and an isolated runtime store. Checking the outer archive's
+# hash does not establish that its native payload has a compatible ABI or can actually be loaded.
+YOLO_HOME="$TMP/main" YOLO_RUNTIME_HOME="$TMP/runtime-probe" "$TMP/main/bin/yolo" version
+YOLO_HOME="$TMP/main" YOLO_RUNTIME_HOME="$TMP/runtime-probe" "$TMP/main/bin/yolo" runtime install "$TMP/main/artifact"
+YOLO_HOME="$TMP/main" YOLO_RUNTIME_HOME="$TMP/runtime-probe" "$TMP/main/bin/yolo" runtime info >/dev/null
+
+# --- install -----------------------------------------------------------------------------------
+mkdir -p "$HOME_DIR"
 # code and data are replaced; runtime artifact history (current/previous) is kept by `yolo runtime install`
 for part in bin packages templates crates VERSION LICENSE; do
   [ -e "$TMP/main/$part" ] || continue
   rm -rf "$HOME_DIR/$part.new"
   cp -R "$TMP/main/$part" "$HOME_DIR/$part.new"
-  rm -rf "$HOME_DIR/$part"
+  rm -rf "${HOME_DIR:?}/$part"
   mv "$HOME_DIR/$part.new" "$HOME_DIR/$part"
 done
 # earlier layout: sdk/ and stack/ became packages/runtime and templates/
 rm -rf "$HOME_DIR/sdk" "$HOME_DIR/stack"
 if [ -n "$crates_asset" ]; then
-  mkdir -p "$TMP/crates"
-  tar -xzf "$TMP/$crates_asset" -C "$TMP/crates"
   mkdir -p "$HOME_DIR/crates"
   cp -R "$TMP/crates/crates/." "$HOME_DIR/crates/"
 fi
