@@ -61,6 +61,24 @@ n'ont pas été utilisés comme preuves techniques. La sortie observée fournit
 une recherche GitHub ; elle ne prouve pas que Context7 et Microsoft Learn ont
 été interrogés. Sources officielles consultées en complément.
 
+### Correction des métadonnées de livraison, 2026-10-04
+
+Les deux workflows utilisent désormais `macos-15-intel` pour x64 et `macos-15`
+pour ARM64, selon le [catalogue officiel épinglé](https://github.com/actions/runner-images/blob/6d942e630479cd99a93dadfc766af11242bfa402/README.md).
+Avant compilation, ils exigent que le host Rust et la cible native Bun correspondent
+à la matrice. La configuration C2 est corrigée ; build et exécution sur macOS
+restent à qualifier. Le relevé initial ci-dessus décrit les workflows avant correction.
+
+`templates/stack.toml` annonce maintenant ABI 1.4, identique au producteur et
+au SDK. C4 est fermé pour cette métadonnée : comparaison avec les constantes SDK
+et suite scaffold passent. Cela ne qualifie pas les assets de release C3.
+
+Les sondes SSH du même lot trouvent Bun 1.4.2, Rust/Cargo 1.98.1 et sccache 0.18.0
+sur `vps` et `dbfr`. `/srv/aphrody-build` est absent sur les deux hôtes ; DBFR
+dispose de 7 227 445 248 octets libres (93 % utilisés). La fabrique C1 reste à
+qualifier sur sa source épinglée et ses artefacts, selon le workflow Infra.
+Le [reçu de correction](delivery-metadata-2026-10-04.json) distingue ces preuves.
+
 Aucune donnée privée ni source du dépôt n'a été envoyée dans les requêtes.
 Les gates runtime/MSVC/multicibles et l'état courant GitHub Actions/releases
 restent non requalifiés. Voir [fact-check](FACT-CHECK-2026-10-04.md) et [plan](../PLAN.md).
