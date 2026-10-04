@@ -1,7 +1,8 @@
 # @aphrody/runtime-sdk
 
 Light TypeScript SDK of the YOLO native runtime: loads the precompiled `yolo_runtime` library through
-its versioned C ABI with `bun:ffi` and exposes the `runtime:system` and `runtime:process` modules.
+its versioned C ABI with `bun:ffi`. Core modules are `runtime:system` and `runtime:process`;
+optional clients are `runtime:desktop` and `runtime:browser`.
 Nothing here compiles an engine. See `docs/RUNTIME-ABI.md` and `docs/DECISIONS.md` in the yolo repository.
 
 ```ts
@@ -40,3 +41,23 @@ After runtime close, SDK handles reject further native calls and can be disposed
 without entering unloaded code. Unix shutdown covers the owned process group;
 Windows process-tree shutdown and runtime behavior on other targets still need
 execution qualification.
+
+Optional clients load without activating either engine. Desktop opens a separately
+installed `yolo-desktop` system-WebView host through the shared process supervisor.
+Import `@aphrody/runtime-sdk/desktop` and call `desktop.open` with explicit
+`grants` and exact `allowedOrigins`; dispose the session to close its windows and
+join its host. Verified desktop installation helpers are exported from
+`@aphrody/runtime-sdk/desktop-artifact`.
+
+Import `@aphrody/runtime-sdk/browser` and call `BrowserRuntime.load` to use the
+optional native browser provider. Core ABI and `browser.*` capabilities are
+negotiated before any extension symbol is bound. Each context requires exact
+HTTP(S) `allowedOrigins`; private-network access needs an explicit context opt-in.
+Contexts own isolated in-memory cookies and JavaScript realms. Navigation,
+extraction, evaluation and PNG capture accept cancellation; disposing their owner
+joins the native workers before library unload.
+
+These SDK APIs do not establish native rendering or distribution qualification.
+An ABI 1.4 core artifact lacks browser capabilities, and desktop requires its own
+verified native executable plus the platform WebView prerequisites. Native provider
+and target support remain subject to their actual build and execution gates.

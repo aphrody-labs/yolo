@@ -1,12 +1,16 @@
 /**
  * Public module surface of the runtime: `runtime:system` (capabilities `system.stats` and
- * `bench.compute`). `runtime:desktop` and `runtime:browser` are reserved names whose providers
- * arrive with phases R3 and R4; importing them fails with an explicit error until then.
+ * `bench.compute`). Desktop uses a separately installed native system-WebView host; browser
+ * operations require an optional browser-enabled artifact with negotiated capabilities.
  *
  * One shared runtime instance per process, created lazily and closed at exit.
  */
+import { BrowserRuntime } from "./browser";
+export { BrowserRuntime } from "./browser";
+export { desktop } from "./desktop";
 import {
   Runtime,
+  type LoadOptions,
   type BenchmarkResult,
   type BuildInfo,
   type ManagedProcess,
@@ -61,4 +65,9 @@ export const processes = {
   },
 };
 
-export const RESERVED_MODULES = ["runtime:desktop", "runtime:browser"] as const;
+/** Browser extension symbols bind only after native capability negotiation. */
+export const browser = {
+  load(options?: LoadOptions): BrowserRuntime {
+    return BrowserRuntime.load(options);
+  },
+};

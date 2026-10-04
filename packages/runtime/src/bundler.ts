@@ -1,6 +1,6 @@
 /**
  * `Bun.build` plugin that resolves the `runtime:*` specifiers at bundle time, so applications
- * using `runtime:system` / `runtime:process` can be bundled or compiled into one executable
+ * using runtime modules can be bundled or compiled into one executable
  * (`Bun.build({ compile: ... })`). At run time the module still loads the native library.
  */
 import type { BunPlugin } from "bun";
@@ -8,6 +8,8 @@ import type { BunPlugin } from "bun";
 const EXPORTS: Record<string, string> = {
   "runtime:system": "system",
   "runtime:process": "processes",
+  "runtime:desktop": "desktop",
+  "runtime:browser": "browser, BrowserRuntime",
 };
 
 export const runtimeBundlerPlugin: BunPlugin = {

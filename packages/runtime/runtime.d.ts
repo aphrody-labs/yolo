@@ -31,10 +31,26 @@ declare module "runtime:process" {
   };
 }
 
-// Reserved for the desktop (R3) and browser (R4) phases: importing them throws until then.
+// Desktop and browser APIs require separately qualified native providers.
 declare module "runtime:desktop" {
-  export {};
+  import type { DesktopOptions, DesktopSession } from "@aphrody/runtime-sdk/desktop";
+  export const desktop: {
+    open(options: DesktopOptions): Promise<DesktopSession>;
+  };
 }
 declare module "runtime:browser" {
-  export {};
+  import type { LoadOptions } from "@aphrody/runtime-sdk";
+  import { BrowserRuntime } from "@aphrody/runtime-sdk/browser";
+  export { BrowserRuntime };
+  export type {
+    BrowserContext,
+    BrowserContextOptions,
+    BrowserCallOptions,
+    BrowserSnapshot,
+    BrowserNavigation,
+    BrowserWaitUntil,
+  } from "@aphrody/runtime-sdk/browser";
+  export const browser: {
+    load(options?: LoadOptions): BrowserRuntime;
+  };
 }

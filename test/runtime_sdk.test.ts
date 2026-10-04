@@ -28,12 +28,9 @@ suite("runtime SDK against the precompiled library", () => {
     expect(info.name).toBe("yolo-runtime");
     expect(info.abi).toBe("1.4");
     expect(info.panic_recovery).toBe(true);
-    expect(runtime.capabilities()).toEqual([
-      "system.stats",
-      "bench.compute",
-      "process.supervise",
-      "http.probe",
-    ]);
+    expect(runtime.capabilities()).toEqual(
+      expect.arrayContaining(["system.stats", "bench.compute", "process.supervise", "http.probe"]),
+    );
   });
 
   it("calls system.stats", () => {
@@ -118,9 +115,12 @@ suite("runtime:* modules", () => {
     await expect(system.bench(10, { signal })).rejects.toThrow("late");
   });
 
-  it("keeps runtime:desktop and runtime:browser reserved with an explicit error", async () => {
-    await expect(import("runtime:desktop")).rejects.toThrow(/not available yet/);
-    await expect(import("runtime:browser")).rejects.toThrow(/not available yet/);
+  it("loads optional provider APIs without activating a native engine", async () => {
+    const { desktop } = await import("runtime:desktop");
+    const { browser, BrowserRuntime } = await import("runtime:browser");
+    expect(typeof desktop.open).toBe("function");
+    expect(typeof browser.load).toBe("function");
+    expect(typeof BrowserRuntime.load).toBe("function");
   });
 });
 
