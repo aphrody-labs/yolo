@@ -47,3 +47,12 @@ test("nginx includes inline to the snippet body", () => {
   expect(out).toContain("    proxy_http_version 1.1;");
   expect(out).not.toContain("include snippets");
 });
+
+test("inventory records and the toolchain manifest are part of the host catalog", () => {
+  const inv = loadCatalog().inventory;
+  expect(inv?.files).toContain("targets.json");
+  expect(inv?.toolchain).toBe("toolchain.json");
+  const targets = JSON.parse(readFileSync(join(hostRoot(), inv!.dir, "targets.json"), "utf8"));
+  expect(Array.isArray(targets.targets)).toBe(true);
+  expect(JSON.parse(readFileSync(join(hostRoot(), inv!.toolchain), "utf8"))).toBeObject();
+});

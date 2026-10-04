@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-// Host config: systemd units and nginx sites live under `config/host` (the
-// single home for aphrody, shenron, rg and nie). Units keep only their own
+// Host config: systemd units, nginx sites, the cross-host inventory and the toolchain
+// manifest live under `config/host` (the single home for aphrody, shenron, rg and nie). Units keep only their own
 // directives; shared sandbox/identity blocks are drop-ins listed in
 // `catalog.json` and composed back into one flat unit at install/package time.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -25,6 +25,8 @@ export interface HostCatalog {
   dropIns: { dir: string; files: string[] };
   unitDropIns: { unit: string; path: string; hosts: string[] }[];
   nginxSnippets: { dir: string; files: string[] };
+  /** Cross-host inventory records (targets, dated observations) and the per-user toolchain manifest. */
+  inventory?: { dir: string; files: string[]; toolchain: string };
 }
 
 /** `$YOLO_ROOT`, default `$HOME/yolo`; Windows uses `%USERPROFILE%\yolo`. */
@@ -82,6 +84,16 @@ export function checkCatalog(root = hostRoot()): string[] {
   for (const n of c.nginx) {
     listed.add(n.file);
     if (!existsSync(join(root, n.file))) problems.push(`missing nginx file: ${n.file}`);
+  }
+  if (c.inventory) {
+    for (const f of c.inventory.files)
+      if (!existsSync(join(root, c.inventory.dir, f)))
+        problems.push(`missing inventory file: ${c.inventory.dir}/${f}`);
+    if (!existsSync(join(root, c.inventory.toolchain)))
+      problems.push(`missing toolchain manifest: ${c.inventory.toolchain}`);
+    if (existsSync(join(root, c.inventory.dir)))
+      for (const f of readdirSync(join(root, c.inventory.dir)))
+        if (!c.inventory.files.includes(f)) problems.push(`unlisted inventory file: ${f}`);
   }
   for (const dir of ["aphrody", "shenron", "rg", "nie"])
     for (const f of readdirSync(join(root, "systemd", dir)))

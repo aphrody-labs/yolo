@@ -6,8 +6,6 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=ubuntu
-Group=ubuntu
 WorkingDirectory=/srv/aphrody/current
 Environment=PORT=3007
 Environment=BXC_DIR=/srv/aphrody/shared/bxc
@@ -19,9 +17,6 @@ EnvironmentFile=/etc/aphrody/aphrody-web-api.env
 ExecStart=/srv/aphrody/current/bin/aphrody-web-api
 Restart=on-failure
 RestartSec=2
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/srv/aphrody/shared/bxc
 

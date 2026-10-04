@@ -43,6 +43,19 @@
     "rg-routes": "rg/nginx-routes.json",
     "nie": "nie/service-catalog.json"
   },
+  "inventory": {
+    "dir": "inventory",
+    "files": [
+      "2026-09-30-bun-transfer.json",
+      "2026-09-30-oxc-transfer.json",
+      "aphrody-discord-dev-2026-09-29.md",
+      "build-factory-2026-10-03.json",
+      "targets.json",
+      "vps-source.json",
+      "vps-unit-catalog.json"
+    ],
+    "toolchain": "toolchain.json"
+  },
   "units": [
     {
       "service": "aphrody-compute-dbfr-tunnel",
@@ -76,6 +89,17 @@
       "dropIns": [],
       "ownerRepo": "aphrody",
       "targetHost": "wsl"
+    },
+    {
+      "service": "aphrody-web-api",
+      "unit": "aphrody-web-api.service",
+      "path": "systemd/aphrody/aphrody-web-api.service",
+      "dropIns": [
+        "run-as-ubuntu",
+        "sandbox-base"
+      ],
+      "ownerRepo": "aphrody",
+      "targetHost": "vps"
     },
     {
       "service": "nie-model-serve",

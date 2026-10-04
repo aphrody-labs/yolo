@@ -2,7 +2,7 @@
 # Linux VPS performance tuning (reference)
 
 Moved from `aphrody-os/docs/vps_tuning.md`. This is a reference proposal, not an installed
-configuration: the active host configuration lives in `config/infra/host/sysctl/` and the owning
+configuration: the active host configuration lives under `config/host/` (systemd, nginx, logrotate) and in the owning
 service catalog (`config/service-catalog.json`, `config/production-topology.json`). Host roles,
 addresses and ports are defined there and are deliberately not repeated here.
 
