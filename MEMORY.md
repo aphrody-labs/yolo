@@ -204,3 +204,13 @@ le graphe Gemma. 38 tests/452 assertions passent, ainsi que TypeScript core,
 oxlint strict et oxfmt ciblés. Aucun changement numérique ni gain runtime mesuré.
 [Preuve et limites](docs/ai/vector-owner-2026-10-05.md). Aucun build Rust ni
 modification des chemins desktop/runtime concurrents dans ce lot.
+
+## AI adapters — 2026-10-05
+
+Schemas, validation, contexts and execution moved from MCP to the common
+capability registry. MCP remains a compatibility protocol adapter; HTTP/OpenAPI
+and `yolo ai list|call` use the same owner. `yolo_ai_infer` delegates to the
+existing configured provider with cancellation. 135 core tests/1544 assertions
+and 43 focused tests/198 assertions pass (overlap); root/core TypeScript and
+scoped strict lint/format pass. [Contracts and limits](docs/ai/shared-adapters-2026-10-05.md).
+No installed binary, persistent MCP restart, model weights or Rust build.

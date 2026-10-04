@@ -14,7 +14,6 @@ test("vector retrieval bundles without Gemma profiles or inference transport", a
     entrypoints: [new URL("../packages/core/src/redis/vector.ts", import.meta.url).pathname],
     target: "bun",
     sourcemap: "external",
-    write: false,
   });
   expect(result.success).toBe(true);
   const map = result.outputs.find((output) => output.path.endsWith(".map"));

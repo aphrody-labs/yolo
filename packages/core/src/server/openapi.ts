@@ -1,4 +1,4 @@
-import { TOOLS } from "../mcp/server";
+import { TOOLS } from "../tools/registry";
 
 /**
  * OpenAPI 3.1 schema specification for the YOLO micro-server.

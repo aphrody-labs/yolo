@@ -90,6 +90,7 @@ ${header}
 \x1b[1mCOMMANDS:\x1b[0m
   \x1b[32mstatus [--json|--md]\x1b[0m Inspect active package forks & Cargo workspace status
   \x1b[32mscan [dir] [--json|--md]\x1b[0m Fast parallel recursive scanner (lines, bytes, wyhash)
+  \x1b[32mai list|call <tool> <json>\x1b[0m Shared AI capabilities (same schemas and owner as MCP/API)
   \x1b[32mmcp\x1b[0m                 Model Context Protocol (MCP 2024-11-05) stdio server for AI agents
   \x1b[32mapi [--port N]\x1b[0m      Serve local HTTP / REST / OpenAPI micro-server (Bun.serve)
   \x1b[32mweb [build|dev]\x1b[0m     Manage and build the zero-overhead Web & Desktop frontend
@@ -404,6 +405,12 @@ async function main(): Promise<void> {
         args.slice(1),
         isCompiled() ? process.cwd() : rootDir(),
       );
+      break;
+    }
+
+    case "ai": {
+      const { runAiCommand } = await import("./ai");
+      process.exitCode = await runAiCommand(args.slice(1), workspaceRoot());
       break;
     }
 

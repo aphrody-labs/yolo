@@ -1,4 +1,4 @@
-/** Native Bun HTTP transport sharing the MCP tool owner and OpenAPI contract. */
+/** Native Bun HTTP transport sharing the capability owner and OpenAPI contract. */
 import { yoloHome, yoloVersion } from "../vfs/home";
 import { hostTarget } from "../../../runtime/src/artifact";
 import {
@@ -8,8 +8,8 @@ import {
   validateToolArguments,
   ToolArgumentError,
   ToolExecutionContext,
-} from "../mcp/server";
-import { resolveContainedPath } from "../mcp/paths";
+} from "../tools/registry";
+import { resolveContainedPath } from "../tools/paths";
 import { buildOpenApiSpec } from "./openapi";
 export { buildOpenApiSpec } from "./openapi";
 
