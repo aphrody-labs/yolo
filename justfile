@@ -19,7 +19,7 @@ check: typecheck lint fmt-check rust-fmt-check clippy
     @echo -e "\033[1;32m[OK] Quality gates passed\033[0m"
 
 typecheck:
-    bun x tsc --noEmit
+    bun run typecheck
 
 # lint/fmt run the versions pinned in package.json (node_modules/.bin) under Bun, never a global install
 lint:

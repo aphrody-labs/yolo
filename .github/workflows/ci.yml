@@ -19,7 +19,7 @@ jobs:
         with:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
-      - run: bun x tsc --noEmit
+      - run: bun run typecheck
       - run: bun run lint
       - run: bun run fmt:check
       - run: bun test test/

@@ -28,7 +28,7 @@ cd "$work"
 "$yolo" create smoke-app
 cd smoke-app
 bun install
-bun x --bun tsc --noEmit
+bun run tsc --noEmit
 bun test
 bun run build:bin
 bun run pack:deploy

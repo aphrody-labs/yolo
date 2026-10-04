@@ -149,7 +149,7 @@ ledger.recordBenchmark(db, {
 const gates = [
   {
     name: "typecheck",
-    cmd: "bun x tsc --noEmit",
+    cmd: "bun run typecheck",
     exitCode: 0,
     passed: true,
     details: "TS 7.0.2 clean",
