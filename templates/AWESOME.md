@@ -1,6 +1,6 @@
 <p align="center">
   <br>
-  <img width="160" src="./awesome-bun.png" alt="logo of awesome-bun repository">
+  <img width="160" src="https://raw.githubusercontent.com/oven-sh/awesome-bun/main/awesome-bun.png" alt="logo of awesome-bun repository">
   <br>
   <br>
 </p>

@@ -359,11 +359,16 @@ export async function auditEntries(
   );
 }
 
-/** README of the cleaned list: same shape as upstream (header block + sections), kept entries only. */
+/**
+ * README of the cleaned list: same shape as upstream (header block + sections), kept entries only.
+ * `base` (raw URL of the source list) makes the header's relative images and links absolute, since the
+ * cleaned README is written outside the list's repository.
+ */
 export function renderCleanReadme(
   original: string,
   curated: readonly CuratedEntry[],
   since: string,
+  base?: string,
 ): string {
   const kept = new Map<string, CuratedEntry[]>();
   for (const entry of curated) {
@@ -371,7 +376,13 @@ export function renderCleanReadme(
     kept.set(entry.section, [...(kept.get(entry.section) ?? []), entry]);
   }
   const headerEnd = original.search(/^## Contents/m);
-  const header = headerEnd > 0 ? original.slice(0, headerEnd).trimEnd() : "# Awesome Bun";
+  const rawHeader = headerEnd > 0 ? original.slice(0, headerEnd).trimEnd() : "# Awesome Bun";
+  const header =
+    base === undefined
+      ? rawHeader
+      : rawHeader
+          .replace(/(\s(?:src|href)=["'])\.?\/?(?![a-z][a-z0-9+.-]*:|#|\/)([^"']+)/gi, `$1${base}$2`)
+          .replace(/(\]\()\.?\/?(?![a-z][a-z0-9+.-]*:|#|\/)([^)\s]+)/gi, `$1${base}$2`);
   const sectionTitles = [...kept.keys()];
   const contents = sectionTitles.map((t) => `- [${t}](#${slugify(t)})`).join("\n");
   const body = sectionTitles
@@ -580,7 +591,7 @@ export async function runAwesomeCommand(
         );
         await Bun.write(
           out ?? resolve(rootDir, "templates/AWESOME.md"),
-          renderCleanReadme(text, curated, since),
+          renderCleanReadme(text, curated, since, `https://raw.githubusercontent.com/${repo}/${ref}/`),
         );
       }
       print({ total: record.total, kept: record.kept, dropped: record.dropped }, () => {
