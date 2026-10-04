@@ -35,6 +35,7 @@ les preuves courantes et antérieures restent distinguées ci-dessous.
 | Hôte Bun et preload | `vendor/bun`, plugin `runtime:*` |
 | Runtime C ABI | `crates/yolo-runtime` |
 | SDK | `packages/runtime` |
+| JS/TS tooling and Node-to-Bun migration | `crates/yolo-tooling`, Oxc/n2b crates, `yolo-core::resources`, SDK `./tooling`; [contracts](docs/JS-TS-TOOLING.md) |
 | Desktop | `crates/aphrody-*`, Tauri/Wry/Tao/plugins retenus |
 | Headless | `vendor/obscura`, fournisseur V8 ; JSC/WebKit conservés dans Bun |
 | Distribution | `scripts/release/`, `install.sh`, `install.ps1` |

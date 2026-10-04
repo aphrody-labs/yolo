@@ -36,10 +36,6 @@
     "publish:forks": "bun run scripts/vendor/publish_forks.ts",
     "publish:forks:run": "bun run scripts/vendor/publish_forks.ts --publish"
   },
-  "dependencies": {
-    "oxc-parser": "0.152.0",
-    "oxc-transform": "0.152.0"
-  },
   "devDependencies": {
     "@types/bun": "1.4.2",
     "oxfmt": "0.71.0",

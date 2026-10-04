@@ -107,7 +107,7 @@ export function createApiServer(options: ApiServerOptions = {}) {
       // Enforce HTTP containment even when dependencies are supplied by the caller.
       const call = async (name: string, args: Record<string, unknown>) => {
         validateToolArguments(name, args);
-        if (name === "yolo_scan" || name === "yolo_parse" || name === "yolo_package_sync") {
+        if (["yolo_scan", "yolo_parse", "yolo_package_sync", "yolo_n2b_scan"].includes(name)) {
           if (args.path !== undefined && typeof args.path !== "string")
             throw new ToolArgumentError("path must be a string");
           args = { ...args, path: safeResolvePath(rootDir, args.path as string | undefined) };

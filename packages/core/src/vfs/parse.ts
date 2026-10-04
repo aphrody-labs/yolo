@@ -1,6 +1,6 @@
 /**
- * Fast AST & token analysis via Bun file streaming and wyhash fingerprinting.
- * Zero external npm dependencies.
+ * Static module analysis through the canonical native Oxc parser, with Bun
+ * file reads and raw-byte wyhash fingerprinting.
  */
 
 export interface TsParseResult {
@@ -15,42 +15,19 @@ export interface TsParseResult {
 
 export async function parseTsSource(filePath: string): Promise<TsParseResult> {
   const t0 = Bun.nanoseconds();
-  const file = Bun.file(filePath);
-  const content = await file.text();
-  const bytes = file.size;
+  const raw = new Uint8Array(await Bun.file(filePath).arrayBuffer());
+  const content = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(raw);
+  const bytes = raw.byteLength;
   const lines = content.length === 0 ? 0 : content.split("\n").length;
 
   // Bun native wyhash checksum
-  const checksum = Bun.hash.wyhash(content).toString(16);
+  const checksum = Bun.hash.wyhash(raw).toString(16);
 
-  // Extract exported symbols
-  const exports: string[] = [];
-  const exportMatches = content.matchAll(
-    /export\s+(?:async\s+)?(?:declare\s+)?(?:const|function|class|type|interface|enum)\s+([a-zA-Z0-9_$]+)/g,
-  );
-  for (const m of exportMatches) {
-    if (m[1]) exports.push(m[1]);
-  }
-
-  const exportBlockMatches = content.matchAll(/export\s*\{([^}]+)\}/g);
-  for (const block of exportBlockMatches) {
-    if (block[1]) {
-      const items = block[1].split(",").map((s) => {
-        const parts = s.trim().split(/\s+as\s+/);
-        const name = parts[parts.length - 1]?.trim().replace(/^type\s+/, "");
-        return name ?? "";
-      });
-      for (const item of items) {
-        if (item && /^[a-zA-Z0-9_$]+$/.test(item) && !exports.includes(item)) {
-          exports.push(item);
-        }
-      }
-    }
-  }
-
-  // Extract imported specifiers
-  const importMatches = content.matchAll(/from\s+["']([^"']+)["']/g);
-  const imports = Array.from(importMatches, (m) => m[1] ?? "").filter(Boolean);
+  // Load the shared native provider only when parsing is requested. Its official
+  // Oxc module metadata covers types without transferring the full AST into JS.
+  const { NativeTooling } = await import("../compiler/native.ts");
+  using tooling = new NativeTooling();
+  const { exports, imports } = tooling.analyzeModule(content, filePath);
 
   const parseTimeMs = Number(((Bun.nanoseconds() - t0) / 1_000_000).toFixed(3));
 

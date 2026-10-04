@@ -93,6 +93,32 @@ test("existing conflicts refuse publication while preserving provenance", async 
   await expect(packRuntimeSdk({ root: f.root, destination })).rejects.toThrow(/conflicts/);
   expect(await readFile(result.path + ".json", "utf8")).toBe(manifest);
 });
+test("the generated tooling contract carries its Apache license in the SDK archive", async () => {
+  const f = await fixture();
+  const metadata = JSON.parse(await readFile(join(f.sdk, "package.json"), "utf8"));
+  metadata.files.push("LICENSE-APACHE");
+  metadata.license = "MIT AND Apache-2.0";
+  await writeFile(join(f.sdk, "package.json"), JSON.stringify(metadata));
+  await writeFile(join(f.sdk, "LICENSE-APACHE"), "Apache fixture license\n");
+  await run(["git", "add", "packages/runtime"], f.root);
+  await run(
+    [
+      "git",
+      "-c",
+      "user.name=aphrody-dev",
+      "-c",
+      "user.email=contact@aphrody.com",
+      "commit",
+      "-qm",
+      "Include tooling license",
+    ],
+    f.root,
+  );
+  const result = await packRuntimeSdk({ root: f.root, destination: join(f.root, "out") });
+  expect(await run(["tar", "-xOf", result.path, "package/LICENSE-APACHE"], f.root)).toBe(
+    "Apache fixture license",
+  );
+});
 test("linked committed SDK sources are refused before extraction", async () => {
   const f = await fixture();
   await symlink("../README.md", join(f.sdk, "src/linked.ts"));

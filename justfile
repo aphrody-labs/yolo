@@ -188,8 +188,8 @@ factory profile revision:
     case "$1" in
       core) recipe=ci ;;
       bun) recipe=qualify-bun; source_scope=(--submodules vendor/bun) ;;
-      desktop|browser|python|compiler|upstream) recipe="qualify-$1" ;;
-      *) echo 'Unknown profile: expected core, bun, desktop, browser, python, compiler or upstream.' >&2; exit 64 ;;
+      desktop|browser|python|compiler|tooling|upstream) recipe="qualify-$1" ;;
+      *) echo 'Unknown profile: expected core, bun, desktop, browser, python, compiler, tooling or upstream.' >&2; exit 64 ;;
     esac
     [[ "$2" =~ ^[0-9a-f]{40}$ ]] || { echo 'Factory revision must be a full Git SHA.' >&2; exit 64; }
     exec ./bin/yolo ops build-factory run --repo yolo --revision "$2" "${source_scope[@]}" -- just "$recipe"
@@ -205,6 +205,16 @@ generate:
 # Native runtime (docs/RUNTIME-ABI.md): the artifact uses the `runtime` profile (unwinding panics)
 runtime-build:
     "{{cargo_owner}}" build --locked --no-default-features --profile runtime -p yolo-runtime
+
+# Unified native Oxc/n2b implementation; unwind at all owned C ABI boundaries.
+tooling-build:
+    "{{cargo_owner}}" build --locked --profile runtime -p yolo-tooling
+
+qualify-tooling:
+    "{{cargo_owner}}" check --locked -p yolo-tooling -p aphrody-n2b -p aphrody-toolchains -p yolo-core --features yolo-core/repository-tools
+    "{{cargo_owner}}" test --locked -p yolo-tooling -p aphrody-oxc-bridge -p aphrody-n2b -p aphrody-n2b-core -p aphrody-n2b-native -p aphrody-n2b-registry -p aphrody-n2b-types -p aphrody-toolchains -p yolo-core --features yolo-core/repository-tools --lib --tests
+    "{{cargo_owner}}" clippy --locked -p yolo-tooling -p aphrody-oxc-bridge -p aphrody-n2b -p aphrody-n2b-core -p aphrody-n2b-native -p aphrody-n2b-registry -p aphrody-n2b-types -p aphrody-toolchains -p yolo-core --features yolo-core/repository-tools --all-targets -- -D warnings
+    just tooling-build
 
 runtime-test: runtime-build
     "{{cargo_owner}}" test --locked --no-default-features -p yolo-runtime -p yolo-core

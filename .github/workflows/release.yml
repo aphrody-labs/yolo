@@ -43,7 +43,7 @@ jobs:
           test "$host" = "$EXPECTED_TARGET"
           bun -e 'import { hostTarget } from "./packages/runtime/src/artifact.ts"; if (hostTarget() !== process.env.EXPECTED_TARGET) throw new Error(`Bun target ${hostTarget()} differs from ${process.env.EXPECTED_TARGET}`);'
       - run: cargo test --locked --no-default-features -p yolo-core -p yolo-runtime
-      - run: cargo build --locked --no-default-features --profile runtime -p yolo-runtime
+      - run: cargo build --locked --no-default-features --profile runtime -p yolo-runtime -p yolo-tooling
       - run: bun run scripts/release/runtime_artifact.ts
       - run: bun test test/runtime_sdk.test.ts test/runtime_release.test.ts
       - run: bun run scripts/release/release.ts

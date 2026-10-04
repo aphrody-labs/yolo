@@ -13,6 +13,9 @@ env:
 jobs:
   bun:
     runs-on: ubuntu-latest
+    env:
+      CARGO_BUILD_JOBS: "2"
+      YOLO_TOOLING_LIB: ${{ github.workspace }}/target/debug/libyolo_tooling.so
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -27,7 +30,13 @@ jobs:
       - run: tsc --noEmit
       - run: oxlint scripts/ test/ packages/ apps/cli/src/ apps/web/src/
       - run: oxfmt --check scripts/ test/ packages/ apps/cli/src/ apps/web/src/
-      - run: bun test test/
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: tooling
+      - name: Build the native provider used by Bun tests
+        run: cargo build --locked -p yolo-tooling
+      - run: bun test --timeout 30000 test/
 
   # Hosted runners are isolated; Cargo steps execute serially within each job.
   # Local/factory equivalents use the existing cargo-serial owner through just.

@@ -43,12 +43,19 @@ export async function packRuntimeSdk(options: {
     )
     .trim();
   if (!/^[a-f0-9]{40}$/.test(revision)) throw new Error("A full Git revision is required");
+  const packageJson = JSON.parse(
+    new TextDecoder().decode(
+      await command(["git", "show", `${revision}:packages/runtime/package.json`], root),
+    ),
+  ) as { files: string[] };
+  const hasApacheSources = packageJson.files.includes("LICENSE-APACHE");
   const paths = [
     "LICENSE",
     "packages/runtime/package.json",
     "packages/runtime/README.md",
     "packages/runtime/runtime.d.ts",
     "packages/runtime/src",
+    ...(hasApacheSources ? ["packages/runtime/LICENSE-APACHE"] : []),
   ];
   const tree = new TextDecoder().decode(
     await command(["git", "ls-tree", "-r", revision, "--", ...paths], root),
@@ -59,7 +66,7 @@ export async function packRuntimeSdk(options: {
       throw new Error(`SDK source must contain regular files only: ${path}`);
     if (
       path !== "LICENSE" &&
-      !/^packages\/runtime\/(?:package\.json|README\.md|runtime\.d\.ts|src\/[^/]+\.ts)$/.test(
+      !/^packages\/runtime\/(?:package\.json|README\.md|runtime\.d\.ts|LICENSE-APACHE|src\/[^/]+\.ts)$/.test(
         path ?? "",
       )
     )
@@ -85,7 +92,13 @@ export async function packRuntimeSdk(options: {
       metadata.name !== "@aphrody/runtime-sdk" ||
       !/^\d+\.\d+\.\d+$/.test(metadata.version) ||
       Object.keys(metadata.dependencies ?? {}).length ||
-      JSON.stringify(metadata.files) !== JSON.stringify(["src", "runtime.d.ts", "README.md"])
+      JSON.stringify(metadata.files) !==
+        JSON.stringify([
+          "src",
+          "runtime.d.ts",
+          "README.md",
+          ...(hasApacheSources ? ["LICENSE-APACHE"] : []),
+        ])
     )
       throw new Error("Unsupported lightweight SDK package contract");
     const output = join(temporary, "output");

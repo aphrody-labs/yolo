@@ -1,0 +1,28 @@
+[package]
+name = "yolo-tooling"
+version.workspace = true
+edition.workspace = true
+rust-version = "1.97"
+license.workspace = true
+publish = false
+description = "Optional native N2B and Oxc C ABI provider for Yolo and Aphrody."
+
+[lib]
+name = "yolo_tooling"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aphrody-n2b-native = { workspace = true }
+aphrody-oxc-bridge = { workspace = true }
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+unused_must_use = "deny"
+non_ascii_idents = "deny"
+
+[lints.clippy]
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+correctness = { level = "warn", priority = -1 }
+perf = { level = "warn", priority = -1 }

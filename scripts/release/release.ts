@@ -25,6 +25,7 @@ import {
 import { join, resolve } from "node:path";
 import { hostTarget, verifyArtifact } from "../../packages/runtime/src/artifact";
 import { COMPILE_FLAGS } from "./compile-flags";
+import { toolingAsset } from "./tooling-asset";
 
 const root = resolve(import.meta.dir, "../..");
 const outIndex = Bun.argv.indexOf("--out");
@@ -54,6 +55,7 @@ if (!existsSync(join(artifactDir, "manifest.json"))) {
   throw new Error(`No packaged runtime for ${target}: run \`just runtime-package\` first`);
 }
 const manifest = verifyArtifact(artifactDir);
+const tooling = await toolingAsset(root);
 
 rmSync(stage, { recursive: true, force: true });
 rmSync(dir, { recursive: true, force: true });
@@ -67,6 +69,7 @@ await run([
   "build",
   "--compile",
   ...COMPILE_FLAGS,
+  ...tooling.flags,
   "--define",
   `YOLO_VERSION=${JSON.stringify(version)}`,
   "apps/cli/src/index.ts",
@@ -89,6 +92,8 @@ cpSync(join(root, "crates/yolo-desktop/icons"), join(stage, "crates/yolo-desktop
 });
 writeFileSync(join(stage, "VERSION"), `${version}\n`);
 cpSync(join(root, "LICENSE"), join(stage, "LICENSE"));
+cpSync(join(root, "NOTICE"), join(stage, "NOTICE"));
+cpSync(join(root, "LICENSES"), join(stage, "LICENSES"), { recursive: true });
 
 const archive = `yolo-${version}-${target}.tar.gz`;
 await run(["tar", "-czf", join(dir, archive), "-C", stage, "."]);
@@ -98,8 +103,16 @@ const crates = `yolo-${version}-crates.tar.gz`;
 const crateStage = join(outRoot, ".stage-crates");
 rmSync(crateStage, { recursive: true, force: true });
 mkdirSync(crateStage, { recursive: true });
-for (const name of readdirSync(join(root, "crates"))) {
-  if (!name.startsWith("aphrody-")) continue; // yolo-* crates inherit the workspace manifest
+cpSync(join(root, "NOTICE"), join(crateStage, "NOTICE"));
+cpSync(join(root, "LICENSES"), join(crateStage, "LICENSES"), { recursive: true });
+const imports = JSON.parse(readFileSync(join(root, "vendor.lock"), "utf8")) as {
+  crates: { dir: string }[];
+};
+for (const imported of imports.crates) {
+  const name = imported.dir.split("/").at(-1)!;
+  if (imported.dir !== `crates/${name}` || !name.startsWith("aphrody-")) {
+    throw new Error(`Invalid imported crate path: ${imported.dir}`);
+  }
   cpSync(join(root, "crates", name), join(crateStage, "crates", name), {
     recursive: true,
     filter: (src) => !/(^|[\\/])(target|node_modules)([\\/]|$)/.test(src),
@@ -126,6 +139,7 @@ writeFileSync(
       target,
       commit,
       runtime: { version: manifest.version, abi: manifest.abi, toolchain: manifest.toolchain },
+      tooling: { sha256: tooling.sha256, abi: tooling.abi, embedded: true },
       assets: files,
       bun: Bun.version,
     },

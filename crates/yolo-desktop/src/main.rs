@@ -2,6 +2,18 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
+  if std::env::args().any(|arg| arg == "--host-info") {
+    println!(
+      "{}",
+      serde_json::json!({
+        "name": "yolo-desktop", "version": env!("CARGO_PKG_VERSION"),
+        "protocol": "yolo.desktop/1", "target": env!("YOLO_DESKTOP_TARGET"),
+        "git_rev": env!("YOLO_DESKTOP_GIT_REV"), "rustc": env!("YOLO_DESKTOP_RUSTC"),
+        "panic_recovery": cfg!(panic = "unwind"), "engine": "system-webview"
+      })
+    );
+    return;
+  }
   // Wayland & WSL low-level display pipeline tuning:
   // Ensures hardware composition doesn't crash on DMA-BUF protocols or NVIDIA/WSL drivers
   #[cfg(target_os = "linux")]
@@ -18,5 +30,15 @@ fn main() {
     }
   }
 
-  yolo_desktop_lib::run()
+  if std::env::args().any(|arg| arg == "--runtime-host") {
+    match yolo_desktop_lib::runtime_host::run() {
+      Ok(code) => std::process::exit(code),
+      Err(error) => {
+        eprintln!("yolo-desktop: {error}");
+        std::process::exit(1);
+      }
+    }
+  } else {
+    yolo_desktop_lib::run()
+  }
 }

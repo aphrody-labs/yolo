@@ -1,0 +1,37 @@
+[package]
+name = "aphrody-oxc-bridge"
+version = "0.1.0"
+edition.workspace = true
+rust-version = "1.97"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+oxc_allocator = { workspace = true }
+oxc_ast = { workspace = true, features = ["serialize"] }
+oxc_ast_visit = { workspace = true }
+oxc_codegen = { workspace = true }
+oxc_formatter = { workspace = true }
+oxc_linter = { workspace = true }
+oxc_minifier = { workspace = true }
+oxc_parser = { workspace = true }
+oxc_semantic = { workspace = true }
+oxc_span = { workspace = true }
+oxc_syntax = { workspace = true }
+rustc-hash = { workspace = true }
+serde_json = { workspace = true }
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+unused_must_use = "deny"
+non_ascii_idents = "deny"
+
+[lints.clippy]
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+correctness = { level = "warn", priority = -1 }
+perf = { level = "warn", priority = -1 }

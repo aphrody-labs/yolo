@@ -236,9 +236,17 @@ export class DesktopSession {
         await session.close();
         throw error;
       }
-      const stderr = child.stderrTail(2048);
-      await child.stopAsync(500);
-      child.release();
+      let stderr = "";
+      try {
+        stderr = child.stderrTail(2048);
+      } catch {
+        // Capture failures must not prevent ownership cleanup after failed startup.
+      }
+      try {
+        await child.stopAsync(500);
+      } finally {
+        child.release();
+      }
       if (options.signal?.aborted) options.signal.throwIfAborted();
       throw new DesktopError(
         "StartupFailed",

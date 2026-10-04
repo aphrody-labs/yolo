@@ -1,6 +1,8 @@
 [workspace]
 resolver = "3"
 members = ["crates/*"]
+# The pinned browser engine retains its own workspace dependency and licensing contracts.
+exclude = ["vendor/obscura"]
 # The default build is the shared native core. Desktop, Python and compiler
 # providers remain workspace members selected explicitly by their build recipes.
 default-members = ["crates/yolo-core", "crates/yolo-runtime"]
@@ -19,6 +21,13 @@ homepage = "https://github.com/aphrody-labs/yolo"
 [workspace.dependencies]
 rayon = "1.10"
 pyo3 = { version = "0.29", features = ["extension-module"] }
+# Optional browser provider reuses the pinned producer Obscura graph.
+obscura-browser = { path = "vendor/obscura/crates/obscura-browser" }
+obscura-net = { path = "vendor/obscura/crates/obscura-net" }
+tokio = { version = "1", features = ["full"] }
+url = "2"
+base64 = "0.22"
+async-trait = "0.1"
 tauri = { package = "aphrody-tauri", path = "crates/aphrody-tauri", version = "3.0.0-alpha.4" }
 tauri-build = { package = "aphrody-tauri-build", path = "crates/aphrody-tauri-build", version = "3.0.0-alpha.3" }
 tauri-plugin = { package = "aphrody-tauri-plugin", path = "crates/aphrody-tauri-plugin", version = "3.0.0-alpha.3" }
@@ -30,6 +39,61 @@ tauri-codegen = { package = "aphrody-tauri-codegen", path = "crates/aphrody-taur
 tauri-plugin-opener = { package = "aphrody-tauri-plugin-opener", path = "crates/aphrody-tauri-plugin-opener", version = "3.0.0-alpha.2" }
 wry = { package = "aphrody-wry", path = "crates/aphrody-wry", version = "0.57.0" }
 tao = { package = "aphrody-tao", path = "crates/aphrody-tao", version = "0.37.1" }
+
+# Optional native JS/TS tooling. Preserve one Oxc source pin shared with Aphrody.
+anyhow = "1.0.104"
+serde = { version = "1.0.229", features = ["derive", "std"], default-features = false }
+serde_json = "1.0.151"
+serde_yaml = { package = "yaml_serde", version = "0.10", features = [] }
+regex = { version = "1.11", features = [] }
+once_cell = { version = "1", features = [] }
+memchr             = { version = "2" }
+crossbeam-channel  = { version = "0.5" }
+ignore = { version = "0.4", features = [] }
+globset = { version = "0.4", features = [] }
+colored = { version = "3", features = [] }
+walkdir = "2.5.0"
+which = { version = "8", features = [] }
+reqwest = { version = "0.13.5", features = ["rustls-no-provider", "json", "stream", "form", "query", "charset", "http2", "system-proxy", "blocking", "cookies", "gzip", "brotli", "deflate", "socks", "multipart"], default-features = false }
+octocrab = { version = "0.54", features = [] }
+proptest = { version = "1", features = [] }
+toml = "1.1.5"
+tempfile = "3.27.0"
+rustc-hash = "2"
+oxc_allocator = { version = "0.152.0", git = "https://github.com/oxc-project/oxc.git", rev = "8c5a04ea0d5ca56e0d2d925f51f6b45669aa5e2a" }
+oxc_parser = { version = "0.152.0", git = "https://github.com/oxc-project/oxc.git", rev = "8c5a04ea0d5ca56e0d2d925f51f6b45669aa5e2a" }
+oxc_ast = { version = "0.152.0", git = "https://github.com/oxc-project/oxc.git", rev = "8c5a04ea0d5ca56e0d2d925f51f6b45669aa5e2a" }
+oxc_ast_visit      = { version = "0.152.0", git = "https://github.com/oxc-project/oxc.git", rev = "8c5a04ea0d5ca56e0d2d925f51f6b45669aa5e2a" }
+oxc_span = { version = "0.152.0", git = "https://github.com/oxc-project/oxc.git", rev = "8c5a04ea0d5ca56e0d2d925f51f6b45669aa5e2a" }
+oxc_syntax = { version = "0.152.0", git = "https://github.com/oxc-project/oxc.git", rev = "8c5a04ea0d5ca56e0d2d925f51f6b45669aa5e2a" }
+oxc_codegen = { version = "0.152.0", git = "https://github.com/oxc-project/oxc.git", rev = "8c5a04ea0d5ca56e0d2d925f51f6b45669aa5e2a", default-features = false }
+oxc_formatter = { version = "0.71.0", git = "https://github.com/oxc-project/oxc.git", rev = "8c5a04ea0d5ca56e0d2d925f51f6b45669aa5e2a" }
+oxc_linter = { version = "1.86.0", git = "https://github.com/oxc-project/oxc.git", rev = "8c5a04ea0d5ca56e0d2d925f51f6b45669aa5e2a" }
+oxc_minifier = { version = "0.152.0", git = "https://github.com/oxc-project/oxc.git", rev = "8c5a04ea0d5ca56e0d2d925f51f6b45669aa5e2a" }
+oxc_semantic = { version = "0.152.0", git = "https://github.com/oxc-project/oxc.git", rev = "8c5a04ea0d5ca56e0d2d925f51f6b45669aa5e2a" }
+aphrody-n2b-core = { path = "crates/aphrody-n2b-core", version = "0.6.2" }
+aphrody-n2b-registry = { path = "crates/aphrody-n2b-registry", version = "0.6.2" }
+aphrody-n2b-types = { path = "crates/aphrody-n2b-types", version = "0.6.2" }
+aphrody-n2b-native = { path = "crates/aphrody-n2b-native", version = "0.2.0" }
+aphrody-oxc-bridge = { path = "crates/aphrody-oxc-bridge", version = "0.1.0" }
+
+thiserror = "2.0.20"
+clap = { version = "4.6.6", features = ["derive", "env", "color"] }
+similar = { version = "3", features = [] }
+fastembed = { version = "5.13.4", default-features = false, features = [] }
+assert_cmd = { version = "2", features = [] }
+jsonschema = { version = "0.58", default-features = false, features = [] }
+aphrody-toolchains = { path = "crates/aphrody-toolchains", version = "1.0.0-canary" }
+aphrody-n2b = { path = "crates/aphrody-n2b", version = "0.6.2" }
+
+blake3 = "1.8.7"
+chrono = { version = "0.4", features = ["serde"] }
+dashmap = { version = "6", features = [] }
+dunce = "1.0.5"
+notify = { version = "8", features = [] }
+notify-debouncer-full = "0.7"
+parking_lot = "0.12.5"
+tracing = "0.1.44"
 
 [profile.release]
 codegen-units = 1
@@ -46,3 +110,8 @@ panic = "unwind"
 
 [profile.dev.package.miniz_oxide]
 opt-level = 3
+
+# Preserve the pinned Obscura rendering patches when it is consumed by this workspace.
+[patch.crates-io]
+taffy = { path = "vendor/obscura/vendor/taffy" }
+cosmic-text = { path = "vendor/obscura/vendor/cosmic-text" }

@@ -19,6 +19,7 @@ One workspace, one set of commands (`just --list`).
 | Desktop app | `just desktop-build` |
 | Forked Tauri CLI (`cargo tauri`) | `just install-cli` |
 | Native runtime (C ABI, SDK, artifact) | `just runtime-build`, `just runtime-test`, `just runtime-package` |
+| Native JS/TS core: Oxc lint/format/parse/minify and n2b | `just qualify-tooling`, `just tooling-build`, `yolo n2b --help`; [ownership and limits](JS-TS-TOOLING.md) |
 | awesome-bun browser (`oven-sh/awesome-bun`, no clone) | `just awesome stats|list|search|github|check` |
 | Stack scaffold (`templates/stack.toml`, `templates/`) | `just create <dir> --with web,desktop --framework hono` |
 | Curated awesome-bun for the Rust-based Bun | `just awesome-curate`, `just awesome search <words>` |
@@ -51,7 +52,7 @@ Measured on this repository: 13.1 s serial against 4.2 s with 16 in parallel, sa
 
 - `Cargo.toml`: resolver 3, `members = ["crates/*"]`.
 - `default-members` contains only `yolo-core` and `yolo-runtime`. All 117 members
-  remain available through explicit provider/upstream recipes. Core commands use
+  from the original inventory remain available through explicit provider/upstream recipes. The transferred tooling crates are additional members. Core commands use
   `--locked --no-default-features`; they do not enable desktop, browser or Python.
 - Root Cargo recipes use `YOLO_CARGO_WRAPPER`, defaulting to Aphrody's installed
   `scripts/build/rust/cargo-serial.sh`. The wrapper keeps its shared lock, sccache

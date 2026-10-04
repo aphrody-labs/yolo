@@ -16,6 +16,10 @@
 
 mod process;
 pub use process::*;
+#[cfg(feature = "browser")]
+mod browser;
+#[cfg(feature = "browser")]
+pub use browser::*;
 
 use std::cell::RefCell;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -198,6 +202,11 @@ pub(crate) enum Entry {
     owner: YoloHandle,
     state: Arc<process::ProcState>,
   },
+  #[cfg(feature = "browser")]
+  Browser {
+    owner: YoloHandle,
+    state: Arc<browser::BrowserWorker>,
+  },
 }
 
 struct Slot {
@@ -278,6 +287,10 @@ impl Registry {
         {
           Some(encode(index, slot.generation))
         }
+        #[cfg(feature = "browser")]
+        Some(Entry::Browser { owner: o, .. }) if *o == owner => {
+          Some(encode(index, slot.generation))
+        }
         _ => None,
       })
       .collect()
@@ -304,6 +317,8 @@ pub(crate) fn stop_operation(entry: Entry) {
       }
     }
     Entry::Process { state, .. } => state.stop(process::DESTROY_GRACE_MS),
+    #[cfg(feature = "browser")]
+    Entry::Browser { state, .. } => state.stop(),
     Entry::Runtime { .. } => {}
   }
 }
@@ -454,6 +469,14 @@ pub unsafe extern "C" fn yolo_runtime_capabilities(
         "bench.compute",
         "process.supervise",
         "http.probe",
+        #[cfg(feature = "browser")]
+        "browser.navigate",
+        #[cfg(feature = "browser")]
+        "browser.dom",
+        #[cfg(feature = "browser")]
+        "browser.capture",
+        #[cfg(feature = "browser")]
+        "browser.contexts",
       ],
     )
   })

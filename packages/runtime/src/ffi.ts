@@ -4,7 +4,7 @@
  * Consumers (iecode NIE, Aphrody engines) declare their symbols and library names; discovery,
  * lazy loading with a diagnostic, C strings and owned-byte reads live here once.
  */
-import { dlopen, suffix, toArrayBuffer, type FFIFunction, type Pointer } from "bun:ffi";
+import { CString, dlopen, suffix, toArrayBuffer, type FFIFunction, type Pointer } from "bun:ffi";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -86,6 +86,19 @@ export function readNativeBytes(
   }
 }
 
+/** Copy a NUL-terminated native string and always release its original allocation. */
+export function readNativeString(
+  address: number | bigint,
+  free: (address: number) => void,
+): string {
+  const addr = Number(address);
+  try {
+    return new CString(addr as Pointer).toString();
+  } finally {
+    free(addr);
+  }
+}
+
 export interface NativeLibraryOptions<S extends Record<string, FFIFunction>> {
   /** Library base name without prefix or suffix, e.g. `iecode` for `libiecode.so`. */
   name: string;
@@ -109,6 +122,9 @@ export interface NativeLibrary<S extends Record<string, FFIFunction>> {
   isAvailable(): boolean;
   loadError(): string | null;
   libraryPath(): string | null;
+  readonly closed: boolean;
+  /** Terminal, idempotent unload. Callers must stop using previously returned symbols. */
+  close(): void;
 }
 
 /** Lazy, diagnosable native library loader. */
@@ -123,6 +139,8 @@ export function nativeLibrary<S extends Record<string, FFIFunction>>(
   let symbols: ReturnType<typeof dlopen<S>>["symbols"] | null = null;
   let error: string | null = null;
   let path: string | null = null;
+  let library: ReturnType<typeof dlopen<S>> | null = null;
+  let closed = false;
 
   const resolvePath = (): string | null => {
     if (options.path && existsSync(options.path)) return options.path;
@@ -147,7 +165,8 @@ export function nativeLibrary<S extends Record<string, FFIFunction>>(
       return null;
     }
     try {
-      symbols = dlopen(found, options.symbols).symbols;
+      library = dlopen(found, options.symbols);
+      symbols = library.symbols;
       path = found;
       error = null;
     } catch (cause) {
@@ -162,5 +181,18 @@ export function nativeLibrary<S extends Record<string, FFIFunction>>(
     isAvailable: () => load() !== null,
     loadError: () => (load(), error),
     libraryPath: () => (load(), path),
+    get closed() {
+      return closed;
+    },
+    close() {
+      if (closed) return;
+      closed = true;
+      attempted = true;
+      symbols = null;
+      error = `Native library ${file} is closed`;
+      const owned = library;
+      library = null;
+      owned?.close();
+    },
   };
 }

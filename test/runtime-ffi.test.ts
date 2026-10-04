@@ -3,6 +3,7 @@ import { ptr } from "bun:ffi";
 import {
   nativeLibrary,
   readNativeBytes,
+  readNativeString,
   readOwnedBytes,
   toCString,
 } from "../packages/runtime/src/ffi";
@@ -22,6 +23,26 @@ describe("runtime SDK ffi helpers", () => {
 
   it("readOwnedBytes returns null for an empty slot", () => {
     expect(readOwnedBytes(new Uint8Array(24), () => {})).toBeNull();
+  });
+
+  it("readNativeString copies UTF-8 and releases exactly once", () => {
+    const source = toCString('{"value":"🐈"}');
+    let releases = 0;
+    const value = readNativeString(ptr(source), (address) => {
+      expect(address).toBe(Number(ptr(source)));
+      releases++;
+    });
+    expect(JSON.parse(value)).toEqual({ value: "🐈" });
+    expect(releases).toBe(1);
+  });
+
+  it("close before load is terminal and idempotent", () => {
+    const library = nativeLibrary({ name: "x", path: import.meta.path, symbols: {} });
+    library.close();
+    library.close();
+    expect(library.closed).toBe(true);
+    expect(library.load()).toBeNull();
+    expect(library.loadError()).toContain("closed");
   });
 
   it("nativeLibrary resolves an explicit path", () => {

@@ -14,8 +14,18 @@ description = "Versioned C ABI of the precompiled YOLO native runtime (first sli
 name = "yolo_runtime"
 crate-type = ["cdylib", "rlib"]
 
-# Deliberately light: no Tauri, wry, tao, Bun or Obscura in this graph.
+# Default ABI graph remains light. Browser releases opt into the pinned Obscura/V8 owner.
+[features]
+default = []
+browser = ["dep:obscura-browser", "dep:obscura-net", "dep:tokio", "dep:url", "dep:base64", "dep:async-trait"]
+
 [dependencies]
+obscura-browser = { workspace = true, features = ["render"], optional = true }
+obscura-net = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+url = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+async-trait = { workspace = true, optional = true }
 yolo-core = { path = "../yolo-core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -7,6 +7,14 @@ plans [Yolo](GOAL.md) / [Aphrody](../aphrody/GOAL.md). La demande actuelle autor
 les implémentations nécessaires ; le périmètre de maintenance hors sources du
 2026-10-04 ne ferme aucun jalon et ne remplace pas cet objectif.
 
+## Lot actif — absorption n2b/Oxc (2026-10-05)
+
+- [ ] Recenser les besoins JS/TS/natifs Aphrody et leurs propriétaires réels.
+- [ ] Transférer le moteur n2b et le pont Oxc vers Yolo, sans réimplémentation ni sous-processus ajouté.
+- [ ] Raccorder les consommateurs et conserver une seule source des règles et contrats.
+- [ ] Remplacer l’analyse syntaxique approximative par le propriétaire natif approprié.
+- [ ] Qualifier les lots, conserver provenance/licences et livrer les seuls changements possédés.
+
 ## Lot actif — fork Bun desktop et build natif (2026-10-05)
 
 - [x] Corriger et qualifier le build-driver qui transmet les bibliothèques Rust au linker Linux du fork Bun ; compilation du moteur encore ouverte.

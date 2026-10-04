@@ -49,6 +49,20 @@ export interface ToolDefinition {
 
 export const TOOLS: readonly ToolDefinition[] = [
   {
+    name: "yolo_n2b_scan",
+    description:
+      "Recursively analyze a Node.js codebase with the shared native N2B engine and bounded parallel workers. Read-only; returns the versioned N2B report. Requires the Yolo tooling library.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "Project directory (default: workspace root)" },
+        jobs: { type: "integer", minimum: 1, maximum: 6 },
+        ignore: { type: "array", items: { type: "string" } },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: "yolo_package_sync",
     description:
       "Plan or apply locked dependency synchronization with global Bun/uv/Cargo binaries. Apply uses the native supervised process owner; Cargo fetch is serialized. No engine builds or publication.",
@@ -548,6 +562,19 @@ export async function executeTool(
         typeof args.exts === "string" ? args.exts.split(",").map((e) => e.trim()) : undefined;
       const parallel = typeof args.parallel === "number" ? args.parallel : 16;
       return await scanDirectory(target, { exts, parallel });
+    }
+
+    case "yolo_n2b_scan": {
+      const target = context.containPaths
+        ? resolveContainedPath(rootDir, args.path as string | undefined)
+        : resolve(rootDir, (args.path as string | undefined) ?? ".");
+      const { scanNodeProject } = await import("../compiler/native");
+      return scanNodeProject(target, {
+        mode: "check",
+        dry_run: true,
+        ...(typeof args.jobs === "number" ? { jobs: args.jobs } : {}),
+        ...(Array.isArray(args.ignore) ? { ignore: args.ignore as string[] } : {}),
+      });
     }
 
     case "yolo_parse": {

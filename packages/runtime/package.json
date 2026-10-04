@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Light TypeScript SDK of the YOLO native runtime: loads the precompiled library through its versioned C ABI",
-  "license": "MIT",
+  "license": "MIT AND Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/aphrody-labs/yolo.git",
@@ -12,7 +12,8 @@
   "files": [
     "src",
     "runtime.d.ts",
-    "README.md"
+    "README.md",
+    "LICENSE-APACHE"
   ],
   "type": "module",
   "main": "./src/index.ts",
@@ -25,6 +26,8 @@
     "./bundler": "./src/bundler.ts",
     "./artifact": "./src/artifact.ts",
     "./ffi": "./src/ffi.ts",
+    "./tooling": "./src/tooling.ts",
+    "./tooling-schema": "./src/tooling-schema.ts",
     "./desktop": "./src/desktop.ts",
     "./browser": "./src/browser.ts",
     "./desktop-artifact": "./src/desktop-artifact.ts"

@@ -125,6 +125,14 @@ YoloStatus yolo_process_release(YoloHandle process);
 YoloStatus yolo_http_probe_start(YoloHandle runtime, const char *host, uint16_t port,
                                  const char *path, uint32_t timeout_ms, YoloHandle *out_operation);
 
+/* Optional browser feature, ABI 1.4 extension. Probe browser.* capabilities before resolving
+ * these symbols; default core artifacts do not export them. JSON requests are UTF-8 with explicit
+ * byte lengths. Contexts own their browser thread; close/destroy interrupts and joins workers.
+ * call_start yields an operation managed by the existing wait/cancel/release functions. */
+YoloStatus yolo_browser_create(YoloHandle runtime, const uint8_t *input, size_t input_len, YoloHandle *out);
+YoloStatus yolo_browser_call_start(YoloHandle browser, const uint8_t *input, size_t input_len, YoloHandle *out_operation);
+YoloStatus yolo_browser_close(YoloHandle browser);
+
 /* Buffers and errors */
 void yolo_buffer_free(YoloBuffer *buffer); /* zeroes the buffer; no-op if already empty */
 YoloStatus yolo_last_error(YoloBuffer *out); /* JSON {"message": "..."} of the calling thread */

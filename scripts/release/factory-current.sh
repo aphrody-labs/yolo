@@ -15,6 +15,8 @@ bun install --frozen-lockfile
 "$factory_yolo_wrapper" test --locked -p yolo-runtime -p yolo-core
 "$factory_yolo_wrapper" clippy --locked -p yolo-runtime -p yolo-core --all-targets -- -D warnings
 "$factory_yolo_wrapper" build --locked --profile runtime -p yolo-runtime
+YOLO_CARGO_WRAPPER="$factory_yolo_wrapper" just qualify-tooling
+export YOLO_TOOLING_LIB="$factory_yolo_root/target/runtime/libyolo_tooling.so"
 bun scripts/release/runtime_artifact.ts
 bun test --timeout 30000 test/
 bun scripts/release/runtime_sdk_pack.ts

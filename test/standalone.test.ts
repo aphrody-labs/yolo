@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { COMPILE_FLAGS } from "../scripts/release/compile-flags";
+import { toolingAsset } from "../scripts/release/tooling-asset.ts";
 
 const root = resolve(import.meta.dir, "..");
 const version = readFileSync(join(root, "VERSION"), "utf8").trim();
@@ -10,6 +11,7 @@ const work = mkdtempSync(join(tmpdir(), "yolo-standalone-"));
 const home = join(work, "installation");
 const project = join(work, "project");
 const checkout = join(work, "checkout");
+const nodeProject = join(work, "node-project");
 const binary = join(home, "bin", process.platform === "win32" ? "yolo.exe" : "yolo");
 const env = {
   PATH:
@@ -31,11 +33,19 @@ function run(args: string[], cwd = project, input?: string) {
   });
 }
 
-beforeAll(() => {
-  for (const path of [join(home, "bin"), project, join(checkout, "apps/cli/src"), env.HOME]) {
+beforeAll(async () => {
+  const tooling = await toolingAsset(root);
+  for (const path of [
+    join(home, "bin"),
+    project,
+    nodeProject,
+    join(checkout, "apps/cli/src"),
+    env.HOME,
+  ]) {
     mkdirSync(path, { recursive: true });
   }
   writeFileSync(join(project, "sample.ts"), "export const portable = 1;\n");
+  writeFileSync(join(nodeProject, "entry.js"), "#!/usr/bin/env node\nconsole.log('hello');\n");
   writeFileSync(join(project, "preload.ts"), 'throw new Error("UNEXPECTED_PROJECT_PRELOAD");\n');
   writeFileSync(join(project, "bunfig.toml"), 'preload = ["./preload.ts"]\n');
   writeFileSync(join(project, ".env"), "YOLO_HOME=/unexpected-dotenv-home\n");
@@ -54,6 +64,7 @@ beforeAll(() => {
       "build",
       "--compile",
       ...COMPILE_FLAGS,
+      ...tooling.flags,
       "--define",
       `YOLO_VERSION=${JSON.stringify(version)}`,
       "apps/cli/src/index.ts",
@@ -112,6 +123,33 @@ describe("compiled CLI without an installed Bun", () => {
     const parse = run(["parse", "sample.ts", "--json"]);
     expect(parse.exitCode).toBe(0);
     expect(JSON.parse(parse.stdout.toString()).exports).toEqual(["portable"]);
+  });
+
+  it("runs N2B from the embedded provider and applies only requested transformations", () => {
+    const file = join(nodeProject, "entry.js");
+    const original = readFileSync(file, "utf8");
+    const help = run(["n2b", "--help"], nodeProject);
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout.toString()).toContain("Usage: yolo n2b");
+    const checked = run(["n2b", "--json", "--jobs", "1"], nodeProject);
+    expect(checked.stderr.toString()).toBe("");
+    expect(checked.exitCode).toBe(1);
+    const report = JSON.parse(checked.stdout.toString());
+    expect(report.schema_version).toBe(2);
+    expect(report.mode).toBe("check");
+    expect(report.root).toBe(nodeProject);
+    expect(
+      report.files[0].findings.some(
+        (finding: { rule_id: string }) => finding.rule_id === "shebang/node",
+      ),
+    ).toBe(true);
+    expect(readFileSync(file, "utf8")).toBe(original);
+    const preview = run(["n2b", "--fix", "--dry-run", "--json"], nodeProject);
+    expect(preview.exitCode).toBe(0);
+    expect(readFileSync(file, "utf8")).toBe(original);
+    const fixed = run(["n2b", "--fix", "--json"], nodeProject);
+    expect(fixed.exitCode).toBe(0);
+    expect(readFileSync(file, "utf8")).toContain("#!/usr/bin/env bun");
   });
 
   it("keeps distribution diagnostics pointed at the installation", () => {

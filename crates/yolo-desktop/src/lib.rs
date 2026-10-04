@@ -1,4 +1,5 @@
 // Tauri 3 Native IPC backend for YOLO Desktop
+pub mod runtime_host;
 use yolo_core::{BenchmarkResult, SystemStats, compute_benchmark, current_system_stats};
 
 #[tauri::command]
@@ -19,6 +20,7 @@ fn run_benchmark(iterations: u32) -> BenchmarkResult {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    .runtime(tauri_runtime_wry::Wry::default())
     .plugin(tauri_plugin_opener::init())
     .invoke_handler(tauri::generate_handler![
       greet,

@@ -1,4 +1,9 @@
 pub mod privilege;
+pub mod resources;
+#[cfg(feature = "repository-tools")]
+pub mod mapper;
+#[cfg(feature = "repository-tools")]
+pub mod polyglot;
 pub use privilege::{
   ElevationInfo, can_sudo_non_interactive, get_elevation_info, is_elevated, wrap_elevated_command,
 };

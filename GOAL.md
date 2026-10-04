@@ -33,6 +33,13 @@ mesurer allocations, concurrence et mémoire privée/proportionnelle avant de
 revendiquer un gain. Les contextes JS, cookies et droits restent isolés selon
 leur domaine, même quand le moteur et ses ressources sont communs.
 
+Directive complémentaire du 2026-10-05 : n2b, Oxc, oxlint et oxfmt relèvent
+du cœur natif unifié de Yolo. Aphrody consomme ce propriétaire pour ses besoins
+JS/TS et toolchains ; les copies d'implémentation qualifiées sont retirées.
+Le chargement paresseux du fournisseur précompilé conserve le chemin léger du
+SDK. L'API fichier actuelle n'établit pas la parité de tous les drapeaux,
+configurations de projet ou règles dépendant des types des CLIs amont.
+
 Yolo est la **bibliothèque partagée native d'Aphrody**, dans cet ordre de priorité :
 
 1. **Unix et POSIX d'abord** ; Windows (MSVC) reste une cible de compilation croisée.
