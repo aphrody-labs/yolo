@@ -84,6 +84,13 @@ Les chaînes de développement natives :
 
 ## 4. Exposition à Aphrody
 
+- Directive propriétaire du 2026-10-05 : Yolo prend en charge les sources et la
+  compilation lourde d'Obscura/V8, Tauri/Wry/Tao, Bun/JSC/WebKit et leurs
+  dépendances moteur. Aphrody garde le code métier et produit, consommateur du
+  runtime précompilé, du SDK léger et des plugins Bun versionnés. Les migrations
+  de sources nécessaires sont autorisées au-delà de la maintenance hors sources.
+  Un lien Cargo vers les sources Yolo ne suffit pas : le build produit doit
+  consommer les artefacts sans reconstruire les moteurs.
 - WASM et FFI au maximum, zéro copie, aucune duplication.
 - Synchronisation des crates, paquets et applications communs avec Aphrody, ainsi que des documents, scripts, tests et de l'infra.
 - Le VFS IEVR est chargé comme plugin Bun natif à travers cette bibliothèque partagée.
@@ -111,8 +118,14 @@ Les chaînes de développement natives :
 
 ## 7. Écarts et préalables
 
-- **Tauri et GUI** : Yolo porte aujourd'hui les crates Tauri, wry et tao, alors que la directive place ce focus dans Aphrody.
-  - Décider le propriétaire de ces sources avant de les déplacer ; Yolo garde les compilateurs d'interface.
+- **Tauri et GUI — arbitrage clos le 2026-10-05, migration ouverte** : Yolo
+  possède les moteurs et leurs builds ; Aphrody conserve les interfaces produit.
+  - R3/R4, les artefacts, le SDK et la migration des consommateurs restent à
+    qualifier avant retrait des anciennes dépendances. Le runtime installé
+    sondé avec `yolo runtime info --json` reste ABI 1.4 sans capacité
+    browser/desktop ; les sources concurrentes ne prouvent pas leur livraison.
+  - Réconcilier les patches Obscura et préserver provenance, permissions et
+    isolation des contextes ; mesurer les gains après qualification du produit.
 - **Python** : `packages/python` est une liaison PyO3 du cœur ; la surface Python IA/ML appartient à `aphrody-py`.
 - **Usine de compilation** : le VPS est runtime-only depuis le 2026-10-03, sans toolchains.
   - Décision du 2026-10-04 : les deux VPS seront réprovisionnés comme usine (compilation, VFS lourds, bases lourdes, IA sur CPU).
