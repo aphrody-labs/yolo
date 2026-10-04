@@ -27,7 +27,8 @@
     "./scaffold": "./src/scaffold/index.ts",
     "./curation": "./src/curation/index.ts",
     "./coord": "./src/coord/index.ts",
-    "./distribution": "./src/distribution/index.ts"
+    "./distribution": "./src/distribution/index.ts",
+    "./units": "./src/units/index.ts"
   },
   "dependencies": {}
 }
