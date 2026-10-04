@@ -86,6 +86,7 @@ live job keeps its handle. Dirty source files are never staged or committed.
 ```sh
 aphrody-ops repo-sync plan --build --json
 aphrody-ops repo-sync watch --apply --build --json
+aphrody-ops repo-sync status --json
 systemctl --user status aphrody-source-sync.service
 ```
 
@@ -99,7 +100,11 @@ Yolo's bounded profile is `bash scripts/release/factory-current.sh`: scoped nati
 check/test/strict Clippy, runtime build, artifact/SDK packaging, compiled CLI,
 and install/deploy smoke. Cargo uses the declared serialization wrapper and
 sccache. A queued build is not a successful build; current status belongs to the
-live job receipt. Rollback acceptance additionally requires a previous compatible
+live job receipt. Native status shows the watcher, safe lifecycle fields and the
+pending SHA for each repository. Restart adoption requires a fresh response from
+the matching worker; an ambiguous launch holds the queue for reconciliation.
+Worker lifecycle receipts remain owned by their worker. Rollback acceptance
+additionally requires a previous compatible
 artifact. See [the synchronization receipt](commit-sync-2026-10-04.json).
 
 The following describes the older full-engine `ship` pipeline. Its unlimited

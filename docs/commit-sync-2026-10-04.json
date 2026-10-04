@@ -64,11 +64,14 @@
     "uv": "0.12.23",
     "globalTypeScriptLintFormatTools": "present",
     "cargoDeny": "absent",
+    "mdbook": "0.5.4 installed from official precompiled crate metadata; compile and quick-install strategies excluded",
     "yoloWorkspace": "/srv/aphrody-build/workspaces/yolo"
   },
   "validation": {
     "factoryPreparation": "15 tests, 132 assertions; real tiny Git repositories and guarded submodules",
     "watcherQueue": "12 tests, 44 assertions; ref events, normal push rejection, divergence, owner lock, live handle preservation, SIGTERM cleanup",
+    "workerIdentityAndNativeStatus": "18 tests, 93 assertions; fresh worker challenge, stale/reused PID and ambiguous launch holds, immutable job ownership, safe read-only status",
+    "workerIdentityScopedTypeScript": "Explicit strict TypeScript source/test invocation passes; package-wide check encounters concurrent native-desktop SDK errors outside this batch",
     "scopedTypeScriptStrictLintFormatWhitespace": "pass",
     "unitVerification": "pass; unrelated pre-existing broken user units emit warnings",
     "installedHelpRegeneration": "59 installed tools, 942 pages; 21 failures, 17 missing, 1 unresolved",

@@ -13,9 +13,11 @@ les implémentations nécessaires ; le périmètre de maintenance hors sources d
 - [x] Corriger les options de scan et le diagnostic de la distribution.
 - [ ] Requalifier runtime ABI 1.4, installer et serveur depuis des assets courants.
 - [x] Réparer le routage natif de la fabrique pour le dépôt Yolo après sondes réelles.
-- [ ] Gates propriétaires, revue, commits et push des seuls chemins possédés.
-- [ ] Synchroniser les commits des trois dépôts vers main et la fabrique SSH,
-  avec suivi des tâches en arrière-plan et compilation automatique sérialisée.
+- [x] Gates propriétaires du lot CLI/synchronisation, revue, commits et push
+  des seuls chemins possédés ; aucune qualification globale déduite.
+- [x] Synchroniser les commits des trois dépôts vers main et la fabrique SSH,
+  avec suivi des tâches en arrière-plan et file de compilation automatique
+  sérialisée. Préparation initiale et résultat des builds encore en cours.
 
 ## Suite conservée
 
