@@ -38,7 +38,7 @@
   },
   "serviceCatalogs": {
     "aphrody": "aphrody:config/service-catalog.json",
-    "aphrody-routes": "aphrody:config/nginx-routes.json",
+    "aphrody-routes": "nginx/routes.json",
     "rg": "rg/service-catalog.json",
     "rg-routes": "rg/nginx-routes.json",
     "nie": "nie/service-catalog.json"
