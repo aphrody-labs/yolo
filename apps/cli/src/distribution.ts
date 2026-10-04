@@ -56,6 +56,11 @@ export function runDoctor(args: readonly string[] = []): number {
     else warn(`${tool.name} not on PATH (Aphrody control plane commands unavailable)`);
   }
 
+  for (const tool of report.codeIntel) {
+    if (tool.found) ok(`${tool.name} on PATH (code intelligence / context reduction)`);
+    else warn(`${tool.name} not on PATH (run Aphrody toolchain-sync to install)`);
+  }
+
   for (const comp of report.components) {
     if (comp.exists) ok(comp.label);
     else if (comp.required) bad(`${comp.label} missing (${comp.path})`);

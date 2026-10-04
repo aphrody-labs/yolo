@@ -22,6 +22,7 @@ export interface DoctorReport {
   readonly hostTarget: string;
   readonly bunVersion: string;
   readonly tools: readonly { name: string; found: boolean }[];
+  readonly codeIntel: readonly { name: string; found: boolean }[];
   readonly components: readonly DoctorComponent[];
   readonly stack: {
     readonly bun: { version: string; ok: boolean };
@@ -54,6 +55,16 @@ export function aphrodyTools(): { name: string; found: boolean }[] {
     name,
     found: Boolean(Bun.which(name)),
   }));
+}
+
+/** Language servers and context-reduction tools (Aphrody `config/infra/toolchain.json` codeIntel). */
+export function codeIntelTools(): { name: string; found: boolean }[] {
+  return ["rust-analyzer", "tsc", "rtk", "serena", "ast-grep-server", "context-mode"].map(
+    (name) => ({
+      name,
+      found: Boolean(Bun.which(name)),
+    }),
+  );
 }
 
 export function collectDoctorReport(): DoctorReport {
@@ -142,6 +153,7 @@ export function collectDoctorReport(): DoctorReport {
     hostTarget: hostTarget(),
     bunVersion: Bun.version,
     tools,
+    codeIntel: codeIntelTools(),
     components,
     stack,
     runtime: runtimeInfo,
