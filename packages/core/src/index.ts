@@ -178,7 +178,11 @@ export {
 
 export {
   AgentWatcher,
+  AutoSyncEngine,
   type AgentWatcherOptions,
   type InterceptedEvent,
   type EndpointStatus,
+  type GitRepoState,
+  type SyncCycleResult,
+  type AutoSyncOptions,
 } from "./monitor";

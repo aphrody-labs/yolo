@@ -119,4 +119,29 @@ describe("Multi-Agent Watcher & Interceptor", () => {
     ).count;
     expect(telemCount).toBeGreaterThanOrEqual(0);
   });
+
+  it("AutoSyncEngine inspects Git state, writes context beacon and caches docs queries", async () => {
+    const { AutoSyncEngine } = await import("../packages/core/src/monitor/auto_sync");
+    const engine = new AutoSyncEngine({
+      sqliteDb: db,
+      trackedRepos: [findRepoRoot()],
+    });
+
+    const gitState = await engine.getGitState(findRepoRoot());
+    expect(gitState.repo).toBeDefined();
+    expect(gitState.branch).toBeDefined();
+
+    const cycleResult = await engine.runSyncCycle();
+    expect(cycleResult.timestamp).toBeDefined();
+    expect(cycleResult.repos[gitState.repo]).toBeDefined();
+    expect(cycleResult.beaconWritten).toBe(true);
+
+    const docResult = await engine.cachedDocQuery(
+      "bun ffi",
+      async () => "bun ffi native fast bindings",
+    );
+    expect(docResult).toBe("bun ffi native fast bindings");
+
+    engine.stop();
+  });
 });
