@@ -17,6 +17,12 @@ Yolo est la **bibliothèque partagée native d'Aphrody**, dans cet ordre de prio
 6. **Compilateur d'interface natif**, compatible Turbopack, WASM, SWC, Rspack, Tailwind CSS et React Compiler.
 7. **Gestion du monorepo** : forks, dépendances, déduplication et nettoyage automatique du code.
 
+Langages (directive du 2026-10-04) :
+
+- **CLI, MCP, API et UI de Yolo** : entièrement en Bun (Aphrody porte les mêmes surfaces en Rust).
+- **IA, LLM, RAG et agents** : Rust, Bun et Python (uv) uniquement.
+- **.NET, C++, C, Go et autres** : le meilleur outil pour le cas d'usage (installation, sources, CLI ou FFI).
+
 ## 2. Qualité du code
 
 Les références sont :
@@ -38,13 +44,25 @@ Les chaînes de développement natives :
   - zig seulement si c'est vraiment nécessaire.
 - **MSYS2 et Cygwin** : remplacés par des équivalents Rust natifs.
 
-## 3. Exposition à Aphrody
+## 3. Moteurs commutables et gestion de paquets
+
+- **Moteurs** : V8, JSC, Tauri et WebGPU sont des interrupteurs (variable d'environnement, configuration, binaire).
+  - Yolo se compile avec ou sans V8, avec ou sans Tauri, avec ou sans WebGPU.
+- **Bun et V8** : explorer Deno, Node, leurs dépendances runtime amont, bibliothèques partagées, issues, PR, forks et documentation.
+  - Objectif : un patch V8 natif dans le fork Bun de Yolo, sur un fork V8 d'Obscura aux dépendances amont précises.
+  - Modèle : le fork WebKit/JSC que Bun a patché et optimisé pour son code interne.
+- **Gestionnaire de paquets unifié** dans le cœur de Yolo : Bun (`bun pm`, `bunx`, `bun add`), uv et Cargo, en natif.
+  - Obscura, Turbopack, Tauri et les autres moteurs sont des paquets optionnels et interchangeables au build, au packaging, au lint et aux tests, comme dans un système POSIX.
+- **Serverless** : Yolo transforme, lint, formate et compile RG et Shenron pour un hébergement serverless (Vercel, Fly.io, Docker ou Coolify après benchmark), en natif serveur et web selon les guides 2026.
+- **Distribution Linux** : quand Yolo, Aphrody, Windows, WSL et les deux VPS sont prêts, recherche approfondie puis fork d'une distribution libre (Rust, Bun ou agents, noyau récent, compatible), pour exploiter son gestionnaire de paquets.
+
+## 4. Exposition à Aphrody
 
 - WASM et FFI au maximum, zéro copie, aucune duplication.
 - Synchronisation des crates, paquets et applications communs avec Aphrody, ainsi que des documents, scripts, tests et de l'infra.
 - Le VFS IEVR est chargé comme plugin Bun natif à travers cette bibliothèque partagée.
 
-## 4. Ordre d'exécution et fin
+## 5. Ordre d'exécution et fin
 
 1. Valider ce GOAL et celui d'Aphrody.
 2. Effectuer un scan complet de `dev` et des sous-modules sur du code commité.
@@ -54,7 +72,7 @@ Les chaînes de développement natives :
    - sous Windows avec MSVC.
 4. Mettre à jour ensuite seulement : README, plan, AGENTS.md, docs, scripts, configuration MCP et plugins.
 
-## 5. État vérifié (2026-10-04)
+## 6. État vérifié (2026-10-04)
 
 | Élément | Constat | Source |
 | --- | --- | --- |
@@ -65,10 +83,12 @@ Les chaînes de développement natives :
 | Python | `packages/python` (uv, PyO3) | `ls packages/python` |
 | Branche | `dev` synchronisée avec `origin/dev` ; le sous-module `plugins` est modifié | `git status -sb` |
 
-## 6. Écarts et préalables
+## 7. Écarts et préalables
 
 - **Tauri et GUI** : Yolo porte aujourd'hui les crates Tauri, wry et tao, alors que la directive place ce focus dans Aphrody.
   - Décider le propriétaire de ces sources avant de les déplacer ; Yolo garde les compilateurs d'interface.
 - **Python** : `packages/python` est une liaison PyO3 du cœur ; la surface Python IA/ML appartient à `aphrody-py`.
 - **Usine de compilation** : le VPS est runtime-only depuis le 2026-10-03, sans toolchains.
+  - Décision du 2026-10-04 : les deux VPS seront réprovisionnés comme usine (compilation, VFS lourds, bases lourdes, IA sur CPU).
+- **Moteurs commutables** : aucun interrupteur V8/Tauri/WebGPU n'existe encore au build ; le gestionnaire unifié Bun/uv/Cargo reste à écrire.
 - **macOS** : compilation seulement, aucune exécution réelle.
