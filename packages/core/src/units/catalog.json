@@ -199,10 +199,7 @@
         "Description": "Shenron dbfr read-only native Markdown Drive projection and memory reconciliation",
         "After": "network-online.target",
         "Wants": "network-online.target",
-        "ConditionPathExists": [
-          "%h/.aphrody/workspaces/dbfr",
-          "%h/aphrody/.env"
-        ]
+        "ConditionPathExists": ["%h/.aphrody/workspaces/dbfr", "%h/aphrody/.env"]
       },
       "service": {
         "WorkingDirectory": "%h/aphrody",
@@ -267,10 +264,7 @@
         "Description": "Verified resumable backup of dbfr Shenron trained models and datasets",
         "After": "network-online.target",
         "Wants": "network-online.target",
-        "ConditionPathExists": [
-          "%h/aphrody/.env",
-          "%h/.aphrody/private/shenron/home/models"
-        ],
+        "ConditionPathExists": ["%h/aphrody/.env", "%h/.aphrody/private/shenron/home/models"],
         "StartLimitIntervalSec": "900",
         "StartLimitBurst": "5"
       },
