@@ -262,6 +262,15 @@ export class NativeRedisClient {
     return (await this.sendCommand("SMEMBERS", key)) || [];
   }
 
+  async srem(key: string, ...members: string[]): Promise<number> {
+    if (members.length === 0) return 0;
+    return this.sendCommand("SREM", key, ...members);
+  }
+
+  async scard(key: string): Promise<number> {
+    return this.sendCommand("SCARD", key);
+  }
+
   async publish(channel: string, message: string): Promise<number> {
     return this.sendCommand("PUBLISH", channel, message);
   }

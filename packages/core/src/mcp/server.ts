@@ -26,6 +26,17 @@ import { scanDirectory } from "../vfs/scan";
 import { scanLinks, estimateReclaim } from "../fleet/space";
 import { collectDoctorReport } from "../sys/doctor";
 import { yoloHome } from "../vfs/home";
+import {
+  getGemma4Config,
+  estimateGemma4Memory,
+  formatGemma4ChatPrompt,
+  computeKVCacheFootprintBytes,
+  generateDeterministicEmbedding,
+  type Gemma4Message,
+} from "../gemma4/index";
+import { NativeRedisClient } from "../redis/client";
+import { RedisVectorStore } from "../redis/vector";
+import { RedisTrainDb } from "../redis/traindb";
 
 export const DEFAULT_MCP_PROTOCOL_VERSION = "2024-11-05";
 export const SUPPORTED_MCP_PROTOCOL_VERSIONS = ["2024-11-05", "2025-06-18"] as const;
@@ -155,6 +166,89 @@ export const TOOLS: readonly ToolDefinition[] = [
       required: ["dir"],
     },
   },
+  {
+    name: "yolo_gemma4_status",
+    description:
+      "Inspect Google DeepMind Gemma 4 architecture specs, sliding window attention, KV cache size, and VRAM memory estimates for edge models (e2b, e4b, 26b, 31b).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        model: {
+          type: "string",
+          description:
+            "Model variant: 'gemma4-e2b' (smallest, default), 'gemma4-e4b', 'gemma4-26b-a4b-moe', 'gemma4-31b'",
+        },
+        seqLen: {
+          type: "number",
+          description: "Sequence length for KV cache estimation (default: 512)",
+        },
+      },
+    },
+  },
+  {
+    name: "yolo_gemma4_prompt",
+    description:
+      "Format conversational turns with optional thought traces and multimodal tags into Google DeepMind Gemma 4 canonical chat template.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        system: {
+          type: "string",
+          description: "Optional system prompt instruction",
+        },
+        user: {
+          type: "string",
+          description: "User prompt message",
+        },
+        thought: {
+          type: "string",
+          description: "Optional model thought trace",
+        },
+        imageCount: {
+          type: "number",
+          description: "Number of <image> tokens to prepend",
+        },
+      },
+      required: ["user"],
+    },
+  },
+  {
+    name: "yolo_vector_search",
+    description:
+      "Perform high-speed K-Nearest-Neighbors (KNN) vector similarity search in Redis Vector Store using Gemma 4 embeddings.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Query text to embed and search",
+        },
+        namespace: {
+          type: "string",
+          description: "Vector index namespace (default: 'default')",
+        },
+        topK: {
+          type: "number",
+          description: "Number of top results to return (default: 5)",
+        },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "yolo_traindb_stats",
+    description:
+      "Retrieve training dataset statistics, sample counts, and splits from Redis Train DB.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        dataset: {
+          type: "string",
+          description: "Dataset partition name (default: 'default')",
+        },
+      },
+    },
+  },
 ];
 
 export async function executeTool(
@@ -274,6 +368,96 @@ export async function executeTool(
         dir: args.dir,
         recordsCount: records.length,
         reclaim,
+      };
+    }
+
+    case "yolo_gemma4_status": {
+      const modelName = typeof args.model === "string" ? args.model : "gemma4-e2b";
+      const seqLen = typeof args.seqLen === "number" ? args.seqLen : 512;
+      const config = getGemma4Config(modelName);
+      const memory = estimateGemma4Memory(config);
+      const kvCache = computeKVCacheFootprintBytes(config, 1, seqLen);
+      return {
+        schema: "yolo.gemma4.status/1",
+        model: config.name,
+        isSmallestEdgeModel: config.name === "gemma4-e2b",
+        architecture: {
+          vocabSize: config.vocabSize,
+          embedDim: config.embedDim,
+          hiddenDim: config.hiddenDim,
+          numLayers: config.numLayers,
+          numHeads: config.numHeads,
+          numKvHeads: config.numKvHeads,
+          slidingWindowSize: config.slidingWindowSize,
+          finalLogitSoftcap: config.finalLogitSoftcap,
+          enableMoe: config.enableMoe,
+          hasVision: Boolean(config.visionEncoder),
+          hasAudio: Boolean(config.audioEncoder),
+        },
+        memory: {
+          paramCountEst: memory.paramCount,
+          weightMemoryMbBf16: memory.memoryMb,
+          kvCacheFootprintBytes: kvCache.totalBytes,
+          kvCacheFootprintMb: kvCache.totalMb,
+        },
+      };
+    }
+
+    case "yolo_gemma4_prompt": {
+      if (typeof args.user !== "string") {
+        throw new Error("Missing required argument: 'user'");
+      }
+      const messages: Gemma4Message[] = [];
+      if (typeof args.system === "string" && args.system) {
+        messages.push({ role: "system", content: args.system });
+      }
+      messages.push({
+        role: "user",
+        content: args.user,
+        imageCount: typeof args.imageCount === "number" ? args.imageCount : undefined,
+      });
+      if (typeof args.thought === "string" && args.thought) {
+        messages.push({
+          role: "model",
+          content: "",
+          thought: args.thought,
+        });
+      }
+      const formatted = formatGemma4ChatPrompt(messages);
+      return {
+        schema: "yolo.gemma4.prompt/1",
+        formattedPrompt: formatted,
+        length: formatted.length,
+      };
+    }
+
+    case "yolo_vector_search": {
+      if (typeof args.query !== "string") {
+        throw new Error("Missing required argument: 'query'");
+      }
+      const namespace = typeof args.namespace === "string" ? args.namespace : "default";
+      const topK = typeof args.topK === "number" ? args.topK : 5;
+      const client = new NativeRedisClient();
+      const store = new RedisVectorStore(client, namespace);
+      const queryVec = generateDeterministicEmbedding(args.query);
+      const results = await store.query(queryVec, topK);
+      return {
+        schema: "yolo.vector.search/1",
+        query: args.query,
+        namespace,
+        topK,
+        results,
+      };
+    }
+
+    case "yolo_traindb_stats": {
+      const dataset = typeof args.dataset === "string" ? args.dataset : "default";
+      const client = new NativeRedisClient();
+      const db = new RedisTrainDb(client, dataset);
+      const stats = await db.getStats();
+      return {
+        schema: "yolo.traindb.stats/1",
+        ...stats,
       };
     }
 

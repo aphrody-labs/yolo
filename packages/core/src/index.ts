@@ -34,6 +34,7 @@ export * as distribution from "./distribution";
 export * as ledger from "./ledger";
 export * as redis from "./redis";
 export * as monitor from "./monitor";
+export * as gemma4 from "./gemma4";
 
 // Direct flat exports of core capabilities
 export {
@@ -172,9 +173,39 @@ export {
 export {
   NativeRedisClient,
   indexCodebaseToRedis,
+  RedisVectorStore,
+  RedisTrainDb,
   type RedisOptions,
   type IndexResult,
+  type VectorDocument,
+  type VectorSearchResult,
+  type TrainInstruction,
+  type TrainTriple,
 } from "./redis";
+
+export {
+  GEMMA4_E2B_CONFIG,
+  GEMMA4_E4B_CONFIG,
+  GEMMA4_26B_A4B_MOE_CONFIG,
+  GEMMA4_31B_CONFIG,
+  GEMMA4_MODELS,
+  GEMMA4_SPECIAL_TOKENS,
+  getGemma4Config,
+  estimateGemma4Memory,
+  formatGemma4ChatPrompt,
+  parseGemma4Response,
+  cosineSimilarity,
+  euclideanDistance,
+  normalizeL2,
+  generateDeterministicEmbedding,
+  computeKVCacheFootprintBytes,
+  UnifiedInferenceEngine,
+  type Gemma4Config,
+  type Gemma4Message,
+  type InferenceBackend,
+  type UnifiedInferenceRequest,
+  type UnifiedInferenceResponse,
+} from "./gemma4";
 
 export {
   AgentWatcher,
