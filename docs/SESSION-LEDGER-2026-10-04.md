@@ -25,3 +25,9 @@
 2. **C-ABI Suite :** 28 pass, 0 fail en 0.49s.
 3. **Core SIMD Rayon :** 1 000 000 floats en 60.99ms (16.4M ops/sec).
 4. **CUDA Hardware :** NVIDIA RTX 4070 (12.28 GB VRAM) validé.
+
+## Config dedup phase 1 (2026-10-04)
+
+- Audit: tracked config-file counts before/after recorded in aphrody `docs/migration/CONFIG-DEDUP-2026-10-04.md`.
+- yolo: -19 rustfmt.toml (identical to root), -20 plugin android/ios .gitignore merged into root; 276 pass, 0 fail.
+- aphrody: -6 retired systemd examples, -1 verifier script, -6 `config/shenron` mirror configs. iecode: -7 inactive upstream CI files.

@@ -64,3 +64,17 @@ Thumbs.db
 
 # Per-machine plugin store (absolute local path)
 /.agents/plugins.json
+
+# Tauri plugin native projects (merged from per-plugin android/ios .gitignore files)
+/crates/aphrody-tauri-plugin-*/android/build
+/crates/aphrody-tauri-plugin-*/android/.tauri
+/crates/aphrody-tauri-plugin-*/ios/.build
+/crates/aphrody-tauri-plugin-*/ios/Packages
+/crates/aphrody-tauri-plugin-*/ios/*.xcodeproj
+/crates/aphrody-tauri-plugin-*/ios/xcuserdata/
+/crates/aphrody-tauri-plugin-*/ios/DerivedData/
+/crates/aphrody-tauri-plugin-*/ios/.swiftpm/config/registries.json
+/crates/aphrody-tauri-plugin-*/ios/.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+/crates/aphrody-tauri-plugin-*/ios/.netrc
+/crates/aphrody-tauri-plugin-*/ios/Package.resolved
+.DS_Store
