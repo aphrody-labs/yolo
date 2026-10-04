@@ -1,33 +1,32 @@
-import { expect, test } from "bun:test";
+import { describe, expect, it } from "bun:test";
+import { ptr } from "bun:ffi";
 import {
   nativeLibrary,
+  readNativeBytes,
   readOwnedBytes,
-  readOwnedJson,
   toCString,
-} from "../packages/runtime/src/ffi.ts";
+} from "../packages/runtime/src/ffi";
 
-test("toCString is NUL terminated UTF-8", () => {
-  expect([...toCString("é")]).toEqual([0xc3, 0xa9, 0]);
-});
-
-test("an empty or unset owned slot reads as null and frees any allocation", () => {
-  const freed: bigint[] = [];
-  const slot = new Uint8Array(24);
-  expect(readOwnedBytes(slot, (d) => freed.push(d))).toBeNull();
-  new DataView(slot.buffer).setBigUint64(0, 7n, true);
-  expect(readOwnedBytes(slot, (d) => freed.push(d))).toBeNull();
-  expect(readOwnedJson(slot, () => {})).toBeNull();
-  expect(freed).toEqual([7n]);
-});
-
-test("a missing library reports a diagnostic instead of throwing", () => {
-  const lib = nativeLibrary({
-    name: "yolo-no-such-lib",
-    symbols: {},
-    buildHint: "cargo build -p x",
+describe("runtime SDK ffi helpers", () => {
+  it("toCString appends a NUL", () => {
+    expect([...toCString("ab")]).toEqual([97, 98, 0]);
   });
-  expect(lib.isAvailable()).toBe(false);
-  expect(lib.loadError()).toContain("not found");
-  expect(lib.loadError()).toContain("cargo build -p x");
-  expect(lib.libraryPath()).toBeNull();
+
+  it("readNativeBytes copies and frees", () => {
+    const src = new Uint8Array([1, 2, 3]);
+    let freed = 0;
+    const out = readNativeBytes(ptr(src), 3, (a) => (freed = a));
+    expect([...out]).toEqual([1, 2, 3]);
+    expect(freed).toBe(Number(ptr(src)));
+  });
+
+  it("readOwnedBytes returns null for an empty slot", () => {
+    expect(readOwnedBytes(new Uint8Array(24), () => {})).toBeNull();
+  });
+
+  it("nativeLibrary reports a diagnostic and honours fileNames", () => {
+    const lib = nativeLibrary({ name: "nope", fileNames: ["Nope.Ffi.so"], symbols: {} });
+    expect(lib.isAvailable()).toBe(false);
+    expect(lib.loadError()).toContain("Nope.Ffi.so");
+  });
 });

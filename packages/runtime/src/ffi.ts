@@ -69,9 +69,28 @@ export function readOwnedJson<T = unknown>(
   }
 }
 
+/**
+ * Copy `len` bytes at a native address and release the allocation through `free(address)`.
+ * For C ABIs returning `(ptr, len)` through separate out-parameters.
+ */
+export function readNativeBytes(
+  address: number | bigint,
+  len: number,
+  free: (address: number) => void,
+): Uint8Array {
+  const addr = Number(address);
+  try {
+    return new Uint8Array(toArrayBuffer(addr as unknown as Pointer, 0, len)).slice();
+  } finally {
+    free(addr);
+  }
+}
+
 export interface NativeLibraryOptions<S extends Record<string, FFIFunction>> {
   /** Library base name without prefix or suffix, e.g. `iecode` for `libiecode.so`. */
   name: string;
+  /** Exact file name (or per-platform file names) overriding `lib<name>.<suffix>`, e.g. .NET NativeAOT `IECODE.Ffi.so`. */
+  fileNames?: readonly string[];
   symbols: S;
   /** Environment variables naming an explicit library file, checked first, in order. */
   envPaths?: readonly string[];
@@ -94,8 +113,10 @@ export interface NativeLibrary<S extends Record<string, FFIFunction>> {
 export function nativeLibrary<S extends Record<string, FFIFunction>>(
   options: NativeLibraryOptions<S>,
 ): NativeLibrary<S> {
-  const file =
+  const defaultFile =
     process.platform === "win32" ? `${options.name}.dll` : `lib${options.name}.${suffix}`;
+  const files = options.fileNames?.length ? options.fileNames : [defaultFile];
+  const file = files[0]!;
   let attempted = false;
   let symbols: ReturnType<typeof dlopen<S>>["symbols"] | null = null;
   let error: string | null = null;
@@ -106,11 +127,12 @@ export function nativeLibrary<S extends Record<string, FFIFunction>>(
       const value = process.env[env];
       if (value && existsSync(value)) return value;
     }
-    const candidates = [
-      resolve(dirname(process.execPath), file),
-      resolve(homedir(), ".local/bin", file),
-      ...(options.searchDirs ?? []).map((dir) => resolve(dir, file)),
+    const dirs = [
+      dirname(process.execPath),
+      resolve(homedir(), ".local/bin"),
+      ...(options.searchDirs ?? []),
     ];
+    const candidates = dirs.flatMap((dir) => files.map((name) => resolve(dir, name)));
     return candidates.find((candidate) => existsSync(candidate)) ?? null;
   };
   const load = () => {
