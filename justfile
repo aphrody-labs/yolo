@@ -219,3 +219,13 @@ index-redis:
 
 interceptor-daemon:
     bun run scripts/agent_interceptor_daemon.ts
+
+# Plugins Management & Auditing
+plugin-status:
+    bun run apps/cli/src/index.ts plugin status
+
+plugin-check:
+    bun run apps/cli/src/index.ts plugin check
+
+plugin-purge:
+    bun run apps/cli/src/index.ts plugin purge
