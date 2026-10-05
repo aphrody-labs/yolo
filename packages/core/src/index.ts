@@ -38,6 +38,7 @@ export * as gemma4 from "./gemma4";
 export * as host from "./host";
 export * as units from "./units";
 export * as pm from "./pm";
+export * as python from "./python";
 export {
   planPackageSync,
   syncPackages,
