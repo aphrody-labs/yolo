@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 import { FFIType, suffix, type Pointer } from "bun:ffi";
 import { existsSync } from "node:fs";
-import { basename, dirname, isAbsolute, join } from "node:path";
+import { homedir } from "node:os";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { nativeLibrary, readNativeString, toCString, type NativeLibrary } from "./ffi.ts";
 import type { Finding, N2BReport } from "./tooling-schema.ts";
 
@@ -160,6 +161,16 @@ export class NativeTooling {
         name: "yolo_tooling",
         symbols: SYMBOLS,
         ...(path === undefined ? {} : { path }),
+        searchDirs: [
+          resolve(homedir(), ".yolo/runtime"),
+          resolve(homedir(), ".local/lib"),
+          resolve(process.cwd(), "target/release"),
+          resolve(process.cwd(), "target/debug"),
+          resolve(homedir(), "yolo/target/release"),
+          resolve(homedir(), "yolo/target/debug"),
+          resolve(homedir(), "aphrody/target/release"),
+          resolve(homedir(), "aphrody/target/debug"),
+        ],
         buildHint:
           "Install the qualified optional yolo-tooling provider or select YOLO_TOOLING_LIB.",
       });
